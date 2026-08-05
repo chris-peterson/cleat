@@ -1,0 +1,24 @@
+# Source of record for cleat's hooks — shipyard generates hooks.json.
+#
+# All three registrations point at the same pure-bash prefilter rather than at
+# the python CLI. Read is the highest-frequency tool in a session, so the common
+# path has to cost a bash process and nothing more; the prefilter execs the CLI
+# only for a payload that names a file cleat has an opinion about.
+#
+# The per-event jobs, all dispatched inside `cleat hook` on hook_event_name:
+#   PreToolUse  Write|Edit  gate a CLAUDE.md write in a repo with no AGENTS.md
+#   PostToolUse Write|Edit  report near-miss shapes for in-turn repair
+#   PostToolUse Read        guide bootstrapping where the convention is absent
+hooks:
+  - event: PreToolUse
+    matcher: 'Write|Edit'
+    command: 'bash "${CLAUDE_PLUGIN_ROOT}/hooks/prefilter.sh"'
+    description: Runs the cleat CLI only for a payload naming an agent instruction file.
+  - event: PostToolUse
+    matcher: 'Write|Edit'
+    command: 'bash "${CLAUDE_PLUGIN_ROOT}/hooks/prefilter.sh"'
+    description: Runs the cleat CLI only for a payload naming an agent instruction file.
+  - event: PostToolUse
+    matcher: 'Read'
+    command: 'bash "${CLAUDE_PLUGIN_ROOT}/hooks/prefilter.sh"'
+    description: Runs the cleat CLI only for a payload naming an agent instruction file.

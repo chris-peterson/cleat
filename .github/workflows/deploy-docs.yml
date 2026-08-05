@@ -1,0 +1,17 @@
+name: Deploy docs
+
+# Delegates to shipyard's reusable docs deploy. Pages permissions are granted
+# here because reusable-workflow permissions are capped by the caller's token.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    uses: chris-peterson/shipyard/.github/workflows/deploy-docs.yml@v1
