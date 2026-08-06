@@ -1,0 +1,8 @@
+# `shipyard build-docs` projects these into docs/ from plugin.yml, SPEC.md, and
+# guides/; docs/README.md, docs/_sidebar.md, and docs/favicon.svg are the source.
+docs/index.html
+docs/plugin-docs.json
+docs/spec.md
+docs/guides/
+__pycache__
+.DS_Store

@@ -1,0 +1,3 @@
+- [Home](/)
+- [Rubric](/guides/agents-vs-claude)
+- [SPEC](/spec)

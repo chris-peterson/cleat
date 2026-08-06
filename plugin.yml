@@ -1,0 +1,56 @@
+# Canonical descriptor for the cleat plugin — edit here, never plugin.json.
+# Projects into .claude-plugin/plugin.json (via shipyard gen-plugin-json) and
+# the marketplace SPA (the suite: block).
+
+name: cleat
+version: 0.1.0
+description: Keep a repo's agent instructions in one AGENTS.md that every tool reads, with CLAUDE.md reduced to a pointer at it.
+author: chris-peterson
+repository: https://github.com/chris-peterson/cleat
+keywords: [agents-md, claude-md, conventions, hooks, claude-code]
+license: MIT
+
+# → marketplace.json entry
+marketplace:
+  category: development
+  homepage: https://chris-peterson.github.io/cleat/#/
+
+# → marketplace SPA; keys mirror the SPA's PLUGINS object.
+suite:
+  group: record
+  # Three hooks are the whole plugin — no commands, no skills, no SessionStart
+  # output. Nothing resident in session context, and nothing to remember to run.
+  activations: [agent]
+  gloss: The fitting on a dock that a line is made fast to.
+  pitch: "Trying Cursor or Codex alongside Claude? Write your project's instructions once, in the file all of them read."
+  what: "Teams evaluating AI coding tools are rarely on one. AGENTS.md is the file about 30 of them read; Claude Code reads CLAUDE.md and nothing else, so guidance kept in either one alone reaches half your tools. cleat holds a repo in the one shape that satisfies both — the body of the guidance in AGENTS.md, with CLAUDE.md a pointer that imports it. Writing a full CLAUDE.md into a repo with no AGENTS.md gets stopped and split in two; a near-miss shape gets reported so it's repaired in the same turn; a repo carrying no agent guidance at all gets an offer to start one."
+  # >>> shipyard:describe — generated from source by `shipyard gen-describe`; do not edit >>>
+  describe:
+    hooks:
+      hooks: 'Hook wiring: PreToolUse→prefilter (Write|Edit); PostToolUse→prefilter (Write|Edit, Read).'
+      prefilter: PreToolUse / PostToolUse — Runs the cleat CLI only for a payload naming an agent instruction file.
+  # <<< shipyard:describe <<<
+  # cleat has no slash commands, so the examples are anchored on the two moments
+  # a user actually sees it act: the write gate, and bootstrap guidance on read.
+  examples:
+    - label: "Writing a CLAUDE.md"
+      ac: "--guard"
+      frames:
+        - { t: you, text: "Set up agent instructions for this repo" }
+        - { t: claude, text: "I started writing CLAUDE.md and cleat stopped it — this repo has no AGENTS.md, so that guidance would only reach Claude Code. Splitting it: the build and test commands and the domain glossary go in AGENTS.md, and CLAUDE.md becomes a pointer at it plus the two hook notes that really are Claude-specific." }
+        - { t: status, text: "one round trip; the content is re-issued, not regenerated" }
+    - label: "Opening a repo with no guidance"
+      ac: "--green"
+      frames:
+        - { t: you, text: "What does this service do?" }
+        - { t: claude, text: "Reading the README — and cleat notes this repo has neither AGENTS.md nor CLAUDE.md, so no agent starts here with any context. Want me to write an AGENTS.md from what I learn, with a CLAUDE.md pointer?" }
+        - { t: status, text: "fires once per session per directory, never twice" }
+  session:
+    - { t: claude, text: "This repo's agent guidance is 95 lines of CLAUDE.md, and AGENTS.md is a five-line stub pointing back at it — so Cursor and Codex get the stub." }
+    - { t: event, text: "cleat reports: inverted — AGENTS.md points at CLAUDE.md" }
+    - { t: cmd, cmd: "flip it", out: "AGENTS.md now carries the 95 lines · CLAUDE.md is a link plus @AGENTS.md · cleat check clean" }
+    - { t: note, text: "From here on, a write that would re-invert it doesn't land." }
+
+docs:
+  code_languages: [bash, json, yaml, markdown]
+  mermaid: true

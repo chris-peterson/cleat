@@ -1,0 +1,638 @@
+#!/usr/bin/env python3
+"""cleat — hold a repo's agent instructions in one AGENTS.md, with CLAUDE.md a pointer.
+
+    cleat check [DIR] [--json]   report DIR's findings; exit 1 on any error finding
+    cleat hook                   read a hook payload on stdin, decide, emit
+
+python3 standard library only. This runs from a hook, where an import error is a
+silent failure.
+
+The division of labour: this script decides *facts* — which files exist, whether
+the ref is present, whether two files duplicate each other. What counts as
+tool-agnostic is a judgment call, so the deny reason carries the rubric in short
+form and names guides/agents-vs-claude.md for the long one.
+"""
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import pathlib
+import re
+import shutil
+import sys
+import time
+
+AGENTS = "AGENTS.md"
+CLAUDE = "CLAUDE.md"
+
+# Single-tool instruction files. Whatever guidance they hold, the other tools
+# ignore it. `.cursor/rules` is a directory of them.
+FOREIGN_CONFIGS = (
+    ".cursorrules",
+    ".cursor/rules",
+    ".github/copilot-instructions.md",
+    ".windsurfrules",
+    "GEMINI.md",
+)
+
+ERROR = "error"
+ADVISORY = "advisory"
+
+# `@AGENTS.md` is what makes Claude Code load the file; the markdown link above
+# it is for humans. Accept the ./-prefixed spelling of either direction.
+REF = re.compile(r"@\.?/?AGENTS\.md\b")
+BACKREF = re.compile(r"@\.?/?CLAUDE\.md\b")
+
+# An AGENTS.md this short that mentions CLAUDE.md is a stub pointing back at it,
+# not a document that happens to discuss the file.
+STUB_MAX_LINES = 12
+# Under this length a shared line is boilerplate — a link, a fence, a one-word
+# bullet — rather than duplicated guidance.
+DUP_MIN_CHARS = 40
+# Session state outlives its session only long enough to be uninteresting.
+SESSION_TTL_SECONDS = 7 * 24 * 60 * 60
+
+RUBRIC = pathlib.Path(__file__).resolve().parent.parent / "guides" / "agents-vs-claude.md"
+
+POINTER = """Agent instructions live in [AGENTS.md](./AGENTS.md).
+
+@AGENTS.md
+"""
+
+
+# ---- findings ---------------------------------------------------------------
+
+class Finding:
+    __slots__ = ("code", "severity", "path", "message", "repair")
+
+    def __init__(self, code, severity, path, message, repair):
+        self.code = code
+        self.severity = severity
+        self.path = path
+        self.message = message
+        self.repair = repair
+
+    def as_dict(self):
+        return {
+            "code": self.code,
+            "severity": self.severity,
+            "path": self.path,
+            "message": self.message,
+            "repair": self.repair,
+        }
+
+
+def _read(path):
+    """Text of path, or "" when it isn't there. A file that exists but can't be
+    read is a hard error — guessing at its content would produce a wrong verdict."""
+    if not path.is_file():
+        return ""
+    try:
+        return path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise RuntimeError("cannot read {}: {}".format(path, exc))
+
+
+def _substantive(text):
+    return bool(text.strip())
+
+
+def _norm(line):
+    return " ".join(line.split()).lower()
+
+
+def _classify(text):
+    """(headings, body-lines) of text, normalized. Fenced blocks count as body —
+    a copied command block is duplicated guidance — but a `#` comment inside one
+    is not a heading."""
+    headings = set()
+    body = set()
+    fenced = False
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            fenced = not fenced
+            continue
+        norm = _norm(line)
+        if not norm:
+            continue
+        if not fenced and stripped.startswith("#"):
+            headings.add(_norm(stripped.lstrip("#")))
+        elif len(norm) >= DUP_MIN_CHARS:
+            body.add(norm)
+    return headings, body
+
+
+def _is_backpointer(agents_text):
+    """Whether AGENTS.md points at CLAUDE.md rather than carrying the guidance."""
+    if BACKREF.search(agents_text):
+        return True
+    lines = [line for line in agents_text.splitlines() if line.strip()]
+    return len(lines) <= STUB_MAX_LINES and CLAUDE in agents_text
+
+
+def _foreign_findings(root):
+    out = []
+    for rel in FOREIGN_CONFIGS:
+        target = root / rel
+        present = any(target.iterdir()) if target.is_dir() else target.is_file()
+        if not present:
+            continue
+        out.append(Finding(
+            "foreign-config", ERROR, rel,
+            "{} holds guidance only one tool reads".format(rel),
+            "consolidate it into {}; leave behind only what is genuinely "
+            "tool-specific".format(AGENTS),
+        ))
+    return out
+
+
+def _duplication_findings(claude_text, agents_text):
+    claude_headings, claude_body = _classify(claude_text)
+    agents_headings, agents_body = _classify(agents_text)
+
+    shared_body = sorted(claude_body & agents_body)
+    if shared_body:
+        return [Finding(
+            "duplicated", ERROR, CLAUDE,
+            "{} line(s) of guidance appear in both files and will drift "
+            "apart".format(len(shared_body)),
+            "delete them from {}; {} is canonical".format(CLAUDE, AGENTS),
+        )]
+
+    shared_headings = sorted(claude_headings & agents_headings)
+    if shared_headings:
+        return [Finding(
+            "duplicated", ADVISORY, CLAUDE,
+            "both files carry the heading(s) {}".format(
+                ", ".join(repr(h) for h in shared_headings)),
+            "check whether the sections beneath them say the same thing; if so "
+            "keep only {}'s".format(AGENTS),
+        )]
+    return []
+
+
+def findings_for(root):
+    """Every finding for a single directory, most structural first."""
+    root = pathlib.Path(root)
+    claude_text = _read(root / CLAUDE)
+    agents_text = _read(root / AGENTS)
+    # A file that exists but is blank loads nothing, so presence is measured by
+    # content rather than by the directory entry.
+    has_claude = _substantive(claude_text)
+    has_agents = _substantive(agents_text)
+
+    out = []
+    if not has_claude and not has_agents:
+        out.append(Finding(
+            "unguided", ADVISORY, str(root),
+            "neither {} nor {} — no agent starts here with project "
+            "context".format(AGENTS, CLAUDE),
+            "write {}, then a {} holding the link and the @{} ref".format(
+                AGENTS, CLAUDE, AGENTS),
+        ))
+    elif has_claude and not has_agents:
+        out.append(Finding(
+            "no-agents", ERROR, CLAUDE,
+            "the guidance is in {} with no {} — every tool but Claude Code "
+            "gets nothing".format(CLAUDE, AGENTS),
+            "move the tool-agnostic body to {} and leave {} as the "
+            "pointer".format(AGENTS, CLAUDE),
+        ))
+    elif has_agents and not has_claude:
+        out.append(Finding(
+            "no-claude", ERROR, AGENTS,
+            "{} exists with no {} — Claude Code does not read {}, so it loads "
+            "none of this".format(AGENTS, CLAUDE, AGENTS),
+            "add a {} carrying the link and @{} on its own line".format(
+                CLAUDE, AGENTS),
+        ))
+
+    inverted = has_agents and _is_backpointer(agents_text)
+    if inverted:
+        out.append(Finding(
+            "inverted", ERROR, AGENTS,
+            "{} is a stub pointing back at {}, so every non-Claude tool gets "
+            "the stub".format(AGENTS, CLAUDE),
+            "swap them: the body belongs in {}, and {} becomes the "
+            "pointer".format(AGENTS, CLAUDE),
+        ))
+
+    # An inversion always lacks the ref too; its repair covers both, so reporting
+    # no-ref alongside it would just be the same fix said twice.
+    if has_claude and has_agents and not inverted and not REF.search(claude_text):
+        out.append(Finding(
+            "no-ref", ERROR, CLAUDE,
+            "{} carries no @{} ref, so Claude Code loads none of "
+            "{}".format(CLAUDE, AGENTS, AGENTS),
+            "add @{} on its own line; a markdown link alone does not import "
+            "it".format(AGENTS),
+        ))
+
+    if has_claude and has_agents:
+        out.extend(_duplication_findings(claude_text, agents_text))
+    out.extend(_foreign_findings(root))
+    return out
+
+
+def has_errors(findings):
+    return any(f.severity == ERROR for f in findings)
+
+
+def render(findings):
+    if not findings:
+        return ""
+    # Wide enough that the longest code still has a gap after it.
+    width = max(len(f.code) for f in findings) + 2
+    lines = []
+    for f in findings:
+        suffix = " (advisory)" if f.severity == ADVISORY else ""
+        lines.append("{}{}{}".format(f.code.ljust(width), f.message, suffix))
+        lines.append("{}-> {}".format(" " * width, f.repair))
+    return "\n".join(lines)
+
+
+# ---- session state ----------------------------------------------------------
+#
+# The gate's re-issue record, the nudge's last-reported finding set, and the
+# bootstrap triggers already fired are all per-session, so they live under one
+# session directory and vanish with it.
+
+def _state_root():
+    env = os.environ.get("CLAUDE_PLUGIN_DATA")
+    if env:
+        return pathlib.Path(env)
+    # The same canonical path computed the other way: Claude Code names a
+    # plugin's data dir <plugin>-<owner>.
+    return pathlib.Path.home() / ".claude" / "plugins" / "data" / "cleat-chris-peterson"
+
+
+def _key(*parts):
+    digest = hashlib.sha256()
+    for part in parts:
+        digest.update(str(part).encode("utf-8"))
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def _prune_sessions(sessions):
+    cutoff = time.time() - SESSION_TTL_SECONDS
+    try:
+        stale = [d for d in sessions.iterdir() if d.is_dir() and d.stat().st_mtime < cutoff]
+    except OSError:
+        return
+    for d in stale:
+        shutil.rmtree(d, ignore_errors=True)
+
+
+def _session_dir(session_id, bucket):
+    sessions = _state_root() / "sessions"
+    session = sessions / (_key(session_id)[:32] if session_id else "unknown")
+    if not session.exists() and sessions.is_dir():
+        _prune_sessions(sessions)
+    target = session / bucket
+    target.mkdir(parents=True, exist_ok=True)
+    return target
+
+
+def _claim(session_id, bucket, name):
+    """True when this marker was already set — consuming it."""
+    marker = _session_dir(session_id, bucket) / name
+    if marker.exists():
+        marker.unlink()
+        return True
+    return False
+
+
+def _mark(session_id, bucket, name, body=""):
+    (_session_dir(session_id, bucket) / name).write_text(body, encoding="utf-8")
+
+
+def _marked(session_id, bucket, name):
+    marker = _session_dir(session_id, bucket) / name
+    return marker.read_text(encoding="utf-8") if marker.is_file() else None
+
+
+def _unmark(session_id, bucket, name):
+    marker = _session_dir(session_id, bucket) / name
+    if marker.exists():
+        marker.unlink()
+
+
+# ---- hook: shared -----------------------------------------------------------
+
+def _resolved(path):
+    try:
+        return pathlib.Path(path).resolve()
+    except OSError:
+        return pathlib.Path(path)
+
+
+def _under_user_claude(path):
+    """User-scope memory under ~/.claude is Claude-specific by nature."""
+    base = _resolved(pathlib.Path.home() / ".claude")
+    target = _resolved(path)
+    return target == base or base in target.parents
+
+
+def _repo_root(directory):
+    """The enclosing git work tree, resolved, or None. Used to tell a repo's root
+    README from one sitting in a subdirectory."""
+    resolved = _resolved(directory)
+    for candidate in [resolved] + list(resolved.parents):
+        if (candidate / ".git").exists():
+            return candidate
+    return None
+
+
+def _written_content(tool, path, tool_input):
+    """The content the tool is about to leave on disk, or None when it can't be
+    determined from the payload."""
+    if tool == "Write":
+        content = tool_input.get("content")
+        return content if isinstance(content, str) else None
+    if tool == "Edit":
+        old = tool_input.get("old_string")
+        new = tool_input.get("new_string")
+        if not isinstance(old, str) or not isinstance(new, str):
+            return None
+        current = _read(path)
+        if not current:
+            return None
+        count = -1 if tool_input.get("replace_all") else 1
+        return current.replace(old, new, count)
+    return None
+
+
+# ---- hook: the write gate ---------------------------------------------------
+
+DENY_REASON = """cleat: this directory has no {agents}, so a {claude} carrying the guidance would \
+reach Claude Code and nothing else. Around 30 other agent tools read {agents} and \
+never look at {claude}.
+
+Re-issue this as two writes:
+
+  1. {agents_path} — the tool-agnostic body: what the project does, its build and \
+test commands, layout, conventions, glossary, architecture constraints.
+  2. {claude_path} — the pointer, with any genuinely Claude-specific remainder \
+below it:
+
+{pointer}
+
+The rubric, short form: if Cursor or Codex would act correctly on the line, it \
+belongs in {agents}. Only slash commands, hooks, settings.json, plugins, and \
+subagent definitions stay in {claude}. When it is ambiguous, choose {agents} — a \
+Claude-only line there is read and ignored by the other tools, but a shared line \
+kept in {claude} is invisible to all of them and nothing reports the absence.
+
+Full rubric: {rubric}
+
+If this {claude} genuinely is all Claude-specific, re-issue the identical write \
+and it will be allowed through."""
+
+
+def _deny_reason(path):
+    indented = "\n".join("      " + line if line else line
+                         for line in POINTER.rstrip().splitlines())
+    return DENY_REASON.format(
+        agents=AGENTS, claude=CLAUDE,
+        agents_path=path.parent / AGENTS, claude_path=path,
+        pointer=indented, rubric=RUBRIC,
+    )
+
+
+def pre_tool_use(payload):
+    tool = payload.get("tool_name")
+    if tool not in ("Write", "Edit"):
+        return None
+    tool_input = payload.get("tool_input") or {}
+    raw_path = tool_input.get("file_path")
+    if not raw_path:
+        return None
+
+    path = pathlib.Path(raw_path)
+    # CLAUDE.local.md falls out here too: per-user, un-committed memory is
+    # Claude-specific by nature, so the gate has no opinion about it.
+    if path.name != CLAUDE:
+        return None
+    if _under_user_claude(path):
+        return None
+    if (path.parent / AGENTS).is_file():
+        return None
+
+    content = _written_content(tool, path, tool_input)
+    if content is None:
+        return None
+    # An empty file, or one already declaring AGENTS.md canonical, is the shape
+    # this gate is trying to produce. A ref with no AGENTS.md yet is the nudge's.
+    if not _substantive(content) or REF.search(content):
+        return None
+
+    session_id = payload.get("session_id") or ""
+    digest = _key(session_id, path, content)
+    if _claim(session_id, "denied", digest):
+        return None
+    _mark(session_id, "denied", digest)
+    return {"hookSpecificOutput": {
+        "hookEventName": "PreToolUse",
+        "permissionDecision": "deny",
+        "permissionDecisionReason": _deny_reason(path),
+    }}
+
+
+# ---- hook: the repair nudge -------------------------------------------------
+
+def _nudge(session_id, directory):
+    name = _key(_resolved(directory))
+    findings = findings_for(directory)
+    if not findings:
+        # Clean now, so a later regression is worth reporting again.
+        _unmark(session_id, "nudged", name)
+        return None
+
+    digest = _key(*("{}:{}:{}".format(f.code, f.severity, f.path) for f in findings))
+    if _marked(session_id, "nudged", name) == digest:
+        return None
+    _mark(session_id, "nudged", name, digest)
+
+    body = (
+        "cleat — {} still has an agent-instruction shape worth fixing:\n\n{}\n\n"
+        "{} is canonical: when the two files disagree or overlap, the body stays "
+        "in {} and {} keeps only the ref plus genuinely Claude-specific "
+        "guidance.".format(directory, render(findings), AGENTS, AGENTS, CLAUDE)
+    )
+    return {"hookSpecificOutput": {
+        "hookEventName": "PostToolUse",
+        "additionalContext": body,
+    }}
+
+
+# ---- hook: bootstrap guidance -----------------------------------------------
+
+def _foreign_relative(path):
+    """The FOREIGN_CONFIGS entry path corresponds to, or None."""
+    resolved = _resolved(path)
+    parts = resolved.parts
+    for rel in FOREIGN_CONFIGS:
+        tail = pathlib.PurePath(rel).parts
+        if rel == ".cursor/rules":
+            if tail[0] in parts and tail[1] in parts:
+                return rel
+        elif parts and parts[-1] == tail[-1]:
+            return rel
+    return None
+
+
+def _bootstrap(session_id, path):
+    directory = path.parent
+    if _under_user_claude(path):
+        return None
+
+    if path.name == AGENTS:
+        claude_text = _read(directory / CLAUDE)
+        if _substantive(claude_text) and REF.search(claude_text):
+            return None
+        trigger = "agents-unlinked"
+        summary = (
+            "{0} was just read by hand. Claude Code loads {1}, not {0} — with no "
+            "{1} pointer, this guidance never reaches a session at startup."
+            .format(AGENTS, CLAUDE)
+        )
+        action = (
+            "Offer to add {}, carrying the link and @{} on its own line, so the "
+            "guidance loads at startup instead of on demand.".format(CLAUDE, AGENTS)
+        )
+    elif path.name in ("README.md", "CONTRIBUTING.md"):
+        if _repo_root(directory) != _resolved(directory):
+            return None
+        if _substantive(_read(directory / AGENTS)) or _substantive(_read(directory / CLAUDE)):
+            return None
+        trigger = "unguided"
+        summary = (
+            "This repo has neither {} nor {}, so no agent starts here with any "
+            "project context.".format(AGENTS, CLAUDE)
+        )
+        action = (
+            "Offer to write {} from what this repo shows — what it does, its "
+            "build and test commands, its conventions — plus a {} pointer that "
+            "imports it.".format(AGENTS, CLAUDE)
+        )
+    else:
+        rel = _foreign_relative(path)
+        if rel is None:
+            return None
+        trigger = "foreign:{}".format(rel)
+        summary = "{} holds guidance only one tool reads.".format(rel)
+        action = (
+            "Offer to consolidate it into {}, which about 30 tools read, leaving "
+            "behind only what is genuinely tool-specific.".format(AGENTS)
+        )
+
+    name = _key(_resolved(directory), trigger)
+    if _marked(session_id, "booted", name) is not None:
+        return None
+    _mark(session_id, "booted", name)
+
+    return {
+        "systemMessage": "cleat: {}".format(summary),
+        "hookSpecificOutput": {
+            "hookEventName": "PostToolUse",
+            "additionalContext": "cleat — {}\n\n{}\n\nRubric: {}".format(
+                summary, action, RUBRIC),
+        },
+    }
+
+
+def post_tool_use(payload):
+    tool = payload.get("tool_name")
+    tool_input = payload.get("tool_input") or {}
+    raw_path = tool_input.get("file_path")
+    if not raw_path:
+        return None
+    path = pathlib.Path(raw_path)
+    session_id = payload.get("session_id") or ""
+
+    if tool in ("Write", "Edit"):
+        if path.name not in (AGENTS, CLAUDE) or _under_user_claude(path):
+            return None
+        return _nudge(session_id, path.parent)
+    if tool == "Read":
+        return _bootstrap(session_id, path)
+    return None
+
+
+# ---- commands ---------------------------------------------------------------
+
+def cmd_check(args):
+    directory = pathlib.Path(args.directory)
+    if not directory.is_dir():
+        sys.stderr.write("cleat: not a directory: {}\n".format(directory))
+        return 2
+    try:
+        findings = findings_for(directory)
+    except RuntimeError as exc:
+        sys.stderr.write("cleat: {}\n".format(exc))
+        return 2
+    if args.json:
+        json.dump({"directory": str(directory),
+                   "findings": [f.as_dict() for f in findings]},
+                  sys.stdout, indent=2)
+        sys.stdout.write("\n")
+    elif findings:
+        print(render(findings))
+    return 1 if has_errors(findings) else 0
+
+
+def cmd_hook(_args):
+    """Always exits 0. A hook's exit code is a channel Claude Code reads for
+    something else, so a failure here is reported as a systemMessage the user
+    sees rather than as a status."""
+    raw = sys.stdin.read()
+    try:
+        payload = json.loads(raw)
+    except ValueError as exc:
+        _emit({"systemMessage": "cleat: unparseable hook payload: {}".format(exc)})
+        return 0
+
+    event = payload.get("hook_event_name")
+    try:
+        if event == "PreToolUse":
+            out = pre_tool_use(payload)
+        elif event == "PostToolUse":
+            out = post_tool_use(payload)
+        else:
+            out = None
+    except Exception as exc:  # noqa: BLE001 — surfaced below, never swallowed
+        out = {"systemMessage": "cleat: {} hook failed: {}: {}".format(
+            event, exc.__class__.__name__, exc)}
+
+    if out:
+        _emit(out)
+    return 0
+
+
+def _emit(payload):
+    json.dump(payload, sys.stdout, separators=(",", ":"))
+    sys.stdout.write("\n")
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(prog="cleat", description=__doc__.splitlines()[0])
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    check = sub.add_parser("check", help="report a directory's findings")
+    check.add_argument("directory", nargs="?", default=".")
+    check.add_argument("--json", action="store_true", help="emit findings as JSON")
+    check.set_defaults(func=cmd_check)
+
+    hook = sub.add_parser("hook", help="read a hook payload on stdin and decide")
+    hook.set_defaults(func=cmd_hook)
+
+    args = parser.parse_args(argv)
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
