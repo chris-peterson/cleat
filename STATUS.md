@@ -4,7 +4,7 @@ Tracks coverage of the requirements in [SPEC.md](./SPEC.md) against the single
 in-repo implementation. Status vocabulary: **Covered** · **Partial** ·
 **Missing** · **Contradicts**.
 
-**Coverage: 52/52 requirements Covered (100%)**
+**Coverage: 53/53 requirements Covered (100%)**
 
 ## CHK — The check command
 
@@ -89,6 +89,7 @@ in-repo implementation. Status vocabulary: **Covered** · **Partial** ·
 | PKG-05 | Covered | guides/agents-vs-claude.md; scripts/cleat:57 (`RUBRIC`) |
 | PKG-06 | Covered | AGENTS.md; CLAUDE.md; `just self-check` |
 | PKG-07 | Covered | scripts/tests/check.test.sh — the grading-table fixtures |
+| PKG-08 | Covered | .github/workflows/test.yml |
 
 ## ST — Session state
 

@@ -1,0 +1,30 @@
+name: Test
+
+# Runs on every branch, not just main and pull requests: the suite is the only
+# thing verifying the gate, the nudge, the bootstrap triggers, and the prefilter,
+# and a push that reaches no gate is a push nobody checked. Kept here rather than
+# in shipyard because the suite is cleat's own, not a projection of plugin.yml.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install just
+        run: sudo apt-get update && sudo apt-get install -y just
+      - name: Run the test suite
+        run: just test
+      - name: Hold the shape cleat enforces
+        run: just self-check

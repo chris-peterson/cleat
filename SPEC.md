@@ -172,6 +172,9 @@ Ubiquitous (`The <system> shall …`), State-Driven (`While …`), Event-Driven
   table shall agree with that table: the two A rows clean, the D row `inverted`,
   the C rows `no-claude`, and the F rows `unguided`. A disagreement is a defect in
   the check.
+- [PKG-08] The test suite and the self-check shall run in CI on every push and
+  pull request, so no branch reaches review on the strength of someone having
+  remembered to run them.
 
 ### ST — Session state
 
