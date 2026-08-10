@@ -190,3 +190,12 @@ Ubiquitous (`The <system> shall …`), State-Driven (`While …`), Event-Driven
   gate may instead use `PreToolUse` `updatedInput` to retarget the write to
   `AGENTS.md`. Deferred: silently retargeting a write is surprising, and it
   assumes the content is tool-agnostic.
+- [FUT-02] (→ CHK) Where a skill's location becomes citable as normative, the
+  check may report a `.claude/skills/*/SKILL.md` with no tool-agnostic
+  counterpart. Deferred on evidence, not on effort: the Agent Skills
+  specification declines to mandate where skills live, Claude Code does not read
+  `.agents/skills/`, and the Agent Plugins specification puts slash commands,
+  hooks, and subagents out of scope as too client-specific. Enforcing a directory
+  today would invent the convention cleat exists to avoid inventing. The trigger
+  to revisit is `agentskills/agentskills#15`; the evidence is in
+  `guides/operational-config.md`.

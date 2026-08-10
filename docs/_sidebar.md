@@ -1,3 +1,4 @@
 - [Home](/)
 - [Rubric](/guides/agents-vs-claude)
+- [Scope](/guides/operational-config)
 - [SPEC](/spec)
