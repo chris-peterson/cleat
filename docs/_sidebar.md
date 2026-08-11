@@ -1,4 +1,5 @@
 - [Home](/)
 - [Rubric](/guides/agents-vs-claude)
+- [Degradation](/guides/graceful-degradation)
 - [Scope](/guides/operational-config)
 - [SPEC](/spec)

@@ -70,6 +70,12 @@ file; edit its source and run `just generate`.
 - **Foreign config** — a single-tool instruction file (`.cursorrules`,
   `.cursor/rules/*`, `.github/copilot-instructions.md`, `.windsurfrules`,
   `GEMINI.md`) holding guidance the other tools ignore.
+- **Graceful degradation** — restating Claude-only operational config
+  (`.claude/hooks`, `.claude/settings.json`, `.mcp.json`, …) in `AGENTS.md` as
+  something a tool that only reads `AGENTS.md` can act on: a hook's rule as a
+  rule to follow, a permission as what is safe to run unprompted. The
+  enforcement stays Claude-only; the intent travels. Nothing is moved — most of
+  it is consumed by the harness, which no prose can reach.
 - **Re-issue record** — the `sha256(session_id, path, content)` receipt a deny
   leaves behind, so an identical re-issue of a `CLAUDE.md` that genuinely is all
   Claude-specific passes on the second try. One speed bump, not a wall.

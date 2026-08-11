@@ -121,6 +121,54 @@ check "GEMINI.md" "$CHECK_CODES" "foreign-config"
 run_check "$(mkrepo "AGENTS.md:::$BODY" "CLAUDE.md:::$POINTER" ".windsurfrules:::Prefer small commits.\n")"
 check ".windsurfrules" "$CHECK_CODES" "foreign-config"
 
+echo "== claude-only-config: operational config AGENTS.md never mentions =="
+run_check "$(mkrepo "AGENTS.md:::$BODY" "CLAUDE.md:::$POINTER" \
+                    ".claude/skills/deploy/SKILL.md:::---\nname: deploy\n---\n")"
+check "code" "$CHECK_CODES" "claude-only-config"
+check "advisory leaves the check green" "$CHECK_EXIT" "0"
+contains "names what it found" "$CHECK_OUT" ".claude/skills"
+contains "marked advisory" "$CHECK_OUT" "(advisory)"
+contains "the repair names the degradation guide" "$CHECK_OUT" "graceful-degradation.md"
+
+echo "== any mention of .claude in AGENTS.md clears it =="
+run_check "$(mkrepo \
+  "AGENTS.md:::$BODY\nSkills in \`.claude/skills\` are Agent Skills; read one when it fits.\n" \
+  "CLAUDE.md:::$POINTER" ".claude/skills/deploy/SKILL.md:::---\nname: deploy\n---\n")"
+check "no findings" "$CHECK_CODES" ""
+
+echo "== a mention in CLAUDE.md does not, since no other tool reads it =="
+run_check "$(mkrepo "AGENTS.md:::$BODY" \
+  "CLAUDE.md:::$POINTER\nSkills live in \`.claude/skills\`.\n" \
+  ".claude/skills/deploy/SKILL.md:::---\nname: deploy\n---\n")"
+check "still reported" "$CHECK_CODES" "claude-only-config"
+
+echo "== every kind of Claude-only config counts =="
+run_check "$(mkrepo "AGENTS.md:::$BODY" "CLAUDE.md:::$POINTER" \
+                    ".claude/settings.json:::{}\n")"
+check "settings.json" "$CHECK_CODES" "claude-only-config"
+
+run_check "$(mkrepo "AGENTS.md:::$BODY" "CLAUDE.md:::$POINTER" \
+                    ".claude/hooks/guard.sh:::exit 0\n")"
+check "hooks" "$CHECK_CODES" "claude-only-config"
+
+run_check "$(mkrepo "AGENTS.md:::$BODY" "CLAUDE.md:::$POINTER" ".mcp.json:::{}\n")"
+check ".mcp.json at the root" "$CHECK_CODES" "claude-only-config"
+
+run_check "$(mkrepo "AGENTS.md:::$BODY" "CLAUDE.md:::$POINTER" \
+                    ".claude/commands/sync.md:::Refresh the fixtures.\n" \
+                    ".claude/agents/scout.md:::---\nname: scout\n---\n")"
+contains "commands and subagents are both named" "$CHECK_OUT" ".claude/agents, .claude/commands"
+
+echo "== an empty .claude directory configures nothing =="
+d="$(mkrepo "AGENTS.md:::$BODY" "CLAUDE.md:::$POINTER")"
+mkdir -p "$d/.claude/skills"
+run_check "$d"
+check "no findings" "$CHECK_CODES" ""
+
+echo "== nothing to restate into is a different repair =="
+run_check "$(mkrepo "CLAUDE.md:::$BODY" ".claude/skills/deploy/SKILL.md:::---\nname: deploy\n---\n")"
+check "no-agents is the finding that matters" "$CHECK_CODES" "no-agents"
+
 echo "== --json =="
 d="$(mkrepo "CLAUDE.md:::$BODY")"
 json="$(python3 "$CLEAT" check "$d" --json)"

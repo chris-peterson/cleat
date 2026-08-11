@@ -87,6 +87,20 @@ written and is now imprecise: `SKILL.md` is a multi-vendor format, so a skill's
 alone until the location question resolves, since changing it changes what a deny
 tells you to do.
 
+## What cleat does instead
+
+Nothing above stops cleat from being useful here, it only rules out one repair.
+`AGENTS.md` is itself the cross-tool surface, and it is loaded at startup by
+every tool that reads it — so Claude-only config can be *described* there even
+though it cannot be moved there.
+
+That is the `claude-only-config` advisory: a repo holding `.claude/` config whose
+`AGENTS.md` never mentions it gets told so, and the repair is to restate a hook
+as the rule it enforces, a permission as what is safe to run, an MCP server as
+what it provides — so other tools **degrade gracefully** instead of getting
+nothing. `guides/graceful-degradation.md` carries the translation. It claims no
+standard and moves no file, so none of the objections above apply to it.
+
 ## What would change this
 
 [agentskills/agentskills#15](https://github.com/agentskills/agentskills/issues/15),

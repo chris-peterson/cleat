@@ -37,6 +37,20 @@ FOREIGN_CONFIGS = (
     "GEMINI.md",
 )
 
+# Claude Code's operational config. Unlike an instruction file these mostly
+# cannot be relocated — a hook, an MCP server, and a permission list are consumed
+# by the harness, which no prose can reach — so the repair restates them in
+# AGENTS.md rather than moving them. `.mcp.json` sits at the root rather than
+# under .claude/, and belongs here for the same reason.
+CLAUDE_CONFIG = (
+    ".claude/agents",
+    ".claude/commands",
+    ".claude/hooks",
+    ".claude/settings.json",
+    ".claude/skills",
+    ".mcp.json",
+)
+
 ERROR = "error"
 ADVISORY = "advisory"
 
@@ -54,7 +68,9 @@ DUP_MIN_CHARS = 40
 # Session state outlives its session only long enough to be uninteresting.
 SESSION_TTL_SECONDS = 7 * 24 * 60 * 60
 
-RUBRIC = pathlib.Path(__file__).resolve().parent.parent / "guides" / "agents-vs-claude.md"
+GUIDES = pathlib.Path(__file__).resolve().parent.parent / "guides"
+RUBRIC = GUIDES / "agents-vs-claude.md"
+DEGRADATION = GUIDES / "graceful-degradation.md"
 
 POINTER = """Agent instructions live in [AGENTS.md](./AGENTS.md).
 
@@ -149,6 +165,41 @@ def _foreign_findings(root):
     return out
 
 
+def _present_config(root):
+    """The CLAUDE_CONFIG entries this directory actually holds."""
+    out = []
+    for rel in CLAUDE_CONFIG:
+        target = root / rel
+        present = any(target.iterdir()) if target.is_dir() else target.is_file()
+        if present:
+            out.append(rel)
+    return out
+
+
+def _degradation_finding(root, agents_text):
+    """Claude-only config that AGENTS.md never mentions.
+
+    The fact is whether AGENTS.md mentions `.claude` at all. Whether a mention
+    degrades *well* — the right rules restated, the right setup described — is
+    judgment, so one mention is enough to stop reporting and the guide carries
+    the rest."""
+    if ".claude" in agents_text:
+        return []
+    present = _present_config(root)
+    if not present:
+        return []
+    return [Finding(
+        "claude-only-config", ADVISORY, AGENTS,
+        "{} configure Claude Code alone and {} does not mention them, so no "
+        "other tool loads them or knows they exist".format(
+            ", ".join(present), AGENTS),
+        "restate them in {} so other tools degrade gracefully: a hook's rule as "
+        "a rule to follow, a permission as what is safe to run unprompted, an "
+        "MCP server as what it provides and how to wire it up. See {}".format(
+            AGENTS, DEGRADATION),
+    )]
+
+
 def _duplication_findings(claude_text, agents_text):
     claude_headings, claude_body = _classify(claude_text)
     agents_headings, agents_body = _classify(agents_text)
@@ -233,6 +284,10 @@ def findings_for(root):
 
     if has_claude and has_agents:
         out.extend(_duplication_findings(claude_text, agents_text))
+    # Only once there is an AGENTS.md to restate into; until then the repair
+    # above is the one that matters, and it creates the file this needs.
+    if has_agents:
+        out.extend(_degradation_finding(root, agents_text))
     out.extend(_foreign_findings(root))
     return out
 
