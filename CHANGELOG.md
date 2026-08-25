@@ -12,3 +12,9 @@
   and a `PostToolUse` `Read` trigger that offers to bootstrap the convention
   where it's absent. `cleat check` reports the same findings from the command
   line, exiting non-zero on errors and green on advisories. (#1)
+- cleat offers itself to sessions already working with agent instruction files.
+  A session that reads `.cursorrules`, `.cursor/rules`,
+  `.github/copilot-instructions.md`, `.windsurfrules`, `GEMINI.md`, or
+  `AGENTS.md` sees an install suggestion for cleat. Suggestions appear only
+  where an administrator has allowlisted this marketplace in managed settings'
+  `pluginSuggestionMarketplaces`.

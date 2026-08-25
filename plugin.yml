@@ -14,6 +14,22 @@ license: MIT
 marketplace:
   category: development
   homepage: https://chris-peterson.github.io/cleat/#/
+  # Offers cleat to a session already reading the files it acts on. The patterns
+  # mirror scripts/cleat's FOREIGN_CONFIGS, so a tool added there is a tool to
+  # add here. CLAUDE.md is deliberately absent: Claude Code auto-loads it and
+  # filesRead counts that, so it would match nearly every session and spend the
+  # one-suggestion-per-three-sessions budget on repos with nothing to fix.
+  # https://code.claude.com/docs/en/plugin-relevance
+  relevance:
+    topic: agent instructions
+    signals:
+      filesRead:
+        - '**/.cursorrules'
+        - '**/.cursor/rules/**'
+        - '**/.github/copilot-instructions.md'
+        - '**/.windsurfrules'
+        - '**/GEMINI.md'
+        - '**/AGENTS.md'
 
 # → marketplace SPA; keys mirror the SPA's PLUGINS object.
 suite:
