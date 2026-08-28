@@ -13,10 +13,10 @@ and the ledger in the same commit, not as a follow-up.
 ## Commands
 
 ```bash
-just test         # the bash test suite under scripts/tests/
-just check        # validate source and diff the pending projection (the CI gate)
-just generate     # regenerate plugin.json, hooks.json, docs/ from source
-just self-check   # cleat's findings for this repo — it must hold its own shape
+just test              # the bash test suite under scripts/tests/
+just generate          # regenerate plugin.json, hooks.json, docs/ from source
+just peek-projection   # the same, then diff what the project job would commit
+just self-check        # cleat's findings for this repo — it must hold its own shape
 ```
 
 ## Layout
@@ -32,9 +32,22 @@ SPEC.md / STATUS.md     requirements and their coverage
 docs/                   docsify site (README, _sidebar, favicon are source)
 ```
 
-`.claude-plugin/plugin.json`, `hooks/hooks.json`, and most of `docs/` are
-**generated** by `shipyard` from the sources above. Never hand-edit a generated
-file; edit its source and run `just generate`.
+`.claude-plugin/plugin.json`, `hooks/hooks.json`, `plugin.yml`'s
+`suite.describe` block, and most of `docs/` are **generated** by
+[shipyard](https://github.com/chris-peterson/shipyard) from the sources above.
+Never hand-edit a generated file; edit its source and let the projection follow.
+
+The projection job in `.github/workflows/project.yml` is that writer: it runs
+`shipyard generate` on every push and commits the result to the branch, so a
+committed artifact matches its source at all times and the diff a reviewer
+approves is what lands. `just generate` runs the same projectors locally when
+you want to see the result before pushing.
+
+Releases are dispatched, not tagged by hand: run the **Release** workflow with a
+bump level, and shipyard derives the version from `plugin.yml`, retitles
+`CHANGELOG.md`'s `## Unreleased` section, commits, tags that commit, and
+publishes. Write the notes into `## Unreleased` first — reading what landed is
+what picks the level.
 
 ## Conventions
 

@@ -1,0 +1,32 @@
+name: Project
+
+# Every generated artifact has one writer, and it is this job. shipyard's
+# project action regenerates plugin.json, hooks.json, plugin.yml's
+# suite.describe block, and the rendered docs from their sources, then commits
+# the result to the branch — so a committed artifact matches its source at all
+# times and the diff a reviewer approves is the change that lands.
+#
+# cleat declares no `cli:` block, so there is nothing for this job to build
+# before the action runs: every projection here reads the repo's YAML and
+# markdown sources.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  project:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # The default pull_request checkout leaves a merge commit in
+          # detached HEAD, and there is no branch there to push a projection to.
+          ref: ${{ github.head_ref }}
+
+      - uses: chris-peterson/shipyard/actions/project@v2

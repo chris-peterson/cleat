@@ -14,4 +14,4 @@ permissions:
 
 jobs:
   deploy:
-    uses: chris-peterson/shipyard/.github/workflows/deploy-docs.yml@v1
+    uses: chris-peterson/shipyard/.github/workflows/deploy-docs.yml@v2

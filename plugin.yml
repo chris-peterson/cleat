@@ -10,6 +10,15 @@ repository: https://github.com/chris-peterson/cleat
 keywords: [agents-md, claude-md, conventions, hooks, claude-code]
 license: MIT
 
+validate:
+  accept:
+    - warning: root
+      path: CLAUDE.md
+      because: >-
+        CLAUDE.md at the root is this repo's own agent instructions, not context
+        the plugin ships. It is the pointer shape cleat exists to enforce: a link
+        to AGENTS.md plus the @AGENTS.md ref.
+
 # → marketplace.json entry
 marketplace:
   category: development
@@ -46,9 +55,10 @@ suite:
       hooks: 'Hook wiring: PreToolUse→prefilter (Write|Edit); PostToolUse→prefilter (Write|Edit, Read).'
       prefilter: PreToolUse / PostToolUse — Runs the cleat CLI only for a payload naming an agent instruction file.
   # <<< shipyard:describe <<<
-  # cleat has no slash commands, so the examples are anchored on the two moments
-  # a user actually sees it act: the write gate, and bootstrap guidance on read.
   examples:
+    # cleat has no slash commands, so the examples are anchored on the two
+    # moments a user actually sees it act: the write gate, and bootstrap
+    # guidance on read.
     - label: "Writing a CLAUDE.md"
       ac: "--guard"
       frames:
