@@ -15,7 +15,7 @@ and the ledger in the same commit, not as a follow-up.
 ```bash
 just test              # the bash test suite under scripts/tests/
 just generate          # regenerate plugin.json, hooks.json, docs/ from source
-just peek-projection   # the same, then diff what the project job would commit
+just check             # the same, then diff what the projection job would commit
 just self-check        # cleat's findings for this repo — it must hold its own shape
 ```
 

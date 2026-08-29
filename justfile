@@ -15,8 +15,8 @@ test:
 generate:
     {{shipyard}} generate
 
-# read what the project job would commit, without keeping it — `git restore .` discards
-peek-projection:
+# read what the projection job would commit, without keeping it; `git restore .` discards
+check:
     {{shipyard}} generate
     git --no-pager diff --stat
 
