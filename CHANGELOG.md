@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0
 
 ### Added
 - First release. cleat keeps a repo's agent instructions in one canonical

@@ -3,7 +3,7 @@
 # the marketplace SPA (the suite: block).
 
 name: cleat
-version: 0.1.0
+version: 0.2.0
 description: Keep a repo's agent instructions in one AGENTS.md that every tool reads, with CLAUDE.md reduced to a pointer at it.
 author: chris-peterson
 repository: https://github.com/chris-peterson/cleat
