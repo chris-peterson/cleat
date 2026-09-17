@@ -25,7 +25,7 @@ just self-check        # cleat's findings for this repo — it must hold its own
 plugin.yml              source of record for metadata and marketplace copy
 hooks/hooks.yml         source of record for the three hook registrations
 hooks/prefilter.sh      the bash prefilter fronting every registration
-scripts/cleat           the CLI: `check` and `hook`
+scripts/cleat           the CLI: `check`, `index`, and `hook`
 scripts/tests/          bash test suite
 guides/                 the tool-agnostic vs Claude-specific rubric
 SPEC.md / STATUS.md     requirements and their coverage

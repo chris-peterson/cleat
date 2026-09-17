@@ -39,6 +39,8 @@ for name in CLAUDE.md AGENTS.md README.md CONTRIBUTING.md .cursorrules GEMINI.md
 done
 run_prefilter "$(payload PostToolUse Read /repo/.cursor/rules/style.md)"
 check ".cursor/rules/style.md" "$REACHED" "yes"
+run_prefilter "$(payload PostToolUse Write /repo/.claude/rules/api-design.md)"
+check ".claude/rules/api-design.md" "$REACHED" "yes"
 run_prefilter "$(payload PostToolUse Read /repo/.github/copilot-instructions.md)"
 check ".github/copilot-instructions.md" "$REACHED" "yes"
 

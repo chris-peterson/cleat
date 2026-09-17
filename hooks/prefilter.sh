@@ -14,12 +14,14 @@
 set -u
 
 # Names cleat acts on: the two instruction files, the two files a repo with no
-# guidance is likely read from first, and the foreign single-tool configs.
+# guidance is likely read from first, the topic-rules directory, and the foreign
+# single-tool configs.
 needles=(
   CLAUDE.md
   AGENTS.md
   README.md
   CONTRIBUTING.md
+  .claude/rules
   .cursorrules
   .cursor/rules
   copilot-instructions.md

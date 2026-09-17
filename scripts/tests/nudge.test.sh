@@ -65,4 +65,19 @@ NUDGE_OUT="$(printf '%s' "$(payload PostToolUse Write "$fake_home/.claude/CLAUDE
   | env HOME="$fake_home" python3 "$CLEAT" hook)"
 check "silent" "$NUDGE_OUT" ""
 
+echo "== an index finding hands over the rows rather than describing them =="
+SCOPED='---\npaths:\n  - "src/**/*.ts"\n---\n\nValidate every endpoint input.\n'
+d="$(mkrepo "AGENTS.md:::$BODY" "CLAUDE.md:::$POINTER" \
+            ".claude/rules/api.md:::$SCOPED" "src/handler.ts:::export {}\n")"
+run_hook "$(payload PostToolUse Write "$d/.claude/rules/api.md" "content=x")"
+c="$(context)"
+contains "names the finding" "$c" "unlisted-rule"
+contains "carries the rendered index" "$c" "| \`src/**/*.ts\` | api.md |"
+contains "and says what to do with it" "$c" "replace the rows that name rules"
+
+echo "== a finding with no index component carries no rows =="
+d="$(mkrepo "AGENTS.md:::$BODY" "CLAUDE.md:::See [AGENTS.md](./AGENTS.md).\n")"
+run_hook "$(payload PostToolUse Write "$d/CLAUDE.md" "content=x")"
+absent "no index appended" "$(context)" "Applies to"
+
 summary "nudge"

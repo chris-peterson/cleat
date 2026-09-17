@@ -15,6 +15,7 @@ form and names guides/agents-vs-claude.md for the long one.
 from __future__ import annotations
 
 import argparse
+import glob
 import hashlib
 import json
 import os
@@ -26,6 +27,14 @@ import time
 
 AGENTS = "AGENTS.md"
 CLAUDE = "CLAUDE.md"
+
+# Topic rules belong here rather than in a foreign config: Claude Code loads a
+# path-scoped rule only when it reads a matching file, and no import mechanism
+# does that — an `@path` import loads at launch whatever it costs.
+RULES_DIR = ".claude/rules"
+# Every reader loads the index at launch, in every session. Past this it starts
+# competing with the guidance it exists to point at.
+TOC_MAX_BYTES = 2048
 
 # Single-tool instruction files. Whatever guidance they hold, the other tools
 # ignore it. `.cursor/rules` is a directory of them.
@@ -174,6 +183,177 @@ def _duplication_findings(claude_text, agents_text):
     return []
 
 
+# ---- topic rules ------------------------------------------------------------
+
+def _rule_globs(text):
+    """The rule's `paths:` globs, or None when it declares none — which is what
+    makes a rule always-on."""
+    if not text.startswith("---\n"):
+        return None
+    end = text.find("\n---", 4)
+    if end < 0:
+        return None
+    globs = []
+    in_paths = False
+    for line in text[4:end].splitlines():
+        inline = re.match(r"^paths:\s*\[(.*)\]\s*$", line)
+        if inline:
+            items = [p.strip().strip("\"'") for p in inline.group(1).split(",")]
+            return [p for p in items if p] or None
+        if re.match(r"^paths:\s*$", line):
+            in_paths = True
+            continue
+        if in_paths:
+            stripped = line.strip()
+            if stripped.startswith("- "):
+                globs.append(stripped[2:].strip().strip("\"'"))
+            elif stripped:
+                break
+    return globs or None
+
+
+def _expand_braces(pattern):
+    """`**/*.{ts,tsx}` as the two patterns it stands for. Claude Code expands
+    these itself, so a rule's reach is only readable after expansion."""
+    match = re.search(r"\{([^{}]*)\}", pattern)
+    if not match:
+        return [pattern]
+    head, tail = pattern[:match.start()], pattern[match.end():]
+    out = []
+    for option in match.group(1).split(","):
+        out.extend(_expand_braces(head + option + tail))
+    return out
+
+
+def _matches_any_file(root, globs):
+    """Whether any file here matches one of these globs. A rule matching nothing
+    cannot fire, so indexing it spends launch context on a rule that never
+    loads."""
+    for pattern in globs:
+        for expanded in _expand_braces(pattern):
+            try:
+                if next(glob.iglob(expanded, root_dir=root, recursive=True), None):
+                    return True
+            except (OSError, ValueError):
+                continue
+    return False
+
+
+def _topic_rules(root):
+    """(always-on, path-scoped, retired) rule paths, relative to the rules dir."""
+    base = root / RULES_DIR
+    if not base.is_dir():
+        return [], [], []
+    always_on, path_scoped, retired = [], [], []
+    for path in sorted(base.rglob("*.md")):
+        rel = path.relative_to(base).as_posix()
+        globs = _rule_globs(_read(path))
+        if globs is None:
+            always_on.append(rel)
+        elif _matches_any_file(root, globs):
+            path_scoped.append(rel)
+        else:
+            retired.append(rel)
+    return always_on, path_scoped, retired
+
+
+def _names_rule(text, rel):
+    """Whether AGENTS.md names this rule. The basename counts, so a row may name
+    a nested rule without repeating its directory."""
+    return rel in text or rel.rsplit("/", 1)[-1] in text
+
+
+def _index_lines(agents_text, names):
+    """The AGENTS.md lines naming a topic rule. Measuring the index this way
+    imposes no heading convention on AGENTS.md."""
+    return [line for line in agents_text.splitlines()
+            if any(_names_rule(line, rel) for rel in names)]
+
+
+def _render_index(root):
+    """The index `AGENTS.md` should carry. The always-on rules get one line
+    between them, because a tool that cannot scope reads all of them anyway; the
+    path-scoped ones get the glob that decides when to read them, which is the
+    one thing no reader can derive without opening every rule's frontmatter.
+    Retired rules get nothing — a row for a rule that cannot fire is launch
+    context spent on nothing."""
+    always_on, path_scoped, _retired = _topic_rules(root)
+    lines = []
+    if always_on:
+        lines.append(
+            "Every file in `{}/` without `paths:` frontmatter applies to all "
+            "work here; read them.".format(RULES_DIR))
+    if path_scoped:
+        groups = {}
+        for rel in path_scoped:
+            globs = _rule_globs(_read(root / RULES_DIR / rel)) or []
+            key = ", ".join("`{}`".format(g) for g in globs)
+            groups.setdefault(key, []).append(rel)
+        if lines:
+            lines.append("")
+        lines.append("These load only for matching files:")
+        lines.append("")
+        lines.append("| Applies to | Rule |")
+        lines.append("| --- | --- |")
+        for key in sorted(groups):
+            lines.append("| {} | {} |".format(key, ", ".join(sorted(groups[key]))))
+    return "\n".join(lines)
+
+
+def _rules_findings(root, agents_text):
+    # `cleat check ~` would otherwise reach ~/.claude/rules, which is user-scope
+    # memory with no AGENTS.md to be indexed from.
+    if _under_user_claude(root / RULES_DIR):
+        return []
+    always_on, path_scoped, retired = _topic_rules(root)
+    if not (always_on or path_scoped or retired):
+        return []
+
+    out = []
+    for rel in path_scoped:
+        if _names_rule(agents_text, rel):
+            continue
+        out.append(Finding(
+            "unlisted-rule", ERROR, "{}/{}".format(RULES_DIR, rel),
+            "{}/{} is path-scoped and no {} row names it, so every tool that "
+            "cannot load {} is blind to it".format(
+                RULES_DIR, rel, AGENTS, RULES_DIR),
+            "add a row to {} naming {} and the globs it answers to".format(
+                AGENTS, rel),
+        ))
+
+    for rel in retired:
+        if not _names_rule(agents_text, rel):
+            continue
+        out.append(Finding(
+            "dead-rule-listed", ERROR, "{}/{}".format(RULES_DIR, rel),
+            "the index names {}, whose globs match no file here, so the row "
+            "loads in every session for a rule that cannot fire".format(rel),
+            "drop {}'s row from {}".format(rel, AGENTS),
+        ))
+
+    index = _index_lines(agents_text, always_on + path_scoped + retired)
+    size = sum(len(line.encode("utf-8")) + 1 for line in index)
+    named_always_on = [rel for rel in always_on if _names_rule(agents_text, rel)]
+    if size > TOC_MAX_BYTES:
+        out.append(Finding(
+            "toc-bloat", ADVISORY, AGENTS,
+            "the index is {} bytes, loaded at launch by every tool in every "
+            "session".format(size),
+            "index the path-scoped rules and their globs — the one thing a "
+            "reader cannot derive without opening every rule's frontmatter",
+        ))
+    elif always_on and len(named_always_on) * 2 > len(always_on):
+        out.append(Finding(
+            "toc-bloat", ADVISORY, AGENTS,
+            "the index enumerates {} of {} always-on rules".format(
+                len(named_always_on), len(always_on)),
+            "replace those rows with one line pointing at {}; a tool that "
+            "cannot scope reads every always-on rule anyway".format(RULES_DIR),
+        ))
+    return out
+
+
 def findings_for(root):
     """Every finding for a single directory, most structural first."""
     root = pathlib.Path(root)
@@ -233,6 +413,10 @@ def findings_for(root):
 
     if has_claude and has_agents:
         out.extend(_duplication_findings(claude_text, agents_text))
+    # With no AGENTS.md there is nothing to index from, and the pointer repair
+    # above comes first, so rules findings would only restate it once per rule.
+    if has_agents:
+        out.extend(_rules_findings(root, agents_text))
     out.extend(_foreign_findings(root))
     return out
 
@@ -335,6 +519,18 @@ def _under_user_claude(path):
     base = _resolved(pathlib.Path.home() / ".claude")
     target = _resolved(path)
     return target == base or base in target.parents
+
+
+def _rules_owner(path):
+    """The directory whose `.claude/rules/` holds this path, or None. A rule's
+    own parent is the wrong place to check from: the index it belongs to lives
+    beside the rules directory, not inside it."""
+    resolved = _resolved(path)
+    parts = RULES_DIR.split("/")
+    for candidate in resolved.parents:
+        if candidate.joinpath(*parts) in resolved.parents:
+            return candidate
+    return None
 
 
 def _repo_root(directory):
@@ -463,6 +659,15 @@ def _nudge(session_id, directory):
         "in {} and {} keeps only the ref plus genuinely Claude-specific "
         "guidance.".format(directory, render(findings), AGENTS, AGENTS, CLAUDE)
     )
+    # Composing the index by hand is where it drifts from the directory, so an
+    # index finding hands over the rows rather than describing them.
+    if any(f.code in ("unlisted-rule", "dead-rule-listed") for f in findings):
+        index = _render_index(pathlib.Path(directory))
+        if index:
+            body += (
+                "\n\nThe index {} should carry, derived from the rules "
+                "themselves — replace the rows that name rules with it, and "
+                "leave the rest of the file alone:\n\n{}".format(AGENTS, index))
     return {"hookSpecificOutput": {
         "hookEventName": "PostToolUse",
         "additionalContext": body,
@@ -555,9 +760,16 @@ def post_tool_use(payload):
     session_id = payload.get("session_id") or ""
 
     if tool in ("Write", "Edit"):
-        if path.name not in (AGENTS, CLAUDE) or _under_user_claude(path):
+        if _under_user_claude(path):
             return None
-        return _nudge(session_id, path.parent)
+        if path.name in (AGENTS, CLAUDE):
+            return _nudge(session_id, path.parent)
+        # A new topic rule is unindexed by construction, so the write that
+        # creates it is the moment the index can still be fixed in the same turn.
+        owner = _rules_owner(path)
+        if owner is not None:
+            return _nudge(session_id, owner)
+        return None
     if tool == "Read":
         return _bootstrap(session_id, path)
     return None
@@ -583,6 +795,21 @@ def cmd_check(args):
     elif findings:
         print(render(findings))
     return 1 if has_errors(findings) else 0
+
+
+def cmd_index(args):
+    directory = pathlib.Path(args.directory)
+    if not directory.is_dir():
+        sys.stderr.write("cleat: not a directory: {}\n".format(directory))
+        return 2
+    try:
+        index = _render_index(directory)
+    except RuntimeError as exc:
+        sys.stderr.write("cleat: {}\n".format(exc))
+        return 2
+    if index:
+        print(index)
+    return 0
 
 
 def cmd_hook(_args):
@@ -626,6 +853,11 @@ def main(argv=None):
     check.add_argument("directory", nargs="?", default=".")
     check.add_argument("--json", action="store_true", help="emit findings as JSON")
     check.set_defaults(func=cmd_check)
+
+    index = sub.add_parser(
+        "index", help="print the rules index AGENTS.md should carry")
+    index.add_argument("directory", nargs="?", default=".")
+    index.set_defaults(func=cmd_index)
 
     hook = sub.add_parser("hook", help="read a hook payload on stdin and decide")
     hook.set_defaults(func=cmd_hook)

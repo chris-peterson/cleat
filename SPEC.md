@@ -1,10 +1,13 @@
 # cleat — Specification
 
-cleat is a Claude Code plugin that holds a repository's agent instructions in one
-canonical `AGENTS.md`, with `CLAUDE.md` reduced to a pointer at it — so the same
-guidance reaches Claude Code and the ~30 other tools that read `AGENTS.md`.
-Enforcement is hooks only: a write gate, an in-turn repair nudge, and bootstrap
-guidance for repos where the convention is absent.
+cleat is a Claude Code plugin that routes a repository's agent instructions to
+the widest reader that can act on them. Guidance lives in `AGENTS.md`, read by
+Claude Code and the ~30 other tools, with `CLAUDE.md` reduced to a pointer at it.
+Scoping metadata may be tool-specific: `.claude/rules/` holds topic rules that
+only Claude Code loads, and loads on demand, so long as `AGENTS.md` indexes them
+— a tool that cannot load a rule can still find it. Enforcement is hooks only: a
+write gate, an in-turn repair nudge, and bootstrap guidance for repos where the
+convention is absent.
 
 Requirements use [EARS syntax](https://alistairmavin.com/ears) — each is one of:
 Ubiquitous (`The <system> shall …`), State-Driven (`While …`), Event-Driven
@@ -13,8 +16,8 @@ Ubiquitous (`The <system> shall …`), State-Driven (`While …`), Event-Driven
 ## Concepts
 
 - **`AGENTS.md`** — the tool-agnostic agent instruction file, read by roughly 30
-  coding tools. In the target shape it is the **canonical** location: the whole
-  body of a repo's agent guidance lives here.
+  coding tools. In the target shape it is the **canonical** location: guidance
+  lives here, and what a rules directory holds instead is indexed from here.
 - **`CLAUDE.md`** — the only instruction file Claude Code reads. Claude Code does
   not read `AGENTS.md`, so a repo with guidance only in `AGENTS.md` hands Claude
   nothing.
@@ -30,10 +33,24 @@ Ubiquitous (`The <system> shall …`), State-Driven (`While …`), Event-Driven
   back at `CLAUDE.md`, so every non-Claude tool gets the stub.
 - **Foreign config** — a single-tool instruction file (`.cursorrules`,
   `.cursor/rules/*`, `.github/copilot-instructions.md`, `.windsurfrules`,
-  `GEMINI.md`) holding guidance every other tool ignores.
+  `GEMINI.md`) holding guidance every other tool ignores. `.claude/rules/` is not
+  one: it is the location cleat recommends for topic rules, because Claude Code
+  loads a path-scoped rule only when it reads a matching file, and no import
+  mechanism does that — an `@path` import loads at launch whatever it costs.
+- **Topic rule** — a markdown file under `.claude/rules/`, discovered
+  recursively. **Always-on** when it carries no `paths:` frontmatter,
+  **path-scoped** when its globs can match a file, **retired** when every glob it
+  carries can match nothing.
+- **Rules index** — the rows of `AGENTS.md` that name topic rules and the globs
+  they answer to. It is what carries a path-scoped rule to a tool that cannot
+  load one. Every reader pays for it at launch, in every session, so it indexes
+  the path-scoped rules and covers the always-on ones with a single line: a tool
+  that cannot scope must read all of those anyway, and their names buy it
+  nothing.
 - **Finding** — one code, the path it concerns, a severity, and the repair that
-  clears it. The seven codes are `no-agents`, `no-claude`, `no-ref`, `inverted`,
-  `duplicated`, `unguided`, `foreign-config`.
+  clears it. The ten codes are `no-agents`, `no-claude`, `no-ref`, `inverted`,
+  `duplicated`, `unguided`, `foreign-config`, `unlisted-rule`,
+  `dead-rule-listed`, `toc-bloat`.
 - **Severity** — a finding is either an **error** (the shape is broken; drives
   the exit code) or an **advisory** (reported, but a repo can legitimately sit
   this way). `unguided` and heading-only duplication are advisories: a repo may
@@ -80,8 +97,53 @@ Ubiquitous (`The <system> shall …`), State-Driven (`While …`), Event-Driven
   pointer, add the ref, flip the inversion, or delete the duplicated content
   from `CLAUDE.md`.
 - [CHK-14] Each finding shall carry a severity. `no-agents`, `no-claude`,
-  `no-ref`, `inverted`, `foreign-config`, and line-level `duplicated` shall be
-  errors; `unguided` and heading-only `duplicated` shall be advisories.
+  `no-ref`, `inverted`, `foreign-config`, `unlisted-rule`, `dead-rule-listed`,
+  and line-level `duplicated` shall be errors; `unguided`, `toc-bloat`, and
+  heading-only `duplicated` shall be advisories.
+
+### RULE — Topic rules and the index
+
+- [RULE-01] The system shall discover topic rules as the `*.md` files under
+  `.claude/rules/`, searching recursively.
+- [RULE-02] The system shall classify each topic rule from its `paths:`
+  frontmatter: always-on where the field is absent, retired where every glob it
+  lists can match nothing, and path-scoped otherwise.
+- [RULE-03] When a path-scoped rule's filename appears nowhere in `AGENTS.md`,
+  the check shall report `unlisted-rule`, naming that rule.
+- [RULE-04] When a retired rule's filename appears in `AGENTS.md`, the check
+  shall report `dead-rule-listed`, naming that rule.
+- [RULE-05] When the `AGENTS.md` lines naming topic rules exceed 2048 bytes in
+  total, or name more than half the always-on rules, the check shall report
+  `toc-bloat`.
+- [RULE-06] The index shall be measured as the `AGENTS.md` lines that name a
+  topic rule, so no heading convention is imposed on `AGENTS.md`.
+- [RULE-07] Where the rules directory resolves under `$HOME/.claude`, the system
+  shall report no rules findings, user-scope rules having no `AGENTS.md` to be
+  indexed from.
+- [RULE-08] Where `.claude/rules/` is absent or holds no rule, the system shall
+  report no rules findings, so the convention costs a repo that has not adopted
+  it nothing.
+- [RULE-09] Where `AGENTS.md` is absent, the system shall report no rules
+  findings, the missing pointer being the prior repair.
+
+### IDX — The index projector
+
+- [IDX-01] The system shall provide `cleat index [DIR]`, printing the rules
+  index `AGENTS.md` should carry for `DIR` and defaulting to the current
+  directory.
+- [IDX-02] The projector shall render the always-on rules as one line, the
+  path-scoped rules as a row per distinct glob set, and the retired rules not at
+  all.
+- [IDX-03] The projector shall write no file, the placement of the index within
+  `AGENTS.md`'s prose being the reader's judgment rather than the check's fact.
+- [IDX-04] The index the projector prints shall clear `unlisted-rule`,
+  `dead-rule-listed`, and `toc-bloat` for the directory it was rendered from.
+- [IDX-05] The projector shall run under the same constraints as the rest of the
+  CLI — python3, standard library only — so a repo adopting the convention needs
+  nothing installed to keep its index current.
+- [IDX-06] When the nudge reports an index finding, it shall carry the rendered
+  index as `additionalContext`, composing the index by hand being where it
+  drifts from the directory.
 
 ### HOOK — Hook dispatch
 
@@ -129,6 +191,9 @@ Ubiquitous (`The <system> shall …`), State-Driven (`While …`), Event-Driven
 - [NUDG-04] If the finding set is unchanged from the last nudge in this session,
   then the nudge shall stay silent, so a finding the model will not clear cannot
   loop.
+- [NUDG-05] When a write under `.claude/rules/` completes, the nudge shall run
+  the check against the directory that owns the rules directory rather than the
+  rule's own parent, a new rule being unindexed by construction.
 
 ### BOOT — Bootstrap guidance
 
