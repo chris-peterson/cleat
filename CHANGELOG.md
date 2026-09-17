@@ -18,3 +18,8 @@
   `AGENTS.md` sees an install suggestion for cleat. Suggestions appear only
   where an administrator has allowlisted this marketplace in managed settings'
   `pluginSuggestionMarketplaces`.
+- `.claude/rules/` is a supported home for topic guidance, so long as
+  `AGENTS.md` indexes it. `cleat check` reports a path-scoped rule the index
+  misses, a row naming a rule whose globs match no file, and an index grown past
+  what every session pays to load it. `cleat index` prints the index a repo
+  should carry, derived from the rules themselves.
