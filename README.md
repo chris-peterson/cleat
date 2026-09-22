@@ -1,10 +1,16 @@
 # cleat
 
-📖 **[Read the docs →](https://chris-peterson.github.io/cleat/)**
+**cleat your instructions once, for any agent.**
 
-Keep a repo's agent instructions in one `AGENTS.md` — the file about 30 coding
-tools read — with `CLAUDE.md` reduced to a pointer that imports it. cleat is
-hooks only: no slash commands, no skills, nothing resident in session context.
+![Claude Code](https://img.shields.io/badge/Claude%20Code-%23D97757.svg?logo=claudecode&logoColor=white)
+![GitHub top language](https://img.shields.io/github/languages/top/chris-peterson/cleat)
+![GitHub Release](https://img.shields.io/github/v/release/chris-peterson/cleat?sort=semver&display_name=release&logo=github&label=latest)
+
+Keep a repo's instructions in one `AGENTS.md` that every agent reads, with
+`CLAUDE.md` reduced to a pointer at it. cleat is hooks only: no slash commands,
+no skills, nothing resident in session context.
+
+📖 **[Read the docs →](https://chris-peterson.github.io/cleat/)**
 
 Repo layout, the `just` targets, and the conventions this codebase holds itself
 to are in [AGENTS.md](./AGENTS.md) — the same file the agents read. Requirements

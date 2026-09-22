@@ -4,7 +4,7 @@
 
 name: cleat
 version: 0.2.0
-description: Keep a repo's agent instructions in one AGENTS.md that every tool reads, with CLAUDE.md reduced to a pointer at it.
+description: "Keep a repo's instructions in one AGENTS.md that every agent reads, with CLAUDE.md reduced to a pointer at it."
 author: chris-peterson
 repository: https://github.com/chris-peterson/cleat
 keywords: [agents-md, claude-md, conventions, hooks, claude-code]
@@ -46,9 +46,9 @@ suite:
   # Three hooks are the whole plugin — no commands, no skills, no SessionStart
   # output. Nothing resident in session context, and nothing to remember to run.
   activations: [agent]
-  gloss: The fitting on a dock that a line is made fast to.
-  pitch: "Trying Cursor or Codex alongside Claude? Write your project's instructions once, in the file all of them read."
-  what: "Teams evaluating AI coding tools are rarely on one. AGENTS.md is the file about 30 of them read; Claude Code reads CLAUDE.md and nothing else, so guidance kept in either one alone reaches half your tools. cleat holds a repo in the one shape that satisfies both — the body of the guidance in AGENTS.md, with CLAUDE.md a pointer that imports it. Writing a full CLAUDE.md into a repo with no AGENTS.md gets stopped and split in two; a near-miss shape gets reported so it's repaired in the same turn; a repo carrying no agent guidance at all gets an offer to start one."
+  gloss: cleat your instructions once, for any agent.
+  pitch: "Trying Cursor or Codex alongside Claude? Write your project's instructions once, in the file every agent reads."
+  what: "Teams evaluating AI coding agents are rarely on one. AGENTS.md is the file they read; Claude Code always loads CLAUDE.md and reads AGENTS.md only under conditions your CI and your teammates will not all meet, so guidance kept in either one alone reaches your agents unevenly. cleat holds a repo in the one shape that satisfies both: the body of the guidance in AGENTS.md, with CLAUDE.md a pointer that imports it. Writing a full CLAUDE.md into a repo with no AGENTS.md gets stopped and split in two; a near-miss shape gets reported so it's repaired in the same turn; a repo carrying no agent guidance at all gets an offer to start one."
   # >>> shipyard:describe — generated from source by `shipyard gen-describe`; do not edit >>>
   describe:
     hooks:

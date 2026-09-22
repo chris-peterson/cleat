@@ -1,6 +1,14 @@
-# <img src="favicon.svg" alt="cleat" width="64" height="64" style="vertical-align: middle"> cleat
+<div class="ph-hero" style="--accent: var(--color-green)">
 
-One place to write your project's instructions, and every tool reads it.
+<h1 class="ph-lede"><span class="ph-name">cleat</span> your instructions once, for any agent.</h1>
+
+<div class="ph-badge"><img class="ph-mark" src="favicon.svg" alt="cleat" width="26" height="26">
+
+[](_tags.md ':include')
+
+</div>
+
+</div>
 
 Teams evaluating AI coding tools are rarely on one. `AGENTS.md` is the file about
 30 of them read; Claude Code reads `CLAUDE.md` and nothing else. Guidance kept in
