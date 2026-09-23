@@ -13,7 +13,7 @@ no skills, nothing resident in session context.
 📖 **[Read the docs →](https://chris-peterson.github.io/cleat/)**
 
 Repo layout, the `just` targets, and the conventions this codebase holds itself
-to are in [AGENTS.md](./AGENTS.md) — the same file the agents read. Requirements
+to are in [AGENTS.md](./AGENTS.md), the same file the agents read. Requirements
 are in [SPEC.md](./SPEC.md), their coverage in [STATUS.md](./STATUS.md).
 
 ## Exercising it without a session
