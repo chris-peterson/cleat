@@ -15,7 +15,6 @@ form and names guides/agents-vs-claude.md for the long one.
 from __future__ import annotations
 
 import argparse
-import glob
 import hashlib
 import json
 import os
@@ -35,6 +34,12 @@ RULES_DIR = ".claude/rules"
 # Every reader loads the index at launch, in every session. Past this it starts
 # competing with the guidance it exists to point at.
 TOC_MAX_BYTES = 2048
+# Brace groups multiply, so one glob can stand for thousands of patterns, each a
+# tree walk. Real rules need a handful: `{src,lib}/**/*.{ts,tsx,js,jsx}` is 8.
+MAX_GLOB_PATTERNS = 64
+# The findings whose repair is the rules index itself, so the nudge hands over
+# the rendered rows with them.
+INDEX_CODES = ("unlisted-rule", "dead-rule-listed", "toc-bloat")
 
 # Single-tool instruction files. Whatever guidance they hold, the other tools
 # ignore it. `.cursor/rules` is a directory of them.
@@ -53,6 +58,7 @@ ADVISORY = "advisory"
 # it is for humans. Accept the ./-prefixed spelling of either direction.
 REF = re.compile(r"@\.?/?AGENTS\.md\b")
 BACKREF = re.compile(r"@\.?/?CLAUDE\.md\b")
+LINK_TO_AGENTS = re.compile(r"\]\(\.?/?AGENTS\.md\)")
 
 # An AGENTS.md this short that mentions CLAUDE.md is a stub pointing back at it,
 # not a document that happens to discuss the file.
@@ -106,6 +112,14 @@ def _read(path):
 
 def _substantive(text):
     return bool(text.strip())
+
+
+def _pointer_only(text):
+    """Whether text is the pointer shape with nothing below it: it carries the
+    ref, and every line is either the ref or a link to AGENTS.md."""
+    return bool(REF.search(text)) and all(
+        REF.search(line) or LINK_TO_AGENTS.search(line)
+        for line in text.splitlines() if line.strip())
 
 
 def _norm(line):
@@ -213,48 +227,166 @@ def _rule_globs(text):
 
 
 def _expand_braces(pattern):
-    """`**/*.{ts,tsx}` as the two patterns it stands for. Claude Code expands
-    these itself, so a rule's reach is only readable after expansion."""
-    match = re.search(r"\{([^{}]*)\}", pattern)
-    if not match:
-        return [pattern]
-    head, tail = pattern[:match.start()], pattern[match.end():]
-    out = []
-    for option in match.group(1).split(","):
-        out.extend(_expand_braces(head + option + tail))
-    return out
+    """`**/*.{ts,tsx}` as the patterns it stands for, or None past
+    MAX_GLOB_PATTERNS. Claude Code expands these itself, so a rule's reach is
+    only readable after expansion. The cap is checked as the expansion grows,
+    so an oversized glob costs no more than the cap to reject."""
+    done, pending = [], [pattern]
+    while pending:
+        current = pending.pop(0)
+        match = re.search(r"\{([^{}]*)\}", current)
+        if not match:
+            done.append(current)
+            continue
+        head, tail = current[:match.start()], current[match.end():]
+        pending.extend(head + option + tail for option in match.group(1).split(","))
+        if len(done) + len(pending) > MAX_GLOB_PATTERNS:
+            return None
+    return done
 
 
-def _matches_any_file(root, globs):
-    """Whether any file here matches one of these globs. A rule matching nothing
-    cannot fire, so indexing it spends launch context on a rule that never
-    loads."""
+def _glob_segments(pattern):
+    return [s for s in pattern.split("/") if s not in ("", ".")]
+
+
+def _expanded(globs):
+    """(patterns, None) for a rule's globs, or (None, (glob, reason, repair)) for
+    the first one cleat cannot evaluate. Claude Code's `paths:` globs are
+    repo-relative, and walking outside the repo would classify the rule by files
+    it never sees."""
+    patterns = []
     for pattern in globs:
-        for expanded in _expand_braces(pattern):
-            try:
-                if next(glob.iglob(expanded, root_dir=root, recursive=True), None):
+        expanded = _expand_braces(pattern)
+        if expanded is None:
+            return None, (pattern,
+                          "expands to more than {} patterns".format(MAX_GLOB_PATTERNS),
+                          "split it into globs with fewer brace groups")
+        for one in expanded:
+            if one.startswith("/"):
+                return None, (pattern, "is absolute",
+                              "rewrite it relative to the repo root")
+            if ".." in one.split("/"):
+                return None, (pattern, "climbs out of the repo with `..`",
+                              "rewrite it relative to the repo root")
+        patterns.extend(expanded)
+    return patterns, None
+
+
+def _segment_regex(segment):
+    """One glob path segment as a regex fragment. As in glob, a wildcard never
+    matches a leading dot, so `*.md` skips `.hidden.md`."""
+    out = [] if segment.startswith(".") else ["(?!\\.)"]
+    i = 0
+    while i < len(segment):
+        c = segment[i]
+        if c == "*":
+            out.append("[^/]*")
+        elif c == "?":
+            out.append("[^/]")
+        elif c == "[":
+            j = i + 1
+            if j < len(segment) and segment[j] == "!":
+                j += 1
+            if j < len(segment) and segment[j] == "]":
+                j += 1
+            end = segment.find("]", j)
+            if end < 0:
+                out.append(re.escape(c))
+            else:
+                body = segment[i + 1:end].replace("\\", "\\\\")
+                if body.startswith("!"):
+                    body = "^" + body[1:]
+                elif body.startswith("^"):
+                    body = "\\" + body
+                out.append("(?!/)[" + body + "]")
+                i = end
+        else:
+            out.append(re.escape(c))
+        i += 1
+    return "".join(out)
+
+
+def _glob_regex(pattern):
+    """The expanded glob as a regex over repo-relative posix file paths, with
+    glob's recursive semantics: `**` spans zero or more directories, none of
+    them dot-named."""
+    segments = _glob_segments(pattern)
+    parts = []
+    for index, segment in enumerate(segments):
+        last = index == len(segments) - 1
+        if segment == "**":
+            parts.append("(?:(?!\\.)[^/]+/)*" + ("(?!\\.)[^/]+" if last else ""))
+        else:
+            parts.append(_segment_regex(segment) + ("" if last else "/"))
+    return re.compile("^" + "".join(parts) + "$")
+
+
+def _walk_root(root, pattern):
+    """The deepest directory the glob names literally, which bounds where a
+    match can be."""
+    prefix = []
+    for segment in _glob_segments(pattern)[:-1]:
+        if any(c in segment for c in "*?["):
+            break
+        prefix.append(segment)
+    return root.joinpath(*prefix)
+
+
+def _matches_any_file(root, patterns):
+    """Whether any file here matches one of these expanded globs. A rule matching
+    nothing cannot fire, so indexing it spends launch context on a rule that
+    never loads. os.walk leaves directory symlinks unfollowed, which is what
+    keeps a symlink cycle from making the walk endless."""
+    by_top = {}
+    for pattern in patterns:
+        if not any(c in pattern for c in "*?["):
+            if (root / pattern).is_file():
+                return True
+            continue
+        by_top.setdefault(_walk_root(root, pattern), []).append(pattern)
+    for top, group in by_top.items():
+        regexes = [_glob_regex(p) for p in group]
+        wants_hidden = any("/." in "/" + p for p in group)
+        # Without `**` a glob reaches a fixed depth, and nothing below it can match.
+        depth = None
+        if not any("**" in _glob_segments(p) for p in group):
+            prefix = len(top.relative_to(root).parts)
+            depth = max(len(_glob_segments(p)) for p in group) - prefix - 1
+        for dirpath, dirnames, filenames in os.walk(top):
+            below = len(pathlib.Path(dirpath).relative_to(top).parts)
+            dirnames[:] = [d for d in dirnames
+                           if d != ".git" and (wants_hidden or not d.startswith("."))
+                           and (depth is None or below < depth)]
+            rel_dir = pathlib.Path(dirpath).relative_to(root).as_posix()
+            for name in filenames:
+                rel = name if rel_dir == "." else rel_dir + "/" + name
+                if any(regex.match(rel) for regex in regexes):
                     return True
-            except (OSError, ValueError):
-                continue
     return False
 
 
 def _topic_rules(root):
-    """(always-on, path-scoped, retired) rule paths, relative to the rules dir."""
+    """(always-on, path-scoped, retired, unreadable) rules, relative to the rules
+    dir. An unreadable rule is (rel, glob, reason, repair): a glob cleat cannot
+    evaluate leaves the rule out of the other three."""
     base = root / RULES_DIR
     if not base.is_dir():
-        return [], [], []
-    always_on, path_scoped, retired = [], [], []
+        return [], [], [], []
+    always_on, path_scoped, retired, unreadable = [], [], [], []
     for path in sorted(base.rglob("*.md")):
         rel = path.relative_to(base).as_posix()
         globs = _rule_globs(_read(path))
         if globs is None:
             always_on.append(rel)
-        elif _matches_any_file(root, globs):
+            continue
+        patterns, problem = _expanded(globs)
+        if problem:
+            unreadable.append((rel,) + problem)
+        elif _matches_any_file(root, patterns):
             path_scoped.append(rel)
         else:
             retired.append(rel)
-    return always_on, path_scoped, retired
+    return always_on, path_scoped, retired, unreadable
 
 
 def _names_rule(text, rel):
@@ -270,14 +402,18 @@ def _index_lines(agents_text, names):
             if any(_names_rule(line, rel) for rel in names)]
 
 
-def _render_index(root):
+def _index_size(lines):
+    return sum(len(line.encode("utf-8")) + 1 for line in lines)
+
+
+def _render_index(root, rules):
     """The index `AGENTS.md` should carry. The always-on rules get one line
     between them, because a tool that cannot scope reads all of them anyway; the
     path-scoped ones get the glob that decides when to read them, which is the
     one thing no reader can derive without opening every rule's frontmatter.
     Retired rules get nothing — a row for a rule that cannot fire is launch
     context spent on nothing."""
-    always_on, path_scoped, _retired = _topic_rules(root)
+    always_on, path_scoped, _retired, _unreadable = rules
     lines = []
     if always_on:
         lines.append(
@@ -300,16 +436,34 @@ def _render_index(root):
     return "\n".join(lines)
 
 
+def _rendered_index(root, rules=None):
+    """(the index `AGENTS.md` should carry, its launch cost), the cost measured
+    the way toc-bloat measures `AGENTS.md`."""
+    rules = rules or _topic_rules(root)
+    text = _render_index(root, rules)
+    names = rules[0] + rules[1] + rules[2]
+    return text, _index_size(_index_lines(text, names))
+
+
 def _rules_findings(root, agents_text):
     # `cleat check ~` would otherwise reach ~/.claude/rules, which is user-scope
     # memory with no AGENTS.md to be indexed from.
     if _under_user_claude(root / RULES_DIR):
         return []
-    always_on, path_scoped, retired = _topic_rules(root)
-    if not (always_on or path_scoped or retired):
+    rules = _topic_rules(root)
+    always_on, path_scoped, retired, unreadable = rules
+    if not (always_on or path_scoped or retired or unreadable):
         return []
 
     out = []
+    for rel, pattern, reason, repair in unreadable:
+        out.append(Finding(
+            "bad-glob", ERROR, "{}/{}".format(RULES_DIR, rel),
+            "{}/{} has the glob {!r}, which {}, so cleat cannot tell whether "
+            "the rule can fire".format(RULES_DIR, rel, pattern, reason),
+            repair,
+        ))
+
     for rel in path_scoped:
         if _names_rule(agents_text, rel):
             continue
@@ -332,16 +486,23 @@ def _rules_findings(root, agents_text):
             "drop {}'s row from {}".format(rel, AGENTS),
         ))
 
-    index = _index_lines(agents_text, always_on + path_scoped + retired)
-    size = sum(len(line.encode("utf-8")) + 1 for line in index)
+    size = _index_size(_index_lines(agents_text, always_on + path_scoped + retired))
     named_always_on = [rel for rel in always_on if _names_rule(agents_text, rel)]
     if size > TOC_MAX_BYTES:
+        _index, floor = _rendered_index(root, rules)
+        if floor > TOC_MAX_BYTES:
+            repair = (
+                "consolidate the path-scoped rules into fewer glob sets; the "
+                "smallest index these rules allow is {} bytes".format(floor))
+        else:
+            repair = (
+                "index the path-scoped rules and their globs — the one thing a "
+                "reader cannot derive without opening every rule's frontmatter")
         out.append(Finding(
             "toc-bloat", ADVISORY, AGENTS,
             "the index is {} bytes, loaded at launch by every tool in every "
             "session".format(size),
-            "index the path-scoped rules and their globs — the one thing a "
-            "reader cannot derive without opening every rule's frontmatter",
+            repair,
         ))
     elif always_on and len(named_always_on) * 2 > len(always_on):
         out.append(Finding(
@@ -372,6 +533,14 @@ def findings_for(root):
             "context".format(AGENTS, CLAUDE),
             "write {}, then a {} holding the link and the @{} ref".format(
                 AGENTS, CLAUDE, AGENTS),
+        ))
+    elif has_claude and not has_agents and _pointer_only(claude_text):
+        out.append(Finding(
+            "dangling-ref", ERROR, CLAUDE,
+            "{} imports {}, which does not exist, so no tool gets any "
+            "guidance".format(CLAUDE, AGENTS),
+            "write {} with the repo's tool-agnostic guidance; {} is already "
+            "the pointer".format(AGENTS, CLAUDE),
         ))
     elif has_claude and not has_agents:
         out.append(Finding(
@@ -616,7 +785,7 @@ def pre_tool_use(payload):
         return None
     if _under_user_claude(path):
         return None
-    if (path.parent / AGENTS).is_file():
+    if _substantive(_read(path.parent / AGENTS)):
         return None
 
     content = _written_content(tool, path, tool_input)
@@ -661,10 +830,11 @@ def _nudge(session_id, directory):
         "guidance.".format(directory, render(findings), AGENTS, AGENTS, CLAUDE)
     )
     # Composing the index by hand is where it drifts from the directory, so an
-    # index finding hands over the rows rather than describing them.
-    if any(f.code in ("unlisted-rule", "dead-rule-listed") for f in findings):
-        index = _render_index(pathlib.Path(directory))
-        if index:
+    # index finding hands over the rows rather than describing them. Rows over
+    # budget would not clear toc-bloat, so they are not worth the context.
+    if any(f.code in INDEX_CODES for f in findings):
+        index, cost = _rendered_index(pathlib.Path(directory))
+        if index and cost <= TOC_MAX_BYTES:
             body += (
                 "\n\nThe index {} should carry, derived from the rules "
                 "themselves — replace the rows that name rules with it, and "
@@ -698,17 +868,19 @@ def _bootstrap(session_id, path):
 
     if path.name == AGENTS:
         claude_text = _read(directory / CLAUDE)
-        if _substantive(claude_text) and REF.search(claude_text):
+        # With no CLAUDE.md, Claude Code reads AGENTS.md at startup by default;
+        # the check's no-claude advisory covers the sessions that skip it.
+        if not _substantive(claude_text) or REF.search(claude_text):
             return None
         trigger = "agents-unlinked"
         summary = (
-            "{0} was just read by hand. Claude Code loads {1}, not {0} — with no "
-            "{1} pointer, this guidance never reaches a session at startup."
-            .format(AGENTS, CLAUDE)
+            "{0} was just read by hand. {1} here carries no @{0} ref, and Claude "
+            "Code skips a directly read {0} wherever a {1} exists, so this "
+            "guidance never reaches a session at startup.".format(AGENTS, CLAUDE)
         )
         action = (
-            "Offer to add {}, carrying the link and @{} on its own line, so the "
-            "guidance loads at startup instead of on demand.".format(CLAUDE, AGENTS)
+            "Offer to add @{} on its own line in {}, so the guidance loads at "
+            "startup instead of on demand.".format(AGENTS, CLAUDE)
         )
     elif path.name in ("README.md", "CONTRIBUTING.md"):
         if _repo_root(directory) != _resolved(directory):
@@ -804,7 +976,7 @@ def cmd_index(args):
         sys.stderr.write("cleat: not a directory: {}\n".format(directory))
         return 2
     try:
-        index = _render_index(directory)
+        index, _cost = _rendered_index(directory)
     except RuntimeError as exc:
         sys.stderr.write("cleat: {}\n".format(exc))
         return 2

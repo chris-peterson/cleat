@@ -1,5 +1,31 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- A `CLAUDE.md` that is only the pointer, in a repo with no `AGENTS.md`, is
+  reported as `dangling-ref`, with the repair to write `AGENTS.md`. It was
+  reported as `no-agents`, whose repair asked for the pointer it already was.
+- A topic rule whose glob is absolute, climbs out of the repo with `..`, or
+  expands to more than 64 patterns is reported as `bad-glob` instead of being
+  classified.
+
+### Changed
+- Reading an `AGENTS.md` with no `CLAUDE.md` beside it no longer triggers a
+  bootstrap offer, since Claude Code reads that `AGENTS.md` at startup by
+  default. `cleat check` still reports `no-claude` as an advisory for the
+  sessions that skip it. A `CLAUDE.md` without the `@AGENTS.md` ref still gets
+  the offer.
+- When the smallest index a repo's rules allow is itself over budget,
+  `toc-bloat`'s repair says to consolidate rules into fewer glob sets, and the
+  nudge no longer pastes rows that wouldn't clear it. A `toc-bloat` within
+  budget now comes with the rendered index, as `unlisted-rule` does.
+- A blank `AGENTS.md` no longer lets a full `CLAUDE.md` past the write gate.
+
+### Fixed
+- `cleat check` and the hooks no longer hang on a repo with a directory symlink
+  cycle, or on a rule glob with many brace groups.
+
 ## 0.2.0
 
 ### Added

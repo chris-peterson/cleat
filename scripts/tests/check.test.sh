@@ -29,6 +29,16 @@ run_check "$(mkrepo "CLAUDE.md:::$BODY")"
 check "code" "$CHECK_CODES" "no-agents"
 check "error exits 1" "$CHECK_EXIT" "1"
 
+echo "== dangling-ref: CLAUDE.md is the pointer, but AGENTS.md is missing =="
+run_check "$(mkrepo "CLAUDE.md:::$POINTER")"
+check "code" "$CHECK_CODES" "dangling-ref"
+check "error exits 1" "$CHECK_EXIT" "1"
+contains "the repair is to write AGENTS.md" "$CHECK_OUT" "write AGENTS.md"
+
+echo "== a pointer with a Claude-specific remainder is still no-agents =="
+run_check "$(mkrepo "CLAUDE.md:::$POINTER\n## Claude Code\n\n- \`/deploy\` needs AWS_PROFILE set.\n")"
+check "code" "$CHECK_CODES" "no-agents"
+
 echo "== no-claude: AGENTS.md Claude Code reads, but not everywhere =="
 run_check "$(mkrepo "AGENTS.md:::$BODY")"
 check "code" "$CHECK_CODES" "no-claude"

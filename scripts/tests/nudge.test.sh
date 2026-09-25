@@ -75,6 +75,34 @@ contains "names the finding" "$c" "unlisted-rule"
 contains "carries the rendered index" "$c" "| \`src/**/*.ts\` | api.md |"
 contains "and says what to do with it" "$c" "replace the rows that name rules"
 
+echo "== toc-bloat hands over the rows too =="
+ALWAYS='Prefer the concrete verb over the abstract noun.\n'
+d="$(mkrepo "AGENTS.md:::$BODY\n- prose.md\n- commits.md\n- naming.md\n" "CLAUDE.md:::$POINTER" \
+            ".claude/rules/prose.md:::$ALWAYS" ".claude/rules/commits.md:::$ALWAYS" \
+            ".claude/rules/naming.md:::$ALWAYS" ".claude/rules/testing.md:::$ALWAYS")"
+run_hook "$(payload PostToolUse Write "$d/AGENTS.md" "content=x")"
+c="$(context)"
+contains "names the finding" "$c" "toc-bloat"
+contains "carries the one line that replaces them" "$c" "without \`paths:\` frontmatter"
+
+echo "== but not rows that would still be over budget =="
+args=("AGENTS.md:::$BODY" "CLAUDE.md:::$POINTER")
+for i in $(seq -w 1 40); do
+  args+=(".claude/rules/module-$i-conventions.md:::---\npaths:\n  - \"src/module-$i/**/*.py\"\n---\n\nKeep handlers thin.\n"
+         "src/module-$i/handler.py:::pass\n")
+done
+d="$(mkrepo "${args[@]}")"
+printf '%b\n\n%s\n' "$BODY" "$(python3 "$CLEAT" index "$d")" > "$d/AGENTS.md"
+run_hook "$(payload PostToolUse Write "$d/AGENTS.md" "content=x")"
+c="$(context)"
+contains "names the finding" "$c" "consolidate the path-scoped rules"
+absent "and appends no index" "$c" "The index AGENTS.md should carry"
+
+echo "== a pointer written before its AGENTS.md is reported as dangling =="
+d="$(mkrepo "README.md:::# widget\n" "CLAUDE.md:::$POINTER")"
+run_hook "$(payload PostToolUse Write "$d/CLAUDE.md" "content=x")"
+contains "names the finding" "$(context)" "dangling-ref"
+
 echo "== a finding with no index component carries no rows =="
 d="$(mkrepo "AGENTS.md:::$BODY" "CLAUDE.md:::See [AGENTS.md](./AGENTS.md).\n")"
 run_hook "$(payload PostToolUse Write "$d/CLAUDE.md" "content=x")"
