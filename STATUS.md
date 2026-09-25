@@ -9,24 +9,24 @@ any edit above it, and the ledger is read long after that edit.
 
 **Coverage: 68/68 requirements Covered (100%)**
 
-## CHK — The check command
+## CHECK — The check command
 
 | ID     | Status  | Location |
 |--------|---------|----------|
-| CHK-01 | Covered | scripts/cleat (`main`, `cmd_check`) |
-| CHK-02 | Covered | scripts/cleat (`has_errors`, `cmd_check`) |
-| CHK-03 | Covered | scripts/cleat (`cmd_check`) — the `--json` branch |
-| CHK-04 | Covered | scripts/cleat (`findings_for`) — the `no-agents` constructor |
-| CHK-05 | Covered | scripts/cleat (`findings_for`) — the `no-claude` constructor |
-| CHK-06 | Covered | scripts/cleat (`findings_for`) — the `no-ref` constructor |
-| CHK-07 | Covered | scripts/cleat (`findings_for`, `_is_backpointer`) |
-| CHK-08 | Covered | scripts/cleat (`_duplication_findings`) |
-| CHK-09 | Covered | scripts/cleat (`findings_for`) — the `unguided` constructor |
-| CHK-10 | Covered | scripts/cleat (`_foreign_findings`) |
-| CHK-11 | Covered | scripts/cleat (`_duplication_findings`, `_classify`) |
-| CHK-12 | Covered | scripts/cleat (`findings_for`) — reached only via `findings_for`, which no write hook calls with both files absent |
-| CHK-13 | Covered | scripts/cleat (`Finding`, `render`) |
-| CHK-14 | Covered | scripts/cleat (`Finding`); the finding constructors in `findings_for` and `_rules_findings` |
+| CHECK-01 | Covered | scripts/cleat (`main`, `cmd_check`) |
+| CHECK-02 | Covered | scripts/cleat (`has_errors`, `cmd_check`) |
+| CHECK-03 | Covered | scripts/cleat (`cmd_check`) — the `--json` branch |
+| CHECK-04 | Covered | scripts/cleat (`findings_for`) — the `no-agents` constructor |
+| CHECK-05 | Covered | scripts/cleat (`findings_for`) — the `no-claude` constructor |
+| CHECK-06 | Covered | scripts/cleat (`findings_for`) — the `no-ref` constructor |
+| CHECK-07 | Covered | scripts/cleat (`findings_for`, `_is_backpointer`) |
+| CHECK-08 | Covered | scripts/cleat (`_duplication_findings`) |
+| CHECK-09 | Covered | scripts/cleat (`findings_for`) — the `unguided` constructor |
+| CHECK-10 | Covered | scripts/cleat (`_foreign_findings`) |
+| CHECK-11 | Covered | scripts/cleat (`_duplication_findings`, `_classify`) |
+| CHECK-12 | Covered | scripts/cleat (`findings_for`) — reached only via `findings_for`, which no write hook calls with both files absent |
+| CHECK-13 | Covered | scripts/cleat (`Finding`, `render`) |
+| CHECK-14 | Covered | scripts/cleat (`Finding`); the finding constructors in `findings_for` and `_rules_findings` |
 
 ## RULE — Topic rules and the index
 
@@ -42,16 +42,16 @@ any edit above it, and the ledger is read long after that edit.
 | RULE-08 | Covered | scripts/cleat (`_topic_rules`, `_rules_findings`) |
 | RULE-09 | Covered | scripts/cleat (`findings_for`) — guarded by `has_agents` |
 
-## IDX — The index projector
+## INDEX — The index projector
 
 | ID     | Status  | Location |
 |--------|---------|----------|
-| IDX-01 | Covered | scripts/cleat (`cmd_index`, `main`) |
-| IDX-02 | Covered | scripts/cleat (`_render_index`) |
-| IDX-03 | Covered | scripts/cleat (`cmd_index`) — prints only; scripts/tests/rules.test.sh |
-| IDX-04 | Covered | scripts/tests/rules.test.sh — the round-trip case |
-| IDX-05 | Covered | scripts/cleat — the import block, stdlib only |
-| IDX-06 | Covered | scripts/cleat (`_nudge`) |
+| INDEX-01 | Covered | scripts/cleat (`cmd_index`, `main`) |
+| INDEX-02 | Covered | scripts/cleat (`_render_index`) |
+| INDEX-03 | Covered | scripts/cleat (`cmd_index`) — prints only; scripts/tests/rules.test.sh |
+| INDEX-04 | Covered | scripts/tests/rules.test.sh — the round-trip case |
+| INDEX-05 | Covered | scripts/cleat — the import block, stdlib only |
+| INDEX-06 | Covered | scripts/cleat (`_nudge`) |
 
 ## HOOK — Hook dispatch
 
@@ -78,15 +78,15 @@ any edit above it, and the ledger is read long after that edit.
 | GATE-08 | Covered | scripts/cleat (`pre_tool_use`, `_claim`) |
 | GATE-09 | Covered | scripts/cleat (`_session_dir`) |
 
-## NUDG — The repair nudge
+## NUDGE — The repair nudge
 
 | ID      | Status  | Location |
 |---------|---------|----------|
-| NUDG-01 | Covered | scripts/cleat (`_nudge`, `post_tool_use`) |
-| NUDG-02 | Covered | scripts/cleat (`_nudge`) |
-| NUDG-03 | Covered | scripts/cleat (`_duplication_findings`, `_nudge`) |
-| NUDG-04 | Covered | scripts/cleat (`_nudge`) |
-| NUDG-05 | Covered | scripts/cleat (`post_tool_use`, `_rules_owner`) |
+| NUDGE-01 | Covered | scripts/cleat (`_nudge`, `post_tool_use`) |
+| NUDGE-02 | Covered | scripts/cleat (`_nudge`) |
+| NUDGE-03 | Covered | scripts/cleat (`_duplication_findings`, `_nudge`) |
+| NUDGE-04 | Covered | scripts/cleat (`_nudge`) |
+| NUDGE-05 | Covered | scripts/cleat (`post_tool_use`, `_rules_owner`) |
 
 ## BOOT — Bootstrap guidance
 
@@ -98,31 +98,31 @@ any edit above it, and the ledger is read long after that edit.
 | BOOT-04 | Covered | scripts/cleat (`_bootstrap`) |
 | BOOT-05 | Covered | scripts/cleat (`_bootstrap`) |
 
-## PRE — Prefilter and cost
+## PREFILTER — Prefilter and cost
 
 | ID     | Status  | Location |
 |--------|---------|----------|
-| PRE-01 | Covered | hooks/hooks.yml; hooks/prefilter.sh |
-| PRE-02 | Covered | hooks/prefilter.sh |
-| PRE-03 | Covered | hooks/prefilter.sh |
-| PRE-04 | Covered | hooks/prefilter.sh; scripts/tests/prefilter.test.sh |
+| PREFILTER-01 | Covered | hooks/hooks.yml; hooks/prefilter.sh |
+| PREFILTER-02 | Covered | hooks/prefilter.sh |
+| PREFILTER-03 | Covered | hooks/prefilter.sh |
+| PREFILTER-04 | Covered | hooks/prefilter.sh; scripts/tests/prefilter.test.sh |
 
-## PKG — Packaging and layout
+## PACKAGING — Packaging and layout
 
 | ID     | Status  | Location |
 |--------|---------|----------|
-| PKG-01 | Covered | plugin.yml; hooks/hooks.yml; justfile; .gitignore |
-| PKG-02 | Covered | plugin.yml (`suite`) |
-| PKG-03 | Covered | plugin.yml — no `cmds:`; no `skills/` or `commands/` directory |
-| PKG-04 | Covered | scripts/cleat — the import block, stdlib only |
-| PKG-05 | Covered | guides/agents-vs-claude.md; scripts/cleat (`RUBRIC`) |
-| PKG-06 | Covered | AGENTS.md; CLAUDE.md; `just self-check` |
-| PKG-07 | Covered | scripts/tests/check.test.sh — the grading-table fixtures |
+| PACKAGING-01 | Covered | plugin.yml; hooks/hooks.yml; justfile; .gitignore |
+| PACKAGING-02 | Covered | plugin.yml (`suite`) |
+| PACKAGING-03 | Covered | plugin.yml — no `cmds:`; no `skills/` or `commands/` directory |
+| PACKAGING-04 | Covered | scripts/cleat — the import block, stdlib only |
+| PACKAGING-05 | Covered | guides/agents-vs-claude.md; scripts/cleat (`RUBRIC`) |
+| PACKAGING-06 | Covered | AGENTS.md; CLAUDE.md; `just self-check` |
+| PACKAGING-07 | Covered | scripts/tests/check.test.sh — the grading-table fixtures |
 
-## ST — Session state
+## STATE — Session state
 
 | ID    | Status  | Location |
 |-------|---------|----------|
-| ST-01 | Covered | scripts/cleat (`_state_root`) |
-| ST-02 | Covered | scripts/cleat (`_session_dir`) |
-| ST-03 | Covered | scripts/cleat (`_prune_sessions`) |
+| STATE-01 | Covered | scripts/cleat (`_state_root`) |
+| STATE-02 | Covered | scripts/cleat (`_session_dir`) |
+| STATE-03 | Covered | scripts/cleat (`_prune_sessions`) |

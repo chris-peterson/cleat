@@ -71,17 +71,17 @@ Ubiquitous (`The <system> shall …`), State-Driven (`While …`), Event-Driven
 
 ## Requirements
 
-### CHK — The check command
+### CHECK — The check command
 
-- [CHK-01] The system shall provide `cleat check [DIR]`, reporting findings for
+- [CHECK-01] The system shall provide `cleat check [DIR]`, reporting findings for
   `DIR` and defaulting to the current directory.
-- [CHK-02] `cleat check` shall exit 1 when it reports one or more error findings
+- [CHECK-02] `cleat check` shall exit 1 when it reports one or more error findings
   and 0 otherwise, so advisories alone leave the check green.
-- [CHK-03] Where `--json` is passed, `cleat check` shall emit its findings as
+- [CHECK-03] Where `--json` is passed, `cleat check` shall emit its findings as
   JSON on stdout.
-- [CHK-04] When `CLAUDE.md` has substantive content and no `AGENTS.md` sibling
+- [CHECK-04] When `CLAUDE.md` has substantive content and no `AGENTS.md` sibling
   exists, the check shall report `no-agents`.
-- [CHK-05] When `AGENTS.md` exists and no `CLAUDE.md` exists, the check shall
+- [CHECK-05] When `AGENTS.md` exists and no `CLAUDE.md` exists, the check shall
   report `no-claude` as an advisory. Claude Code reads the `AGENTS.md` by
   default, so the repo is guided; what the missing pointer costs is the
   sessions where direct reading is off — a third-party provider, telemetry
@@ -89,24 +89,24 @@ Ubiquitous (`The <system> shall …`), State-Driven (`While …`), Event-Driven
   listing and `InstructionsLoaded` hooks, none of which fire for an `AGENTS.md`
   read directly. That is a portability gap, not an unguided repo, and the two
   are worth telling apart.
-- [CHK-06] When both files exist and `CLAUDE.md` carries no `@AGENTS.md` import
+- [CHECK-06] When both files exist and `CLAUDE.md` carries no `@AGENTS.md` import
   line, the check shall report `no-ref`.
-- [CHK-07] When `AGENTS.md` points at `CLAUDE.md`, the check shall report
+- [CHECK-07] When `AGENTS.md` points at `CLAUDE.md`, the check shall report
   `inverted`.
-- [CHK-08] When the two files overlap in content, the check shall report
+- [CHECK-08] When the two files overlap in content, the check shall report
   `duplicated`.
-- [CHK-09] When neither file exists, the check shall report `unguided`.
-- [CHK-10] When a foreign config is present, the check shall report
+- [CHECK-09] When neither file exists, the check shall report `unguided`.
+- [CHECK-10] When a foreign config is present, the check shall report
   `foreign-config` naming that path.
-- [CHK-11] The check shall report duplication in two tiers: identical normalized
+- [CHECK-11] The check shall report duplication in two tiers: identical normalized
   headings present in both files as advisory, and identical normalized
   non-heading lines of 40 or more characters as the substantive signal.
-- [CHK-12] `unguided` shall be reported by `check` only, since no write hook has
+- [CHECK-12] `unguided` shall be reported by `check` only, since no write hook has
   a write to act on.
-- [CHK-13] Each finding shall carry the repair that clears it: create the
+- [CHECK-13] Each finding shall carry the repair that clears it: create the
   pointer, add the ref, flip the inversion, or delete the duplicated content
   from `CLAUDE.md`.
-- [CHK-14] Each finding shall carry a severity. `no-agents`, `no-ref`,
+- [CHECK-14] Each finding shall carry a severity. `no-agents`, `no-ref`,
   `inverted`, `foreign-config`, `unlisted-rule`, `dead-rule-listed`, and
   line-level `duplicated` shall be errors; `no-claude`, `unguided`,
   `toc-bloat`, and heading-only `duplicated` shall be advisories.
@@ -136,22 +136,22 @@ Ubiquitous (`The <system> shall …`), State-Driven (`While …`), Event-Driven
 - [RULE-09] Where `AGENTS.md` is absent, the system shall report no rules
   findings, the missing pointer being the prior repair.
 
-### IDX — The index projector
+### INDEX — The index projector
 
-- [IDX-01] The system shall provide `cleat index [DIR]`, printing the rules
+- [INDEX-01] The system shall provide `cleat index [DIR]`, printing the rules
   index `AGENTS.md` should carry for `DIR` and defaulting to the current
   directory.
-- [IDX-02] The projector shall render the always-on rules as one line, the
+- [INDEX-02] The projector shall render the always-on rules as one line, the
   path-scoped rules as a row per distinct glob set, and the retired rules not at
   all.
-- [IDX-03] The projector shall write no file, the placement of the index within
+- [INDEX-03] The projector shall write no file, the placement of the index within
   `AGENTS.md`'s prose being the reader's judgment rather than the check's fact.
-- [IDX-04] The index the projector prints shall clear `unlisted-rule`,
+- [INDEX-04] The index the projector prints shall clear `unlisted-rule`,
   `dead-rule-listed`, and `toc-bloat` for the directory it was rendered from.
-- [IDX-05] The projector shall run under the same constraints as the rest of the
+- [INDEX-05] The projector shall run under the same constraints as the rest of the
   CLI — python3, standard library only — so a repo adopting the convention needs
   nothing installed to keep its index current.
-- [IDX-06] When the nudge reports an index finding, it shall carry the rendered
+- [INDEX-06] When the nudge reports an index finding, it shall carry the rendered
   index as `additionalContext`, composing the index by hand being where it
   drifts from the directory.
 
@@ -190,18 +190,18 @@ Ubiquitous (`The <system> shall …`), State-Driven (`While …`), Event-Driven
 - [GATE-09] The re-issue record shall be scoped to the session that produced the
   deny, so a stale record cannot pass a later write.
 
-### NUDG — The repair nudge
+### NUDGE — The repair nudge
 
-- [NUDG-01] When a write to `CLAUDE.md` or `AGENTS.md` completes, the nudge shall
+- [NUDGE-01] When a write to `CLAUDE.md` or `AGENTS.md` completes, the nudge shall
   run the check against that directory.
-- [NUDG-02] The nudge shall return the findings and their repairs as
+- [NUDGE-02] The nudge shall return the findings and their repairs as
   `additionalContext`, so the shape can be corrected in the same turn.
-- [NUDG-03] The nudge shall treat `AGENTS.md` as canonical, directing every
+- [NUDGE-03] The nudge shall treat `AGENTS.md` as canonical, directing every
   duplication repair at `CLAUDE.md`.
-- [NUDG-04] If the finding set is unchanged from the last nudge in this session,
+- [NUDGE-04] If the finding set is unchanged from the last nudge in this session,
   then the nudge shall stay silent, so a finding the model will not clear cannot
   loop.
-- [NUDG-05] When a write under `.claude/rules/` completes, the nudge shall run
+- [NUDGE-05] When a write under `.claude/rules/` completes, the nudge shall run
   the check against the directory that owns the rules directory rather than the
   rule's own parent, a new rule being unindexed by construction.
 
@@ -220,48 +220,48 @@ Ubiquitous (`The <system> shall …`), State-Driven (`While …`), Event-Driven
 - [BOOT-05] Each bootstrap trigger shall emit both `systemMessage`, so the user
   sees it, and `additionalContext`, so the model can act on a yes.
 
-### PRE — Prefilter and cost
+### PREFILTER — Prefilter and cost
 
-- [PRE-01] A single pure-bash prefilter shall front all three hook
+- [PREFILTER-01] A single pure-bash prefilter shall front all three hook
   registrations.
-- [PRE-02] The prefilter shall read the payload on stdin and exit unless the raw
+- [PREFILTER-02] The prefilter shall read the payload on stdin and exit unless the raw
   payload contains one of a fixed set of substrings.
-- [PRE-03] The prefilter shall invoke neither `jq` nor python.
-- [PRE-04] If a payload is not a candidate, then no python process shall be
+- [PREFILTER-03] The prefilter shall invoke neither `jq` nor python.
+- [PREFILTER-04] If a payload is not a candidate, then no python process shall be
   spawned for it.
 
-### PKG — Packaging and layout
+### PACKAGING — Packaging and layout
 
-- [PKG-01] `plugin.yml` shall be the source of record; `hooks/hooks.json`,
+- [PACKAGING-01] `plugin.yml` shall be the source of record; `hooks/hooks.json`,
   `.claude-plugin/plugin.json`, and `docs/` shall be generated from source.
-- [PKG-02] The plugin shall declare suite group `record` and activations
+- [PACKAGING-02] The plugin shall declare suite group `record` and activations
   `[agent]`.
-- [PKG-03] The plugin shall register no commands and ship no skills, keeping
+- [PACKAGING-03] The plugin shall register no commands and ship no skills, keeping
   nothing resident in session context.
-- [PKG-04] `scripts/cleat` shall run on python3 with the standard library only.
-- [PKG-05] The rubric shall be a file the deny reason names by path, read only
+- [PACKAGING-04] `scripts/cleat` shall run on python3 with the standard library only.
+- [PACKAGING-05] The rubric shall be a file the deny reason names by path, read only
   when a deny happens.
-- [PKG-06] cleat's own repository shall hold the shape it enforces — `AGENTS.md`
+- [PACKAGING-06] cleat's own repository shall hold the shape it enforces — `AGENTS.md`
   canonical plus a pointer `CLAUDE.md` — and shall pass `cleat check`.
-- [PKG-07] `cleat check`'s verdict for each shape in the founding issue's grading
+- [PACKAGING-07] `cleat check`'s verdict for each shape in the founding issue's grading
   table shall agree with that table: the two A rows clean, the D row `inverted`,
   the C rows `no-claude`, and the F rows `unguided`. A disagreement is a defect in
   the check.
 
-### ST — Session state
+### STATE — Session state
 
-- [ST-01] Hook state shall live under `$CLAUDE_PLUGIN_DATA` when Claude Code sets
+- [STATE-01] Hook state shall live under `$CLAUDE_PLUGIN_DATA` when Claude Code sets
   it, and otherwise under the same canonical path derived from Claude Code's
   `<plugin>-<owner>` data-dir convention.
-- [ST-02] Hook state shall be partitioned by session, so the gate's re-issue
+- [STATE-02] Hook state shall be partitioned by session, so the gate's re-issue
   record, the nudge's last reported finding set, and the bootstrap triggers
   already fired all expire together with the session that made them.
-- [ST-03] The plugin shall prune session state older than seven days, so state
+- [STATE-03] The plugin shall prune session state older than seven days, so state
   written on every session cannot grow without bound.
 
 ## Future Requirements
 
-- [FUT-01] (→ GATE) Where the deny round trip proves expensive in practice, the
+- [FUTURE-01] (→ GATE) Where the deny round trip proves expensive in practice, the
   gate may instead use `PreToolUse` `updatedInput` to retarget the write to
   `AGENTS.md`. Deferred: silently retargeting a write is surprising, and it
   assumes the content is tool-agnostic.
