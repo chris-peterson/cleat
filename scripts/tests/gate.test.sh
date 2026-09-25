@@ -39,6 +39,11 @@ contains "names the full rubric's path" "$r" "guides/agents-vs-claude.md"
 contains "shows the pointer shape" "$r" "@AGENTS.md"
 contains "explains the re-issue escape" "$r" "re-issue the identical write"
 
+echo "== a blank AGENTS.md sibling counts as absent, as it does in the check =="
+blank="$(mkrepo "AGENTS.md:::\n \n")"
+run_hook "$(payload PreToolUse Write "$blank/CLAUDE.md" "content=@$body_file")"
+check "denied" "$(decision)" "deny"
+
 echo "== an identical re-issue is allowed, once =="
 run_hook "$p"
 check "second attempt allowed" "$(decision)" "allow"

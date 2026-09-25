@@ -95,6 +95,59 @@ run_check "$(big_repo)"
 contains "reported" "$CHECK_OUT" "toc-bloat"
 check "still an advisory" "$CHECK_EXIT" "0"
 contains "names the byte cost" "$CHECK_OUT" "bytes"
+contains "the rendered index would fit, so the repair points at it" "$CHECK_OUT" \
+  "index the path-scoped rules and their globs"
+
+echo "== toc-bloat: rules whose smallest index is over budget =="
+distinct_repo() {
+  local args=("AGENTS.md:::$BODY" "CLAUDE.md:::$POINTER") i
+  for i in $(seq -w 1 40); do
+    args+=(".claude/rules/module-$i-conventions.md:::---\npaths:\n  - \"src/module-$i/**/*.py\"\n---\n\nKeep handlers thin.\n"
+           "src/module-$i/handler.py:::pass\n")
+  done
+  mkrepo "${args[@]}"
+}
+DISTINCT="$(distinct_repo)"
+printf '%b\n\n%s\n' "$BODY" "$(python3 "$CLEAT" index "$DISTINCT")" > "$DISTINCT/AGENTS.md"
+run_check "$DISTINCT"
+check "the projector's own index trips it" "$CHECK_CODES" "toc-bloat"
+contains "and the repair is to consolidate" "$CHECK_OUT" "consolidate the path-scoped rules"
+
+echo "== a directory symlink cycle cannot stall classification =="
+LOOP="$(mkrepo "AGENTS.md:::$BODY\n| \`**/no-such-file.xyz\` | loop.md |\n" "CLAUDE.md:::$POINTER" \
+               ".claude/rules/loop.md:::---\npaths:\n  - \"**/no-such-file.xyz\"\n---\n\nNever fires.\n" \
+               "src/keep.txt:::x\n")"
+ln -s .. "$LOOP/src/a"
+ln -s .. "$LOOP/src/b"
+# perl's alarm bounds the run, so a regression fails this case instead of
+# hanging the suite.
+LOOP_OUT="$(perl -e 'alarm shift; exec @ARGV' 10 python3 "$CLEAT" check "$LOOP")"
+check "finishes, and the rule is retired" "$(printf '%s' "$LOOP_OUT" | awk '/^[a-z]/ {print $1}')" "dead-rule-listed"
+
+echo "== bad-glob: a glob cleat cannot evaluate =="
+bad_rule() { printf -- '---\npaths:\n  - "%s"\n---\n\nRule.\n' "$1"; }
+run_check "$(mkrepo "AGENTS.md:::$BODY" "CLAUDE.md:::$POINTER" \
+                    ".claude/rules/wide.md:::$(bad_rule '{a,b}{a,b}{a,b}{a,b}{a,b}{a,b}{a,b}/*.md')")"
+check "past the brace cap" "$CHECK_CODES" "bad-glob"
+check "error exits 1" "$CHECK_EXIT" "1"
+contains "says how to fix it" "$CHECK_OUT" "fewer brace groups"
+run_check "$(mkrepo "AGENTS.md:::$BODY" "CLAUDE.md:::$POINTER" \
+                    ".claude/rules/abs.md:::$(bad_rule '/etc/*')")"
+check "an absolute glob" "$CHECK_CODES" "bad-glob"
+run_check "$(mkrepo "AGENTS.md:::$BODY" "CLAUDE.md:::$POINTER" \
+                    ".claude/rules/up.md:::$(bad_rule '../**/*.md')")"
+check "a glob that climbs out with .." "$CHECK_CODES" "bad-glob"
+
+echo "== globs keep glob's own matching rules =="
+run_check "$(mkrepo "AGENTS.md:::$BODY" "CLAUDE.md:::$POINTER" \
+                    ".claude/rules/ci.md:::$(bad_rule '**/*.yml')" ".github/workflows/ci.yml:::on: push\n")"
+check "** skips dot-named directories" "$CHECK_CODES" ""
+run_check "$(mkrepo "AGENTS.md:::$BODY" "CLAUDE.md:::$POINTER" \
+                    ".claude/rules/ci.md:::$(bad_rule '.github/**/*.yml')" ".github/workflows/ci.yml:::on: push\n")"
+check "unless the glob names one" "$CHECK_CODES" "unlisted-rule"
+run_check "$(mkrepo "AGENTS.md:::$BODY" "CLAUDE.md:::$POINTER" \
+                    ".claude/rules/docs.md:::$(bad_rule 'docs/*.md')" "docs/deep/guide.md:::# guide\n")"
+check "a glob without ** matches only at its own depth" "$CHECK_CODES" ""
 
 echo "== with no AGENTS.md the pointer repair comes first, alone =="
 run_check "$(mkrepo "CLAUDE.md:::$BODY" ".claude/rules/api.md:::$SCOPED" \
