@@ -383,11 +383,12 @@ def findings_for(root):
         ))
     elif has_agents and not has_claude:
         out.append(Finding(
-            "no-claude", ERROR, AGENTS,
-            "{} exists with no {} — Claude Code does not read {}, so it loads "
-            "none of this".format(AGENTS, CLAUDE, AGENTS),
-            "add a {} carrying the link and @{} on its own line".format(
-                CLAUDE, AGENTS),
+            "no-claude", ADVISORY, AGENTS,
+            "{} exists with no {} — Claude Code reads {} by default, but not on "
+            "a third-party provider, with telemetry off, or in the first "
+            "session after an upgrade".format(AGENTS, CLAUDE, AGENTS),
+            "add a {} carrying the link and @{} on its own line, so every "
+            "session loads it the same way".format(CLAUDE, AGENTS),
         ))
 
     inverted = has_agents and _is_backpointer(agents_text)

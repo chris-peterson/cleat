@@ -2,9 +2,11 @@
 
 A Claude Code plugin that holds a repository's agent instructions in one
 canonical `AGENTS.md`, with `CLAUDE.md` reduced to a pointer that imports it.
-Claude Code reads `CLAUDE.md` and does not read `AGENTS.md`; roughly 30 other
-tools read `AGENTS.md`. The pointer shape is what makes one body of guidance
-reach both.
+Roughly 30 coding tools read `AGENTS.md`. Claude Code always loads
+`CLAUDE.md`, and since v2.1.277 reads `AGENTS.md` too — but only where no
+`CLAUDE.md` sits at or above the working directory, and only in a session that
+fetches feature flags. The pointer shape is what makes one body of guidance
+reach every tool in every session.
 
 `SPEC.md` is the requirement source of record and `STATUS.md` is its coverage
 ledger. Both are part of the diff — a change to behavior updates the requirement

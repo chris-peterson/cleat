@@ -18,9 +18,13 @@ Ubiquitous (`The <system> shall …`), State-Driven (`While …`), Event-Driven
 - **`AGENTS.md`** — the tool-agnostic agent instruction file, read by roughly 30
   coding tools. In the target shape it is the **canonical** location: guidance
   lives here, and what a rules directory holds instead is indexed from here.
-- **`CLAUDE.md`** — the only instruction file Claude Code reads. Claude Code does
-  not read `AGENTS.md`, so a repo with guidance only in `AGENTS.md` hands Claude
-  nothing.
+- **`CLAUDE.md`** — Claude Code's own instruction file, and the one it always
+  loads. Since v2.1.277 Claude Code also reads `AGENTS.md` directly, but only
+  where no `CLAUDE.md` or `CLAUDE.local.md` sits in the working directory or
+  above it, and only in a session that fetches feature flags — so not on Bedrock
+  or another third-party provider, not with telemetry disabled, and not in the
+  first session after an upgrade. The pointer shape is what makes the load
+  unconditional across all of them.
 - **Pointer shape** — a `CLAUDE.md` whose body is a link to `AGENTS.md` plus the
   `@AGENTS.md` ref, optionally followed by Claude-specific guidance (slash
   commands, hooks, `settings.json`). An import rather than a symlink, because
@@ -78,7 +82,13 @@ Ubiquitous (`The <system> shall …`), State-Driven (`While …`), Event-Driven
 - [CHK-04] When `CLAUDE.md` has substantive content and no `AGENTS.md` sibling
   exists, the check shall report `no-agents`.
 - [CHK-05] When `AGENTS.md` exists and no `CLAUDE.md` exists, the check shall
-  report `no-claude`.
+  report `no-claude` as an advisory. Claude Code reads the `AGENTS.md` by
+  default, so the repo is guided; what the missing pointer costs is the
+  sessions where direct reading is off — a third-party provider, telemetry
+  disabled, the first session after an upgrade — plus `/memory` and `/context`
+  listing and `InstructionsLoaded` hooks, none of which fire for an `AGENTS.md`
+  read directly. That is a portability gap, not an unguided repo, and the two
+  are worth telling apart.
 - [CHK-06] When both files exist and `CLAUDE.md` carries no `@AGENTS.md` import
   line, the check shall report `no-ref`.
 - [CHK-07] When `AGENTS.md` points at `CLAUDE.md`, the check shall report
@@ -96,10 +106,10 @@ Ubiquitous (`The <system> shall …`), State-Driven (`While …`), Event-Driven
 - [CHK-13] Each finding shall carry the repair that clears it: create the
   pointer, add the ref, flip the inversion, or delete the duplicated content
   from `CLAUDE.md`.
-- [CHK-14] Each finding shall carry a severity. `no-agents`, `no-claude`,
-  `no-ref`, `inverted`, `foreign-config`, `unlisted-rule`, `dead-rule-listed`,
-  and line-level `duplicated` shall be errors; `unguided`, `toc-bloat`, and
-  heading-only `duplicated` shall be advisories.
+- [CHK-14] Each finding shall carry a severity. `no-agents`, `no-ref`,
+  `inverted`, `foreign-config`, `unlisted-rule`, `dead-rule-listed`, and
+  line-level `duplicated` shall be errors; `no-claude`, `unguided`,
+  `toc-bloat`, and heading-only `duplicated` shall be advisories.
 
 ### RULE — Topic rules and the index
 
