@@ -52,8 +52,8 @@ Three hooks, no commands:
 | When | What happens |
 |---|---|
 | You write a substantive `CLAUDE.md` into a repo with no `AGENTS.md` | The write is stopped, with the reason and the instruction to split it in two. The content isn't lost: the model still holds it, so it re-issues rather than regenerates. |
-| A write leaves `AGENTS.md`/`CLAUDE.md` in a near-miss shape | The finding and its repair come back in the same turn: add the missing ref, flip an inversion, drop content duplicated from `AGENTS.md`. |
-| An agent reads `AGENTS.md`, a `README.md`, or a rival tool's config in a repo with no convention yet | You get one offer to bootstrap it. Once per session per directory. |
+| A write leaves `AGENTS.md`/`CLAUDE.md` in a near-miss shape | The finding and its repair come back in the same turn: add the missing ref, write the `AGENTS.md` a pointer imports, flip an inversion, drop content duplicated from `AGENTS.md`. |
+| An agent reads an `AGENTS.md` that `CLAUDE.md` doesn't import, the `README.md` of a repo with no agent guidance, or a rival tool's config | You get one offer to fix it. Once per session per directory. |
 
 ### When `CLAUDE.md` really is all Claude-specific
 
@@ -77,12 +77,13 @@ To see where a repo stands first:
 scripts/cleat check .
 ```
 
-Findings come in two severities. **Errors** (a missing `AGENTS.md`, a missing
-`CLAUDE.md`, a missing ref, an inversion, content duplicated across both files,
-a rival tool's config sitting alongside) exit non-zero, so CI can gate on them.
-**Advisories** (a repo with no agent guidance at all, or a heading like
-`## Commands` legitimately present in both files) are reported and leave the
-check green.
+Findings come in two severities. **Errors** (a missing `AGENTS.md`, a pointer
+to an `AGENTS.md` that doesn't exist, a missing ref, an inversion, content
+duplicated across both files, a rival tool's config sitting alongside, a topic
+rule glob cleat can't evaluate) exit non-zero, so CI can gate on them.
+**Advisories** (a repo with no agent guidance at all, an `AGENTS.md` with no
+`CLAUDE.md` pointer, or a heading like `## Commands` legitimately present in
+both files) are reported and leave the check green.
 
 ## Why "cleat"
 

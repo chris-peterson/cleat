@@ -21,20 +21,25 @@ context() { field 'd["hookSpecificOutput"]["additionalContext"]'; }
 
 BODY='# Widget service\n\nBuild with `just build`; the integration suite needs a live database.\n'
 
-echo "== reading AGENTS.md where nothing imports it =="
-d="$(mkrepo "AGENTS.md:::$BODY")"
+echo "== reading AGENTS.md where CLAUDE.md does not import it =="
+d="$(mkrepo "AGENTS.md:::$BODY" "CLAUDE.md:::Use /deploy to ship.\n")"
 p="$(payload PostToolUse Read "$d/AGENTS.md")"
 run_hook "$p"
 check "the hook exits 0" "$BOOT_EXIT" "0"
-contains "the user sees it" "$(sysmsg)" "Claude Code loads CLAUDE.md"
-contains "the model gets the action" "$(context)" "Offer to add CLAUDE.md"
+contains "the user sees it" "$(sysmsg)" "never reaches a session at startup"
+contains "the model gets the action" "$(context)" "Offer to add @AGENTS.md"
 contains "and the rubric's path" "$(context)" "guides/agents-vs-claude.md"
 
 echo "== and only once per session per directory =="
 run_hook "$p"
 check "silent the second time" "$BOOT_OUT" ""
 run_hook "$(payload PostToolUse Read "$d/AGENTS.md" "session=elsewhere")"
-contains "but a fresh session gets it" "$(sysmsg)" "Claude Code loads CLAUDE.md"
+contains "but a fresh session gets it" "$(sysmsg)" "never reaches a session at startup"
+
+echo "== with no CLAUDE.md, Claude Code reads AGENTS.md itself =="
+d="$(mkrepo "AGENTS.md:::$BODY")"
+run_hook "$(payload PostToolUse Read "$d/AGENTS.md")"
+check "silent" "$BOOT_OUT" ""
 
 echo "== a CLAUDE.md that only links, without the ref, still counts as unlinked =="
 d="$(mkrepo "AGENTS.md:::$BODY" "CLAUDE.md:::See [AGENTS.md](./AGENTS.md).\n")"
