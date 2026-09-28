@@ -21,8 +21,10 @@ import os
 import pathlib
 import re
 import shutil
+import subprocess
 import sys
 import time
+import urllib.parse
 
 AGENTS = "AGENTS.md"
 CLAUDE = "CLAUDE.md"
@@ -70,6 +72,29 @@ DUP_MIN_CHARS = 40
 SESSION_TTL_SECONDS = 7 * 24 * 60 * 60
 
 RUBRIC = pathlib.Path(__file__).resolve().parent.parent / "guides" / "agents-vs-claude.md"
+PLACEMENT_GUIDE = pathlib.Path(__file__).resolve().parent.parent / "guides" / "placement.md"
+
+# The documentation set: the files compared for copied content. Everything under
+# DOCS_DIR is written for end users; the basenames below are read by anyone, or
+# anything, changing the repo.
+DOCS_DIR = "docs"
+DOC_BASENAMES = ("README.md", "CONTRIBUTING.md", AGENTS, CLAUDE, "SKILL.md")
+# One shared line is a pitch or a title; a run is a copied procedure.
+RUN_MIN_LINES = 3
+# A run in more files than this is a template every page starts from — a
+# diagram directive, a retro's section labels — rather than a copy of one file.
+RUN_MAX_HOLDERS = 2
+
+# Audience tiers, narrowest first. A file may link to its own tier or a wider one.
+TOOL_TIER, REPO_TIER, END_USER_TIER = 0, 1, 2
+TIER_NAMES = ("tool-specific", "repo", "end user")
+TOOL_BASENAMES = (CLAUDE, "CLAUDE.local.md", "SKILL.md")
+
+# A markdown link's destination, bare or in angle brackets. The optional title
+# after it is where docsify's `':include'` sits.
+LINK = re.compile(r"\]\(\s*(<[^>]*>|[^)\s]+)")
+URL_SCHEME = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
+INLINE_CODE = re.compile(r"`[^`]*`")
 
 POINTER = """Agent instructions live in [AGENTS.md](./AGENTS.md).
 
@@ -515,6 +540,211 @@ def _rules_findings(root, agents_text):
     return out
 
 
+# ---- the documentation set --------------------------------------------------
+
+def _git(root, *args, stdin=None, unset_ok=False):
+    """git's stdout for a command run in root. A failure is a hard error: every
+    caller has already established that root is inside a work tree. With
+    unset_ok, exit 1 (git config's "key not set") reads as empty output."""
+    try:
+        result = subprocess.run(["git", "-C", str(root)] + list(args), input=stdin,
+                                capture_output=True, text=True, check=False)
+    except OSError as exc:
+        raise RuntimeError("cannot run git in {}: {}".format(root, exc))
+    if unset_ok and result.returncode == 1:
+        return ""
+    if result.returncode != 0:
+        raise RuntimeError("git {} failed in {}: {}".format(
+            " ".join(args), root, result.stderr.strip()))
+    return result.stdout
+
+
+def _generated(root, rels):
+    """The rels git marks `linguist-generated`, the attribute GitHub and GitLab
+    both read to collapse a generated file in review."""
+    if not rels:
+        return set()
+    fields = _git(root, "check-attr", "-z", "--stdin", "linguist-generated",
+                  stdin="\0".join(rels) + "\0").split("\0")
+    return {fields[i] for i in range(0, len(fields) - 2, 3)
+            if fields[i + 2] in ("set", "true")}
+
+
+def _markdown_files(root):
+    """Every markdown file under root, repo-relative and sorted, less what git
+    ignores or marks generated. Either is a projection of its source, identical
+    by construction. Outside a work tree nothing is ignored or marked."""
+    root = pathlib.Path(root)
+    if _repo_root(root) is not None:
+        listed = _git(root, "ls-files", "-z", "--cached", "--others",
+                      "--exclude-standard", "--", "*.md")
+        rels = {rel for rel in listed.split("\0") if rel}
+        rels -= _generated(root, sorted(rels))
+    else:
+        rels = set()
+        for dirpath, dirnames, filenames in os.walk(root):
+            dirnames[:] = [d for d in dirnames if d != ".git"]
+            rel_dir = pathlib.Path(dirpath).relative_to(root).as_posix()
+            for name in filenames:
+                if name.endswith(".md"):
+                    rels.add(name if rel_dir == "." else rel_dir + "/" + name)
+    return sorted(rel for rel in rels if (root / rel).is_file())
+
+
+def _in_doc_set(rel):
+    parts = rel.split("/")
+    return (parts[0] == DOCS_DIR or parts[-1] in DOC_BASENAMES
+            or rel.startswith(RULES_DIR + "/"))
+
+
+def _tier(rel):
+    """The audience a repo-relative path is written for, decided by path alone."""
+    parts = rel.split("/")
+    if parts[0] == DOCS_DIR:
+        return END_USER_TIER
+    if parts[-1] in TOOL_BASENAMES:
+        return TOOL_TIER
+    if rel in FOREIGN_CONFIGS or rel.startswith(".cursor/rules/"):
+        return TOOL_TIER
+    if parts[0] == ".claude" and not rel.startswith(RULES_DIR + "/"):
+        return TOOL_TIER
+    return REPO_TIER
+
+
+def _content_lines(text):
+    """text's normalized non-heading lines, in order. Frontmatter is metadata:
+    two rules scoped to the same globs share it by design. Blank lines, fence
+    markers, and lines with no letter or digit (a table rule, a `---`) carry
+    nothing that could drift, so they neither count toward a run nor break one."""
+    lines = text.splitlines()
+    if lines and lines[0].strip() == "---":
+        end = next((i for i, line in enumerate(lines[1:], 1)
+                    if line.strip() == "---"), None)
+        if end is not None:
+            lines = lines[end + 1:]
+    out = []
+    fenced = False
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            fenced = not fenced
+            continue
+        if not fenced and stripped.startswith("#"):
+            continue
+        norm = _norm(line)
+        if norm and any(c.isalnum() for c in norm):
+            out.append(norm)
+    return out
+
+
+def _runs(lines):
+    """Each window of RUN_MIN_LINES consecutive lines, mapped to its lines."""
+    return {tuple(lines[i:i + RUN_MIN_LINES])
+            for i in range(len(lines) - RUN_MIN_LINES + 1)}
+
+
+def _quote(line, limit=60):
+    return '"{}"'.format(line if len(line) <= limit else line[:limit - 1] + "…")
+
+
+def _restated_findings(texts):
+    """A finding per pair of documentation files sharing a run of lines. texts
+    maps each file in the set to its content. Two pages of the docs site
+    repeating each other is the site's own structure; the drift this reports is
+    between audiences, or within the repo."""
+    holders = {}
+    for rel in sorted(texts):
+        for run in _runs(_content_lines(texts[rel])):
+            holders.setdefault(run, []).append(rel)
+    shared = {}
+    for run, rels in holders.items():
+        if len(rels) > RUN_MAX_HOLDERS:
+            continue
+        for i, first in enumerate(rels):
+            for second in rels[i + 1:]:
+                if _tier(first) == _tier(second) == END_USER_TIER:
+                    continue
+                shared.setdefault((first, second), set()).update(run)
+
+    out = []
+    for (first, second), lines in sorted(shared.items()):
+        narrow, wide = sorted((first, second), key=lambda rel: (_tier(rel), rel))
+        example = sorted(lines)[0]
+        message = "{} line(s) of {} also appear in {}, including {}".format(
+            len(lines), narrow, wide, _quote(example))
+        if _tier(narrow) == _tier(wide):
+            repair = ("keep one copy, in whichever of {} and {} its reader "
+                      "consults, and link to it from the other".format(narrow, wide))
+        else:
+            repair = ("keep the copy in {} ({}) and link to or include it from {} "
+                      "({})".format(wide, TIER_NAMES[_tier(wide)],
+                                    narrow, TIER_NAMES[_tier(narrow)]))
+        out.append(Finding("restated", ADVISORY, narrow, message, repair))
+    return out
+
+
+def _link_targets(text):
+    """The destinations of text's markdown links, outside fenced blocks and
+    inline code, where a link is an example rather than a reference."""
+    out = []
+    fenced = False
+    for line in text.splitlines():
+        if line.strip().startswith("```"):
+            fenced = not fenced
+            continue
+        if fenced:
+            continue
+        for match in LINK.finditer(INLINE_CODE.sub("", line)):
+            out.append(match.group(1).strip("<>"))
+    return out
+
+
+def _resolve_link(holder, target):
+    """A relative link's target as a repo-relative path, or None for a link this
+    check has no opinion about: a URL, an in-page anchor, a site-rooted path, or
+    one that climbs out of the repo."""
+    if not target or URL_SCHEME.match(target) or target.startswith(("#", "/")):
+        return None
+    target = urllib.parse.unquote(re.split(r"[#?]", target, maxsplit=1)[0])
+    if not target:
+        return None
+    base = pathlib.PurePosixPath(holder).parent
+    resolved = os.path.normpath((base / target).as_posix())
+    if resolved == ".." or resolved.startswith("../"):
+        return None
+    return resolved
+
+
+def _narrowing_findings(texts, inverted):
+    out = []
+    for holder in sorted(texts):
+        seen = set()
+        for target in _link_targets(texts[holder]):
+            rel = _resolve_link(holder, target)
+            if rel is None or rel in seen or _tier(rel) >= _tier(holder):
+                continue
+            seen.add(rel)
+            # The inversion's repair already covers this link.
+            if inverted and holder == AGENTS and rel == CLAUDE:
+                continue
+            out.append(Finding(
+                "narrowing-ref", ERROR, holder,
+                "{} ({}) links to {}, which is written for a narrower audience "
+                "({})".format(holder, TIER_NAMES[_tier(holder)], rel,
+                              TIER_NAMES[_tier(rel)]),
+                "put what its reader needs in the file itself, or link to a copy "
+                "in its own tier or a wider one",
+            ))
+    return out
+
+
+def _documentation_findings(root, inverted):
+    root = pathlib.Path(root)
+    markdown = {rel: _read(root / rel) for rel in _markdown_files(root)}
+    doc_set = {rel: text for rel, text in markdown.items() if _in_doc_set(rel)}
+    return _restated_findings(doc_set) + _narrowing_findings(markdown, inverted)
+
+
 def findings_for(root):
     """Every finding for a single directory, most structural first."""
     root = pathlib.Path(root)
@@ -588,6 +818,7 @@ def findings_for(root):
     if has_agents:
         out.extend(_rules_findings(root, agents_text))
     out.extend(_foreign_findings(root))
+    out.extend(_documentation_findings(root, inverted))
     return out
 
 
@@ -713,6 +944,14 @@ def _repo_root(directory):
     return None
 
 
+def _relative_to(path, root):
+    """path relative to root as a posix string, or "" when it lies outside."""
+    try:
+        return _resolved(path).relative_to(root).as_posix()
+    except ValueError:
+        return ""
+
+
 def _written_content(tool, path, tool_input):
     """The content the tool is about to leave on disk, or None when it can't be
     determined from the payload."""
@@ -769,6 +1008,118 @@ def _deny_reason(path):
     )
 
 
+PLACEMENT_REASON = """cleat: before this lands in {name}, place it. This is asked once per file per \
+session.
+
+- Could a hook or linter decide it from a single tool call's own inputs — a \
+command string, a file path, file content? Then write the hook instead: it costs \
+nothing until it fires, and it acts on what the agent does rather than on what \
+it was told.
+- Does every session need it? If only some files or some tasks do, it belongs \
+where it loads just in time, not in a file every session pays for at launch.
+{topic}{existing}
+Why these questions: {guide}
+
+If this belongs here as written, re-issue the identical write and it will be \
+allowed through."""
+
+PLACEMENT_TOPIC = """- Is it a topic of its own? Then give it a rule under {rules}/, with `paths:` \
+frontmatter where it is bound to a file type or a tree, instead of growing the \
+file every session loads.
+"""
+
+PLACEMENT_EXISTING = """- {files} already carry some of these lines. Link to that copy rather than \
+restating it.
+"""
+
+
+def _extra_rules_dirs(repo):
+    """The rules directories configured beyond .claude/rules/, as resolved paths:
+    `git config --add cleat.rulesDir <repo-relative dir>`, repeatable."""
+    listed = _git(repo, "config", "--get-all", "cleat.rulesDir", unset_ok=True)
+    return [_resolved(repo / line.strip()) for line in listed.splitlines()
+            if line.strip()]
+
+
+def _placement_scope(path):
+    """"instruction" for CLAUDE.md and AGENTS.md, "rule" for a topic rule, or
+    None for a file the placement ask has no opinion about."""
+    if path.name in (CLAUDE, AGENTS):
+        return "instruction"
+    if path.suffix != ".md":
+        return None
+    if _rules_owner(path) is not None:
+        return "rule"
+    repo = _repo_root(path.parent)
+    if repo is not None:
+        resolved = _resolved(path)
+        if any(extra in resolved.parents for extra in _extra_rules_dirs(repo)):
+            return "rule"
+    return None
+
+
+def _added_lines(path, content):
+    """The normalized lines content brings that the file on disk lacks, less the
+    pointer's own lines, which carry no guidance."""
+    before = {_norm(line) for line in _read(path).splitlines()}
+    return [_norm(line) for line in content.splitlines()
+            if _norm(line) and any(c.isalnum() for c in line)
+            and _norm(line) not in before
+            and not REF.search(line) and not LINK_TO_AGENTS.search(line)]
+
+
+def _existing_copies(path, content, added):
+    """The documentation files already holding a run of lines this write adds."""
+    root = _repo_root(path.parent) or _resolved(path.parent)
+    own = _relative_to(path, root)
+    added = set(added)
+    runs = {run for run in _runs(_content_lines(content)) if added & set(run)}
+    if not runs:
+        return []
+    holders = []
+    for rel in _markdown_files(root):
+        if rel == own or not _in_doc_set(rel):
+            continue
+        if runs & _runs(_content_lines(_read(root / rel))):
+            holders.append(rel)
+    return holders
+
+
+def _placement_reason(session_id, path, content):
+    """The placement questions for a write adding guidance, once per path per
+    session, or None."""
+    scope = _placement_scope(path)
+    if scope is None:
+        return None
+    added = _added_lines(path, content)
+    if not added:
+        return None
+    name = _key(_resolved(path))
+    if _marked(session_id, "placed", name) is not None:
+        return None
+    _mark(session_id, "placed", name)
+
+    topic = PLACEMENT_TOPIC.format(rules=RULES_DIR) if scope == "instruction" else ""
+    copies = _existing_copies(path, content, added)
+    existing = PLACEMENT_EXISTING.format(files=", ".join(copies)) if copies else ""
+    return PLACEMENT_REASON.format(name=path.name, topic=topic, existing=existing,
+                                   guide=PLACEMENT_GUIDE)
+
+
+def _gate_reason(path, content):
+    """The GATE-06 reason for a substantive CLAUDE.md with no AGENTS.md beside
+    it, or None. An empty file, or one already declaring AGENTS.md canonical, is
+    the shape the gate is trying to produce; a ref with no AGENTS.md yet is the
+    nudge's."""
+    # CLAUDE.local.md falls out here too: per-user, un-committed memory is
+    # Claude-specific by nature, so the gate has no opinion about it.
+    if path.name != CLAUDE or _substantive(_read(path.parent / AGENTS)):
+        return None
+    if not _substantive(content) or REF.search(content):
+        return None
+    return _deny_reason(path)
+
+
 def pre_tool_use(payload):
     tool = payload.get("tool_name")
     if tool not in ("Write", "Edit"):
@@ -779,49 +1130,57 @@ def pre_tool_use(payload):
         return None
 
     path = pathlib.Path(raw_path)
-    # CLAUDE.local.md falls out here too: per-user, un-committed memory is
-    # Claude-specific by nature, so the gate has no opinion about it.
-    if path.name != CLAUDE:
+    if path.name not in (CLAUDE, AGENTS) and path.suffix != ".md":
         return None
     if _under_user_claude(path):
         return None
-    if _substantive(_read(path.parent / AGENTS)):
+    session_id = payload.get("session_id") or ""
+    # A path whose deny was overridden stays overridden for the session.
+    overridden = _key(_resolved(path))
+    if _marked(session_id, "overridden", overridden) is not None:
         return None
 
     content = _written_content(tool, path, tool_input)
     if content is None:
         return None
-    # An empty file, or one already declaring AGENTS.md canonical, is the shape
-    # this gate is trying to produce. A ref with no AGENTS.md yet is the nudge's.
-    if not _substantive(content) or REF.search(content):
-        return None
 
-    session_id = payload.get("session_id") or ""
     digest = _key(session_id, path, content)
     if _claim(session_id, "denied", digest):
+        _mark(session_id, "overridden", overridden)
+        return None
+    reasons = [r for r in (_gate_reason(path, content),
+                           _placement_reason(session_id, path, content)) if r]
+    if not reasons:
         return None
     _mark(session_id, "denied", digest)
     return {"hookSpecificOutput": {
         "hookEventName": "PreToolUse",
         "permissionDecision": "deny",
-        "permissionDecisionReason": _deny_reason(path),
+        "permissionDecisionReason": "\n\n".join(reasons),
     }}
 
 
 # ---- hook: the repair nudge -------------------------------------------------
 
-def _nudge(session_id, directory):
-    name = _key(_resolved(directory))
-    findings = findings_for(directory)
-    if not findings:
-        # Clean now, so a later regression is worth reporting again.
-        _unmark(session_id, "nudged", name)
-        return None
+def _finding_key(finding):
+    # The repair names the other file for a pairwise finding, so two restated
+    # findings on one path stay distinct; the message carries counts that shift.
+    return _key(finding.code, finding.severity, finding.path, finding.repair)
 
-    digest = _key(*("{}:{}:{}".format(f.code, f.severity, f.path) for f in findings))
-    if _marked(session_id, "nudged", name) == digest:
+
+def _nudge(session_id, directory):
+    """Reports each finding once while it persists. A finding that clears is
+    forgotten, so the same finding coming back later is reported afresh."""
+    name = _key(_resolved(directory))
+    current = findings_for(directory)
+    reported = set((_marked(session_id, "nudged", name) or "").split())
+    findings = [f for f in current if _finding_key(f) not in reported]
+    if current:
+        _mark(session_id, "nudged", name, " ".join(_finding_key(f) for f in current))
+    else:
+        _unmark(session_id, "nudged", name)
+    if not findings:
         return None
-    _mark(session_id, "nudged", name, digest)
 
     body = (
         "cleat — {} still has an agent-instruction shape worth fixing:\n\n{}\n\n"
@@ -942,6 +1301,11 @@ def post_tool_use(payload):
         owner = _rules_owner(path)
         if owner is not None:
             return _nudge(session_id, owner)
+        # Copies and wrong-way links are made by writing the documentation, so
+        # the write that makes one is when it can be undone in the same turn.
+        repo = _repo_root(path.parent)
+        if repo is not None and _in_doc_set(_relative_to(path, repo)):
+            return _nudge(session_id, repo)
         return None
     if tool == "Read":
         return _bootstrap(session_id, path)

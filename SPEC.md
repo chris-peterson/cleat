@@ -56,7 +56,7 @@ Ubiquitous (`The <system> shall …`), State-Driven (`While …`), Event-Driven
 - **Finding** — one code, the path it concerns, a severity, and the repair that
   clears it. The codes are `no-agents`, `dangling-ref`, `no-claude`, `no-ref`,
   `inverted`, `duplicated`, `unguided`, `foreign-config`, `unlisted-rule`,
-  `dead-rule-listed`, `toc-bloat`, and `bad-glob`.
+  `dead-rule-listed`, `toc-bloat`, `bad-glob`, `restated`, and `narrowing-ref`.
 - **Severity** — a finding is either an **error** (the shape is broken; drives
   the exit code) or an **advisory** (reported, but a repo can legitimately sit
   this way). `unguided` and heading-only duplication are advisories: a repo may
@@ -70,6 +70,28 @@ Ubiquitous (`The <system> shall …`), State-Driven (`While …`), Event-Driven
   candidate, so the common path never starts a python interpreter.
 - **Rubric** — the file defining the tool-agnostic / Claude-specific split. A
   file rather than a skill, so it costs nothing until a deny names its path.
+- **Audience tier** — who a file is written for, decided by its path. **End
+  user**: anything under `docs/`. **Tool-specific**: `CLAUDE.md`, `CLAUDE.local.md`,
+  every `SKILL.md`, a foreign config, and `.claude/` outside `.claude/rules/`. **Repo**: every other
+  file, read by anyone changing the repository — `README.md`, `CONTRIBUTING.md`,
+  `AGENTS.md`, topic rules, the spec. Tiers widen from tool-specific to repo to
+  end user.
+- **Reference direction** — a file may link to a file in its own tier or a wider
+  one, never a narrower one. `CLAUDE.md` links to `AGENTS.md`; `AGENTS.md` and
+  `README.md` link to `docs/`; `docs/` links only within `docs/` and off the
+  repository, so end-user documentation stands alone.
+- **Documentation set** — the markdown files cleat compares for copied content:
+  every `README.md`, `CONTRIBUTING.md`, `AGENTS.md`, `CLAUDE.md`, `SKILL.md`,
+  topic rules, and markdown under `docs/`, less any file git ignores or marks
+  `linguist-generated`. Either is a generated projection of its source, identical
+  by construction.
+- **Placement tree** — the questions that decide where new content goes: already
+  written somewhere, link to it; for end users, `docs/`; for anyone changing the
+  repo, `README.md` or its peers; for the agent, a hook or linter where one can
+  decide it from a single tool call's inputs, else `AGENTS.md` or `CLAUDE.md`
+  where every session needs it, else a topic rule, skill, or guide.
+- **Placement guide** — the file carrying the placement tree, the audience tiers,
+  and the reference direction. Like the rubric, a file named by path.
 
 ## Requirements
 
@@ -134,13 +156,15 @@ and the nudge reports whatever the check finds. The ID is not reused._
 
 #### `CHECK-13`
 Each finding shall carry the repair that clears it: create the pointer, add the
-ref, flip the inversion, or delete the duplicated content from `CLAUDE.md`.
+ref, flip the inversion, delete the duplicated content from `CLAUDE.md`, replace
+a restated copy with a link or an include, or remove a link that points at a narrower tier.
 
 #### `CHECK-14`
 Each finding shall carry a severity. `no-agents`, `dangling-ref`, `no-ref`,
 `inverted`, `foreign-config`, `unlisted-rule`, `dead-rule-listed`, `bad-glob`,
-and line-level `duplicated` shall be errors; `no-claude`, `unguided`,
-`toc-bloat`, and heading-only `duplicated` shall be advisories.
+`narrowing-ref`, and line-level `duplicated` shall be errors; `no-claude`,
+`unguided`, `toc-bloat`, `restated`, and heading-only `duplicated` shall be
+advisories.
 
 #### `CHECK-15`
 When `CLAUDE.md` is only the pointer shape and no `AGENTS.md` exists, the check
@@ -149,6 +173,24 @@ shall report `dangling-ref`, whose repair is to write `AGENTS.md`.
 #### `CHECK-16`
 If `DIR` is not a directory, or a file the check needs cannot be read, then
 `cleat check` and `cleat index` shall exit 2 and name the cause on stderr.
+
+#### `CHECK-17`
+When two files in the documentation set share a run of three or more
+consecutive identical normalized non-heading lines, the check shall report
+`restated` naming both paths and the shared lines. A single shared line — a
+pitch, a title — is not a run. A run held by more than two files is a template
+every page starts from, not a copy, and two files both under `docs/` are the
+site's own structure; neither is reported. Where the two files sit in different
+tiers, the
+repair shall keep the copy in the wider tier and link to or include it from the
+narrower; where they share a tier, the repair shall name both paths and leave
+the choice to the reader.
+
+#### `CHECK-18`
+When a relative markdown link outside a fenced code block resolves to a file in
+a narrower audience tier than the file holding the link, the check shall report
+`narrowing-ref` naming both paths, unless the same pair is already reported as
+`inverted`.
 
 ### `RULE`
 Topic rules and the index
@@ -264,6 +306,12 @@ report the failure as a `systemMessage` and make no permission decision.
 If the target path is under `$HOME/.claude`, then the nudge and the bootstrap
 shall stay silent, user-scope memory being Claude-specific by nature.
 
+#### `HOOK-09`
+Every deny a hook issues shall be overridable for the rest of the session that
+received it: an identical re-issue passes, and exempts that path from the gate
+until the session ends. A later session that brings the same file into scope
+shall be asked afresh.
+
 ### `GATE`
 The write gate
 
@@ -316,7 +364,7 @@ The nudge shall return the findings and their repairs as `additionalContext`, so
 the shape can be corrected in the same turn.
 
 #### `NUDGE-03`
-The nudge shall treat `AGENTS.md` as canonical, directing every duplication
+The nudge shall treat `AGENTS.md` as canonical, directing every `duplicated`
 repair at `CLAUDE.md`.
 
 #### `NUDGE-04`
@@ -327,6 +375,56 @@ nudge shall stay silent, so a finding the model will not clear cannot loop.
 When a write under `.claude/rules/` completes, the nudge shall run the check
 against the directory that owns the rules directory rather than the rule's own
 parent, a new rule being unindexed by construction.
+
+#### `NUDGE-06`
+When a write to a file in the documentation set other than `CLAUDE.md` or
+`AGENTS.md` completes, the nudge shall run the check against the repository
+root, so `restated` and `narrowing-ref` surface in the turn that caused them.
+
+#### `NUDGE-07`
+The nudge shall report a given finding at most once while it persists. A
+finding that clears is forgotten, so its return later in the session is
+reported afresh.
+
+### `PLACEMENT`
+Where new guidance goes
+
+#### `PLACEMENT-01`
+When a `Write` or `Edit` adds substantive content to `CLAUDE.md`, `AGENTS.md`,
+or a topic rule, the gate shall deny it with the placement tree's agent branch:
+whether a hook or linter can decide the constraint from a single tool call's own
+inputs, and whether every session needs it.
+
+#### `PLACEMENT-02`
+When the addition targets `CLAUDE.md` or `AGENTS.md`, the reason shall also ask
+whether the content belongs in its own topic rule, path-scoped where it is bound
+to a file type or tree.
+
+#### `PLACEMENT-03`
+When the added content restates a run of lines already in another file of the
+documentation set, the reason shall name the file holding the existing copy.
+
+#### `PLACEMENT-04`
+The placement ask shall fire at most once per path per session, and an identical
+re-issue of the denied write shall pass on the `GATE-07` receipt, which
+`GATE-08` then clears.
+
+#### `PLACEMENT-05`
+When a write trips both `GATE-06` and a placement ask, the gate shall issue a
+single deny carrying every reason.
+
+#### `PLACEMENT-06`
+If a write only removes content or reshapes the pointer, or its target is under
+`$HOME/.claude` or is `CLAUDE.local.md`, then the placement ask shall leave it
+untouched.
+
+#### `PLACEMENT-07`
+Where extra rules directories are configured — `git config --add
+cleat.rulesDir <repo-relative dir>`, repeatable — a write of a markdown file
+under one shall get the same placement ask as a write under `.claude/rules/`.
+
+#### `PLACEMENT-08`
+The placement deny reason shall name the placement guide by path.
 
 ### `BOOT`
 Bootstrap guidance
@@ -360,7 +458,9 @@ A single pure-bash prefilter shall front all three hook registrations.
 
 #### `PREFILTER-02`
 The prefilter shall read the payload on stdin and exit unless the raw payload
-contains one of a fixed set of substrings.
+contains one of a fixed set of substrings. The write registrations shall add
+the rest of the documentation set to that set; the read registration shall
+not, so a read under `docs/` never starts python.
 
 #### `PREFILTER-03`
 The prefilter shall decide whether a payload is a candidate without invoking
@@ -399,6 +499,11 @@ plus a pointer `CLAUDE.md` — and shall pass `cleat check`.
 shall agree with that table: the two A rows clean, the D row `inverted`, the C
 rows `no-claude`, and the F rows `unguided`. A disagreement is a defect in the
 check.
+
+#### `PACKAGING-08`
+The placement guide shall carry the placement tree, the audience tiers, and the
+reference direction, name the rubric as the split for the `AGENTS.md` /
+`CLAUDE.md` leaf, and project to the docs site with the other guides.
 
 ### `STATE`
 Session state

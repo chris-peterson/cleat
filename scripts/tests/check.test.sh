@@ -131,6 +131,83 @@ check "GEMINI.md" "$CHECK_CODES" "foreign-config"
 run_check "$(mkrepo "AGENTS.md:::$BODY" "CLAUDE.md:::$POINTER" ".windsurfrules:::Prefer small commits.\n")"
 check ".windsurfrules" "$CHECK_CODES" "foreign-config"
 
+SETUP='Download the widget CLI from the project releases page.\nRun `widget init` in the project root to write the config.\nThen `widget serve` starts the development server on port 8080.\n'
+
+echo "== restated: a run of lines copied between two documentation files =="
+d="$(mkrepo "AGENTS.md:::$BODY" "CLAUDE.md:::$POINTER" \
+            "README.md:::# widget\n\n$SETUP" "docs/README.md:::# Getting started\n\n$SETUP")"
+run_check "$d"
+check "code" "$CHECK_CODES" "restated"
+check "advisory leaves the check green" "$CHECK_EXIT" "0"
+contains "names the narrower copy and the wider one" "$CHECK_OUT" "of README.md also appear in docs/README.md"
+contains "keeps the wider tier's copy" "$CHECK_OUT" "keep the copy in docs/README.md (end user)"
+
+echo "== one shared line is a pitch, not a copy =="
+run_check "$(mkrepo "AGENTS.md:::$BODY" "CLAUDE.md:::$POINTER" \
+                    "README.md:::# widget\n\nWidget renders dashboards from plain SQL queries.\n" \
+                    "docs/README.md:::# widget\n\nWidget renders dashboards from plain SQL queries.\n")"
+check "no finding" "$CHECK_CODES" ""
+
+echo "== two files in the same tier leave the choice to the reader =="
+run_check "$(mkrepo "AGENTS.md:::$BODY\n$SETUP" "CLAUDE.md:::$POINTER" "README.md:::# widget\n\n$SETUP")"
+check "code" "$CHECK_CODES" "restated"
+contains "names both paths" "$CHECK_OUT" "whichever of AGENTS.md and README.md"
+
+echo "== CLAUDE.md and AGENTS.md: duplicated and restated both report =="
+run_check "$(mkrepo "AGENTS.md:::$BODY\n$SETUP" "CLAUDE.md:::$POINTER\n$SETUP")"
+check "codes" "$CHECK_CODES" "duplicated,restated"
+
+echo "== a git-ignored file is a generated projection, not a copy =="
+d="$(mkrepo "AGENTS.md:::$BODY" "CLAUDE.md:::$POINTER" \
+            "README.md:::# widget\n\n$SETUP" "docs/README.md:::# Getting started\n\n$SETUP" \
+            ".gitignore:::docs/README.md\n")"
+run_check "$d"
+check "no finding" "$CHECK_CODES" ""
+
+echo "== so is a file git marks linguist-generated =="
+d="$(mkrepo "AGENTS.md:::$BODY" "CLAUDE.md:::$POINTER" \
+            "README.md:::# widget\n\n$SETUP" "docs/README.md:::# Getting started\n\n$SETUP" \
+            ".gitattributes:::docs/README.md linguist-generated\n")"
+run_check "$d"
+check "no finding" "$CHECK_CODES" ""
+
+echo "== two pages of the docs site repeating each other are the site's concern =="
+run_check "$(mkrepo "AGENTS.md:::$BODY" "CLAUDE.md:::$POINTER" \
+                    "docs/a.md:::# A\n\n$SETUP" "docs/b.md:::# B\n\n$SETUP")"
+check "no finding" "$CHECK_CODES" ""
+
+echo "== a run in three or more files is a template, not a copy =="
+run_check "$(mkrepo "AGENTS.md:::$BODY" "CLAUDE.md:::$POINTER" \
+                    "README.md:::# widget\n\n$SETUP" "CONTRIBUTING.md:::# Contributing\n\n$SETUP" \
+                    "docs/start.md:::# Start\n\n$SETUP")"
+check "no finding" "$CHECK_CODES" ""
+
+echo "== narrowing-ref: an end-user page links into the repo =="
+run_check "$(mkrepo "AGENTS.md:::$BODY" "CLAUDE.md:::$POINTER" \
+                    "docs/usage.md:::See [the contributing guide](../CONTRIBUTING.md).\n" \
+                    "CONTRIBUTING.md:::Open a PR against main.\n")"
+check "code" "$CHECK_CODES" "narrowing-ref"
+check "error exits 1" "$CHECK_EXIT" "1"
+contains "names both tiers" "$CHECK_OUT" "docs/usage.md (end user) links to CONTRIBUTING.md"
+
+echo "== links toward a wider audience are fine =="
+run_check "$(mkrepo "AGENTS.md:::$BODY\nUsers read [the guide](docs/usage.md).\n" "CLAUDE.md:::$POINTER" \
+                    "README.md:::Conventions are in [AGENTS.md](./AGENTS.md).\n" \
+                    "docs/usage.md:::See [install](install.md) and [the site](https://example.com).\n")"
+check "no finding" "$CHECK_CODES" ""
+
+echo "== a link in a code block or inline code is an example =="
+run_check "$(mkrepo "AGENTS.md:::$BODY" "CLAUDE.md:::$POINTER" \
+                    "docs/usage.md:::\`\`\`markdown\n[AGENTS.md](../AGENTS.md)\n\`\`\`\n\nWrite \`[x](../CLAUDE.md)\` there.\n")"
+check "no finding" "$CHECK_CODES" ""
+
+echo "== AGENTS.md linking CLAUDE.md is narrowing too, unless it is inverted =="
+run_check "$(mkrepo "AGENTS.md:::$BODY\nClaude-only notes are in [CLAUDE.md](./CLAUDE.md).\nSection one covers a real part of the system.\nSection two covers another real part of it.\nSection three covers the rest of the system.\nSection four covers deployment and release.\nSection five covers observability.\nSection six covers security review.\nSection seven covers the data model.\nSection eight covers the public API.\nSection nine covers the CLI.\nSection ten covers the web UI.\n" \
+                    "CLAUDE.md:::$POINTER")"
+check "a full AGENTS.md reports narrowing-ref" "$CHECK_CODES" "narrowing-ref"
+run_check "$(mkrepo "AGENTS.md:::$STUB" "CLAUDE.md:::$BODY")"
+check "a stub reports only inverted" "$CHECK_CODES" "inverted"
+
 echo "== --json =="
 d="$(mkrepo "CLAUDE.md:::$BODY")"
 json="$(python3 "$CLEAT" check "$d" --json)"

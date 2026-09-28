@@ -51,7 +51,28 @@ printf '%b' "Prefer small commits.\n" > "$d/.cursorrules"
 run_hook "$p"
 c="$(context)"
 contains "the new finding" "$c" "foreign-config"
-contains "alongside the old one" "$c" "no-ref"
+absent "without repeating the one already reported" "$c" "no-ref"
+
+echo "== a finding that clears is forgotten, so its return is reported =="
+rm "$d/.cursorrules"
+run_hook "$p"
+check "silent while only the reported finding remains" "$NUDGE_OUT" ""
+printf '%b' "Prefer small commits.\n" > "$d/.cursorrules"
+run_hook "$p"
+contains "the returning finding" "$(context)" "foreign-config"
+
+SETUP='Download the widget CLI from the project releases page.\nRun `widget init` in the project root to write the config.\nThen `widget serve` starts the development server on port 8080.\n'
+
+echo "== a write to the documentation reports what it copied =="
+dd="$(mkrepo "AGENTS.md:::$BODY" "CLAUDE.md:::$POINTER" "docs/start.md:::# Start\n\n$SETUP")"
+printf '%b' "# widget\n\n$SETUP" > "$dd/README.md"
+run_hook "$(payload PostToolUse Write "$dd/README.md" "content=x")"
+contains "restated, in the turn that made it" "$(context)" "restated"
+
+echo "== and a wrong-way link =="
+printf '%b' "See [AGENTS.md](../AGENTS.md).\n" > "$dd/docs/links.md"
+run_hook "$(payload PostToolUse Write "$dd/docs/links.md" "content=x")"
+contains "narrowing-ref" "$(context)" "narrowing-ref"
 
 echo "== writes to other files are none of the nudge's business =="
 run_hook "$(payload PostToolUse Write "$d/notes.md" "content=x")"
