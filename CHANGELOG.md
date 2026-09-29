@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0
 
 ### Added
 - `cleat check` reports `restated`, an advisory, when a run of three or more
