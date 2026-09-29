@@ -509,9 +509,8 @@ reference direction, name the rubric as the split for the `AGENTS.md` /
 Session state
 
 #### `STATE-01`
-Hook state shall live under `$CLAUDE_PLUGIN_DATA` when Claude Code sets it, and
-otherwise under the same canonical path derived from Claude Code's
-`<plugin>-<owner>` data-dir convention.
+Hook state shall live under `$CLAUDE_PLUGIN_DATA`. If it is unset when a hook
+needs state, the hook shall report the failure as a `systemMessage`.
 
 #### `STATE-02`
 Hook state shall be partitioned by session, so the gate's re-issue record, the

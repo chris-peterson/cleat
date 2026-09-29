@@ -168,4 +168,12 @@ GATE_EXIT=$?
 check "exits 0" "$GATE_EXIT" "0"
 contains "says so in a systemMessage" "$GATE_OUT" "unparseable hook payload"
 
+echo "== a hook with no data dir to keep state in says so =="
+d="$(mkrepo "README.md:::# widget\n")"
+GATE_OUT="$(printf '%s' "$(payload PreToolUse Write "$d/CLAUDE.md" "content=@$body_file")" \
+  | env -u CLAUDE_PLUGIN_DATA python3 "$CLEAT" hook)"
+GATE_EXIT=$?
+check "exits 0" "$GATE_EXIT" "0"
+contains "names the missing variable" "$GATE_OUT" "CLAUDE_PLUGIN_DATA is unset"
+
 summary "gate"

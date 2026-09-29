@@ -845,12 +845,13 @@ def render(findings):
 # session directory and vanish with it.
 
 def _state_root():
+    """The plugin's data dir. Only hooks keep state, and Claude Code exports
+    CLAUDE_PLUGIN_DATA to every hook; its name depends on the marketplace cleat
+    was installed from, so there is no path to derive in its absence."""
     env = os.environ.get("CLAUDE_PLUGIN_DATA")
-    if env:
-        return pathlib.Path(env)
-    # The same canonical path computed the other way: Claude Code names a
-    # plugin's data dir <plugin>-<owner>.
-    return pathlib.Path.home() / ".claude" / "plugins" / "data" / "cleat-chris-peterson"
+    if not env:
+        raise RuntimeError("CLAUDE_PLUGIN_DATA is unset; nowhere to keep session state")
+    return pathlib.Path(env)
 
 
 def _key(*parts):

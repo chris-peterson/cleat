@@ -14,6 +14,9 @@
 - The pointer `CLAUDE.md` cleat asks for is the single line `@AGENTS.md`, the
   shape Claude Code's docs give. A pointer that also links to `AGENTS.md` still
   passes the check.
+- A hook run without `CLAUDE_PLUGIN_DATA` reports that in a `systemMessage`
+  instead of keeping session state under a guessed path, which was right only
+  for installs from one marketplace.
 - Reading an `AGENTS.md` with no `CLAUDE.md` beside it no longer triggers a
   bootstrap offer, since Claude Code reads that `AGENTS.md` at startup by
   default. `cleat check` still reports `no-claude` as an advisory for the

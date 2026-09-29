@@ -149,7 +149,7 @@ CHECK-12 is retired and not counted.
 
 | ID    | Status  | Location |
 |-------|---------|----------|
-| STATE-01 | Covered | scripts/cleat (`_state_root`) |
+| STATE-01 | Covered | scripts/cleat (`_state_root`); scripts/tests/gate.test.sh ("a hook with no data dir") |
 | STATE-02 | Covered | scripts/cleat (`_session_dir`) |
 | STATE-03 | Covered | scripts/cleat (`_prune_sessions`) |
 
