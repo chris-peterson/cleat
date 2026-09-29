@@ -3,6 +3,19 @@
 ## Unreleased
 
 ### Added
+- `cleat check` reports `restated`, an advisory, when a run of three or more
+  lines is copied between two documentation files, and keeps the copy in the
+  file with the wider audience.
+- `cleat check` reports `narrowing-ref`, an error, when a relative link points
+  toward a narrower audience, such as a `docs/` page linking into the repo or
+  `AGENTS.md` linking `CLAUDE.md`. A repo whose check was green can report it
+  after upgrading.
+- Before a write adds guidance to `CLAUDE.md`, `AGENTS.md`, or a topic rule,
+  cleat asks once per file per session whether a hook could enforce it,
+  whether every session needs it, and whether it's already written elsewhere.
+  Re-issuing the same write lets it through.
+- Rules directories beyond `.claude/rules/` are configured with
+  `git config --add cleat.rulesDir <dir>`.
 - A `CLAUDE.md` that is only the pointer, in a repo with no `AGENTS.md`, is
   reported as `dangling-ref`, with the repair to write `AGENTS.md`. It was
   reported as `no-agents`, whose repair asked for the pointer it already was.
@@ -11,6 +24,9 @@
   classified.
 
 ### Changed
+- Re-issuing a denied write exempts that file for the rest of the session.
+- The nudge also runs on writes to documentation files, and reports a finding
+  once while it persists.
 - The pointer `CLAUDE.md` cleat asks for is the single line `@AGENTS.md`, the
   shape Claude Code's docs give. A pointer that also links to `AGENTS.md` still
   passes the check.
