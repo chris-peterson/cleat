@@ -21,12 +21,12 @@ Ubiquitous (`The <system> shall …`), State-Driven (`While …`), Event-Driven
 - **`CLAUDE.md`** — Claude Code's own instruction file, and the one it always
   loads. Since v2.1.277 Claude Code also reads `AGENTS.md` directly, but only
   where no `CLAUDE.md` or `CLAUDE.local.md` sits in the working directory or
-  above it, and only in a session that fetches feature flags — so not on Bedrock
-  or another third-party provider, not with telemetry disabled, and not in the
-  first session after an upgrade. The pointer shape is what makes the load
-  unconditional across all of them.
-- **Pointer shape** — a `CLAUDE.md` whose body is a link to `AGENTS.md` plus the
-  `@AGENTS.md` ref, optionally followed by Claude-specific guidance (slash
+  above it, and not in every session: not before v2.1.277 (before v2.1.281 on
+  Bedrock or with telemetry disabled), not with the built-in `agents-md` plugin
+  disabled, and not in the first session after an upgrade. The pointer shape is
+  what makes the load unconditional across all of them.
+- **Pointer shape** — a `CLAUDE.md` whose body is the `@AGENTS.md` ref,
+  optionally followed by Claude-specific guidance (slash
   commands, hooks, `settings.json`). An import rather than a symlink, because
   `CLAUDE.md` has a legitimate use beyond pointing.
 - **Ref** — the `@AGENTS.md` import line inside `CLAUDE.md`. Its presence is what
@@ -118,8 +118,8 @@ check shall report `no-agents`.
 When `AGENTS.md` exists and no `CLAUDE.md` exists, the check shall report
 `no-claude` as an advisory. Claude Code reads the `AGENTS.md` by default, so the
 repo is guided; what the missing pointer costs is the sessions where direct
-reading is off — a third-party provider, telemetry disabled, the first session
-after an upgrade — plus `/memory` and `/context` listing and
+reading is off — an older version, the built-in `agents-md` plugin disabled,
+the first session after an upgrade — plus `/memory` and `/context` listing and
 `InstructionsLoaded` hooks, none of which fire for an `AGENTS.md` read directly.
 That is a portability gap, not an unguided repo, and the two are worth telling
 apart.

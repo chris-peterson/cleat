@@ -16,8 +16,8 @@ validate:
       path: CLAUDE.md
       because: >-
         CLAUDE.md at the root is this repo's own agent instructions, not context
-        the plugin ships. It is the pointer shape cleat exists to enforce: a link
-        to AGENTS.md plus the @AGENTS.md ref.
+        the plugin ships. It is the pointer shape cleat exists to enforce: the
+        @AGENTS.md ref.
 
 # → marketplace.json entry
 marketplace:
@@ -74,7 +74,7 @@ suite:
   session:
     - { t: claude, text: "This repo's agent guidance is 95 lines of CLAUDE.md, and AGENTS.md is a five-line stub pointing back at it — so Cursor and Codex get the stub." }
     - { t: event, text: "cleat reports: inverted — AGENTS.md points at CLAUDE.md" }
-    - { t: cmd, cmd: "flip it", out: "AGENTS.md now carries the 95 lines · CLAUDE.md is a link plus @AGENTS.md · cleat check clean" }
+    - { t: cmd, cmd: "flip it", out: "AGENTS.md now carries the 95 lines · CLAUDE.md is @AGENTS.md · cleat check clean" }
     - { t: note, text: "From here on, a write that would re-invert it doesn't land." }
 
 docs:

@@ -56,8 +56,9 @@ FOREIGN_CONFIGS = (
 ERROR = "error"
 ADVISORY = "advisory"
 
-# `@AGENTS.md` is what makes Claude Code load the file; the markdown link above
-# it is for humans. Accept the ./-prefixed spelling of either direction.
+# `@AGENTS.md` is what makes Claude Code load the file. A markdown link to it
+# carries no guidance, so a pointer may hold one. Accept the ./-prefixed
+# spelling of either direction.
 REF = re.compile(r"@\.?/?AGENTS\.md\b")
 BACKREF = re.compile(r"@\.?/?CLAUDE\.md\b")
 LINK_TO_AGENTS = re.compile(r"\]\(\.?/?AGENTS\.md\)")
@@ -96,9 +97,7 @@ LINK = re.compile(r"\]\(\s*(<[^>]*>|[^)\s]+)")
 URL_SCHEME = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
 INLINE_CODE = re.compile(r"`[^`]*`")
 
-POINTER = """Agent instructions live in [AGENTS.md](./AGENTS.md).
-
-@AGENTS.md
+POINTER = """@AGENTS.md
 """
 
 
@@ -761,7 +760,7 @@ def findings_for(root):
             "unguided", ADVISORY, str(root),
             "neither {} nor {} — no agent starts here with project "
             "context".format(AGENTS, CLAUDE),
-            "write {}, then a {} holding the link and the @{} ref".format(
+            "write {}, then a {} holding the @{} ref".format(
                 AGENTS, CLAUDE, AGENTS),
         ))
     elif has_claude and not has_agents and _pointer_only(claude_text):
@@ -783,11 +782,11 @@ def findings_for(root):
     elif has_agents and not has_claude:
         out.append(Finding(
             "no-claude", ADVISORY, AGENTS,
-            "{} exists with no {} — Claude Code reads {} by default, but not on "
-            "a third-party provider, with telemetry off, or in the first "
-            "session after an upgrade".format(AGENTS, CLAUDE, AGENTS),
-            "add a {} carrying the link and @{} on its own line, so every "
-            "session loads it the same way".format(CLAUDE, AGENTS),
+            "{} exists with no {} — Claude Code reads {} by default, but not "
+            "before v2.1.277, with the built-in agents-md plugin disabled, or "
+            "in the first session after an upgrade".format(AGENTS, CLAUDE, AGENTS),
+            "add a {} holding @{}, so every session loads it the same "
+            "way".format(CLAUDE, AGENTS),
         ))
 
     inverted = has_agents and _is_backpointer(agents_text)

@@ -70,8 +70,6 @@ tool-specific residue, if there is any, stays in the tool's own file.
 `CLAUDE.md`:
 
 ```markdown
-Agent instructions live in [AGENTS.md](./AGENTS.md).
-
 @AGENTS.md
 
 ## Claude Code
@@ -80,9 +78,8 @@ Agent instructions live in [AGENTS.md](./AGENTS.md).
 ```
 
 An import, not a symlink — a symlink surprises whoever opens the file next, and
-`CLAUDE.md` has a legitimate use beyond pointing. And the ref is what does the
-work: the markdown link above it is for humans, and Claude Code loads nothing
-from it.
+`CLAUDE.md` has a legitimate use beyond pointing. The ref is what does the work:
+Claude Code loads nothing from a markdown link.
 
 ## If it really is all Claude-specific
 
