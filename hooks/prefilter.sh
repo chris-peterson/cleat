@@ -29,6 +29,18 @@ needles=(
   GEMINI.md
 )
 
+# Names only a write makes interesting: the rest of the documentation set, and a
+# configured rules directory, whose conventional spelling ends in rules/. The
+# registration says which event it fronts, so a Read under docs/ still costs one
+# bash process. With no argument the prefilter admits both sets.
+if [ "${1:-write}" = "write" ]; then
+  needles+=(
+    docs/
+    SKILL.md
+    rules/
+  )
+fi
+
 payload="$(cat)"
 
 for needle in "${needles[@]}"; do

@@ -16,10 +16,11 @@ open(os.environ["CLEAT_MARKER"], "w").write(sys.stdin.read())
 PY
 export CLEAT_MARKER="$fake_root/received"
 
-# Sets REACHED (yes/no) and PREFILTER_EXIT for a payload.
+# Sets REACHED (yes/no) and PREFILTER_EXIT for a payload. $2 is the event kind
+# the registration passes (read / write), omitted to exercise the default.
 run_prefilter() {
   rm -f "$CLEAT_MARKER"
-  printf '%s' "$1" | env CLAUDE_PLUGIN_ROOT="$fake_root" bash "$PREFILTER"
+  printf '%s' "$1" | env CLAUDE_PLUGIN_ROOT="$fake_root" bash "$PREFILTER" ${2:+"$2"}
   PREFILTER_EXIT=$?
   if [ -f "$CLEAT_MARKER" ]; then REACHED=yes; else REACHED=no; fi
 }
@@ -49,6 +50,16 @@ echo "== a Write whose content mentions one of them gets through too =="
 # filtered out here would fail silently.
 run_prefilter "$(payload PreToolUse Write /repo/notes.md "content=see CLAUDE.md")"
 check "admitted on content alone" "$REACHED" "yes"
+
+echo "== documentation writes get through; reads of the same files don't =="
+for path in /repo/docs/usage.md /repo/skills/deploy/SKILL.md /repo/config/rules/naming.md; do
+  run_prefilter "$(payload PostToolUse Write "$path")" write
+  check "a write to $path" "$REACHED" "yes"
+  run_prefilter "$(payload PostToolUse Read "$path")" read
+  check "a read of $path" "$REACHED" "no"
+done
+run_prefilter "$(payload PostToolUse Read /repo/AGENTS.md)" read
+check "the read registration still admits AGENTS.md" "$REACHED" "yes"
 
 echo "== the payload reaches the CLI intact =="
 p="$(payload PostToolUse Read /repo/AGENTS.md)"

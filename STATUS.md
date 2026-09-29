@@ -7,7 +7,7 @@ in-repo implementation. Status vocabulary: **Covered** · **Partial** ·
 **Evidence pointers:** file + enclosing symbol. A line number is invalidated by
 any edit above it, and the ledger is read long after that edit.
 
-**Coverage: 73/73 requirements Covered (100%)**
+**Coverage: 87/87 requirements Covered (100%)**
 
 ## CHECK — The check command
 
@@ -26,10 +26,12 @@ CHECK-12 is retired and not counted.
 | CHECK-09 | Covered | scripts/cleat (`findings_for`) — the `unguided` constructor |
 | CHECK-10 | Covered | scripts/cleat (`_foreign_findings`) |
 | CHECK-11 | Covered | scripts/cleat (`_duplication_findings`, `_classify`) |
-| CHECK-13 | Covered | scripts/cleat (`Finding`, `render`) |
-| CHECK-14 | Covered | scripts/cleat (`Finding`); the finding constructors in `findings_for` and `_rules_findings` |
+| CHECK-13 | Covered | scripts/cleat (`Finding`, `render`); the `restated` and `narrowing-ref` repairs in `_restated_findings`, `_narrowing_findings` |
+| CHECK-14 | Covered | scripts/cleat (`Finding`); the finding constructors in `findings_for`, `_rules_findings`, `_restated_findings`, `_narrowing_findings` |
 | CHECK-15 | Covered | scripts/cleat (`findings_for`, `_pointer_only`) — the `dangling-ref` constructor |
 | CHECK-16 | Covered | scripts/cleat (`cmd_check`, `cmd_index`) |
+| CHECK-17 | Covered | scripts/cleat (`_restated_findings`, `_content_lines`, `_runs`, `_markdown_files`, `_generated`); scripts/tests/check.test.sh |
+| CHECK-18 | Covered | scripts/cleat (`_narrowing_findings`, `_link_targets`, `_resolve_link`, `_tier`); scripts/tests/check.test.sh |
 
 ## RULE — Topic rules and the index
 
@@ -70,6 +72,7 @@ CHECK-12 is retired and not counted.
 | HOOK-06 | Covered | hooks/hooks.yml |
 | HOOK-07 | Covered | scripts/cleat (`cmd_hook`) — the unparseable-payload and exception branches |
 | HOOK-08 | Covered | scripts/cleat (`post_tool_use`, `_bootstrap`) — `_under_user_claude` |
+| HOOK-09 | Covered | scripts/cleat (`pre_tool_use`) — the `overridden` bucket; scripts/tests/gate.test.sh |
 
 ## GATE — The write gate
 
@@ -94,6 +97,21 @@ CHECK-12 is retired and not counted.
 | NUDGE-03 | Covered | scripts/cleat (`_duplication_findings`, `_nudge`) |
 | NUDGE-04 | Covered | scripts/cleat (`_nudge`) |
 | NUDGE-05 | Covered | scripts/cleat (`post_tool_use`, `_rules_owner`) |
+| NUDGE-06 | Covered | scripts/cleat (`post_tool_use`, `_in_doc_set`, `_relative_to`); scripts/tests/nudge.test.sh |
+| NUDGE-07 | Covered | scripts/cleat (`_nudge`, `_finding_key`); scripts/tests/nudge.test.sh |
+
+## PLACEMENT — Where new guidance goes
+
+| ID      | Status  | Location |
+|---------|---------|----------|
+| PLACEMENT-01 | Covered | scripts/cleat (`_placement_reason`, `PLACEMENT_REASON`, `_placement_scope`); scripts/tests/gate.test.sh |
+| PLACEMENT-02 | Covered | scripts/cleat (`_placement_reason`, `PLACEMENT_TOPIC`) |
+| PLACEMENT-03 | Covered | scripts/cleat (`_existing_copies`, `PLACEMENT_EXISTING`) |
+| PLACEMENT-04 | Covered | scripts/cleat (`_placement_reason`) — the `placed` bucket; `pre_tool_use`, `_claim` |
+| PLACEMENT-05 | Covered | scripts/cleat (`pre_tool_use`) — one deny joining `_gate_reason` and `_placement_reason` |
+| PLACEMENT-06 | Covered | scripts/cleat (`_added_lines`, `pre_tool_use`) — `_under_user_claude`; CLAUDE.local.md falls outside `_placement_scope` |
+| PLACEMENT-07 | Covered | scripts/cleat (`_extra_rules_dirs`, `_placement_scope`); hooks/prefilter.sh (`rules/`) |
+| PLACEMENT-08 | Covered | scripts/cleat (`PLACEMENT_GUIDE`, `PLACEMENT_REASON`) |
 
 ## BOOT — Bootstrap guidance
 
@@ -110,7 +128,7 @@ CHECK-12 is retired and not counted.
 | ID     | Status  | Location |
 |--------|---------|----------|
 | PREFILTER-01 | Covered | hooks/hooks.yml; hooks/prefilter.sh |
-| PREFILTER-02 | Covered | hooks/prefilter.sh |
+| PREFILTER-02 | Covered | hooks/prefilter.sh — the `write` needles; hooks/hooks.yml; scripts/tests/prefilter.test.sh |
 | PREFILTER-03 | Covered | hooks/prefilter.sh |
 | PREFILTER-04 | Covered | hooks/prefilter.sh; scripts/tests/prefilter.test.sh |
 
@@ -125,16 +143,21 @@ CHECK-12 is retired and not counted.
 | PACKAGING-05 | Covered | guides/agents-vs-claude.md; scripts/cleat (`RUBRIC`, `_deny_reason`, `_bootstrap`) |
 | PACKAGING-06 | Covered | AGENTS.md; CLAUDE.md; `just self-check` |
 | PACKAGING-07 | Covered | scripts/tests/check.test.sh — the grading-table fixtures |
+| PACKAGING-08 | Covered | guides/placement.md; docs/_sidebar.md |
 
 ## STATE — Session state
 
 | ID    | Status  | Location |
 |-------|---------|----------|
-| STATE-01 | Covered | scripts/cleat (`_state_root`) |
+| STATE-01 | Covered | scripts/cleat (`_state_root`); scripts/tests/gate.test.sh ("a hook with no data dir") |
 | STATE-02 | Covered | scripts/cleat (`_session_dir`) |
 | STATE-03 | Covered | scripts/cleat (`_prune_sessions`) |
 
 ## Audit history
+
+### 2026-09-28 — Placement and reference direction (spec-req)
+
++14 IDs (CHECK-17, CHECK-18, HOOK-09, NUDGE-06, NUDGE-07, PLACEMENT-01–08, PACKAGING-08); CHECK-13, CHECK-14, and NUDGE-03 amended. PLACEMENT absorbs issue #6. All 87 Covered once the check, nudge, gate, and prefilter changes landed on the same branch.
 
 ### 2026-09-25 — Coverage refresh (spec-status)
 

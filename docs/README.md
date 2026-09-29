@@ -29,21 +29,18 @@ claude plugin install cleat@chris-peterson
 
 ## The shape it holds
 
-`AGENTS.md` carries the body of the guidance. `CLAUDE.md` is a link plus the
-`@AGENTS.md` ref:
+`AGENTS.md` carries the body of the guidance. `CLAUDE.md` is the `@AGENTS.md`
+ref:
 
 ```markdown
-Agent instructions live in [AGENTS.md](./AGENTS.md).
-
 @AGENTS.md
 ```
 
-Genuinely Claude-specific guidance (slash commands, hooks, `settings.json`)
-goes below the ref. That's why this is an import and not a symlink: a symlink
-surprises whoever opens the file next, and `CLAUDE.md` has a use beyond pointing.
-
-The link alone isn't enough. `@AGENTS.md` is what makes Claude Code load the
-file; a markdown link is just a link.
+That's the shape [Claude Code's docs](https://code.claude.com/docs/en/memory#share-one-file-with-other-coding-tools)
+give for sharing one file with other coding tools. Genuinely Claude-specific
+guidance (slash commands, hooks, `settings.json`) goes below the ref. That's why
+this is an import and not a symlink: a symlink surprises whoever opens the file
+next, and `CLAUDE.md` has a use beyond pointing.
 
 ## What it does
 

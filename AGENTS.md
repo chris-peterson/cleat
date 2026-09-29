@@ -4,8 +4,9 @@ A Claude Code plugin that holds a repository's agent instructions in one
 canonical `AGENTS.md`, with `CLAUDE.md` reduced to a pointer that imports it.
 Roughly 30 coding tools read `AGENTS.md`. Claude Code always loads
 `CLAUDE.md`, and since v2.1.277 reads `AGENTS.md` too — but only where no
-`CLAUDE.md` sits at or above the working directory, and only in a session that
-fetches feature flags. The pointer shape is what makes one body of guidance
+`CLAUDE.md` sits at or above the working directory, and not in every session
+(an older version, the built-in `agents-md` plugin disabled, the first session
+after an upgrade). The pointer shape is what makes one body of guidance
 reach every tool in every session.
 
 `SPEC.md` is the requirement source of record and `STATUS.md` is its coverage
@@ -74,8 +75,8 @@ what picks the level.
 
 ## Glossary
 
-- **Pointer shape** — `CLAUDE.md` as a link to `AGENTS.md` plus the `@AGENTS.md`
-  ref, optionally followed by genuinely Claude-specific guidance. An import
+- **Pointer shape** — `CLAUDE.md` as the `@AGENTS.md` ref, optionally followed
+  by genuinely Claude-specific guidance. An import
   rather than a symlink: a symlink surprises whoever opens the file next, and
   `CLAUDE.md` has a use beyond pointing.
 - **Ref** — the `@AGENTS.md` import line. A markdown link alone does not load

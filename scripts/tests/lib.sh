@@ -64,7 +64,7 @@ mkrepo() {
 }
 
 # The pointer shape, as a `printf %b` string.
-POINTER='Agent instructions live in [AGENTS.md](./AGENTS.md).\n\n@AGENTS.md\n'
+POINTER='@AGENTS.md\n'
 
 # A hook payload on stdout, built by python so no test has to hand-escape JSON.
 #   payload EVENT TOOL FILE_PATH [session=S] [content=@FILE] [content=TEXT]

@@ -1,3 +1,4 @@
 - [Home](/)
+- [Placement](/guides/placement)
 - [Rubric](/guides/agents-vs-claude)
 - [SPEC](/spec)
