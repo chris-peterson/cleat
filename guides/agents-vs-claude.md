@@ -54,7 +54,10 @@ configuration note in `CLAUDE.md`.
 
 **"Run the tests with `/verify` before committing."** Two claims wearing one
 sentence. `AGENTS.md` gets the requirement — tests pass before a commit, and the
-command that runs them. `CLAUDE.md` gets the shortcut.
+command that runs them. `CLAUDE.md` gets the shortcut, unless the shortcut is a
+skill named `verify`: since v2.1.286 Claude Code runs that skill before every
+commit that touches more than docs or tests, so a line asking for it repeats
+the harness.
 
 **Tool-usage preferences.** "Prefer ripgrep over find" is advice any agent can
 take: `AGENTS.md`. "Use the Read tool rather than `cat`" names a Claude Code tool:
