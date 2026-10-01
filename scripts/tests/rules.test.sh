@@ -46,6 +46,16 @@ run_check "$(mkrepo "AGENTS.md:::$BODY\n| \`src/**/*.ts\` | api.md |\n" \
                     ".claude/rules/backend/api.md:::$SCOPED" "src/handler.ts:::export {}\n")"
 check "no findings" "$CHECK_CODES" ""
 
+echo "== a rules directory below the root is judged from the directory that owns it =="
+NESTED_SCOPED='---\npaths:\n  - "src/**/*.ts"\n---\n\nValidate every endpoint input.\n'
+d="$(mkrepo "AGENTS.md:::$BODY" "CLAUDE.md:::$POINTER" \
+            "pkg/AGENTS.md:::$BODY" "pkg/CLAUDE.md:::$POINTER" \
+            "pkg/.claude/rules/api.md:::$NESTED_SCOPED" "pkg/src/handler.ts:::export {}\n")"
+run_check "$d/pkg"
+check "its glob is relative to pkg/, so it is live and unlisted" "$CHECK_CODES" "unlisted-rule"
+run_check "$d"
+check "and it is not the root index's to carry" "$CHECK_CODES" ""
+
 echo "== brace expansion decides whether a rule can fire =="
 BRACE='---\npaths:\n  - "**/*.{ts,tsx}"\n---\n\nOne component per file.\n'
 run_check "$(mkrepo "AGENTS.md:::$BODY" "CLAUDE.md:::$POINTER" \

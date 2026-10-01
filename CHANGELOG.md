@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- `cleat check` reports `shadowed`, an error, for a nested `AGENTS.md` with no
+  `CLAUDE.md` beside it in a repo whose root has one. Claude Code never reads
+  such a file, because any `CLAUDE.md` at or above the working directory turns
+  off its direct `AGENTS.md` reading. The repair is a `CLAUDE.md` pointer beside
+  it. `cleat check` at the root finds every one in the tree, and a repo whose
+  check was green can report it after upgrading.
+- Reading a shadowed `AGENTS.md` offers to add that pointer.
+- When a write adds guidance to `CLAUDE.md` or `AGENTS.md`, the placement
+  question also asks whether it's bound to one directory, and suggests a nested
+  `AGENTS.md` and pointer there.
+- The placement guide says where guidance for one directory goes: a nested
+  `AGENTS.md` and pointer, or a rule under that directory's `.claude/rules/`.
+- A Feedback loops page on the docs site explains the model behind cleat's
+  placement: the four kinds of guidance and what each costs, pairing a rule with a hook that checks the
+  same habit, and how Claude Code, Cursor, Copilot, and Codex each load nested
+  instruction files.
+
 ## 0.3.0
 
 ### Added

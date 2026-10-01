@@ -1,4 +1,5 @@
 - [Home](/)
 - [Placement](/guides/placement)
 - [Rubric](/guides/agents-vs-claude)
+- [Feedback loops](/feedback-loops)
 - [SPEC](/spec)

@@ -100,6 +100,11 @@ INLINE_CODE = re.compile(r"`[^`]*`")
 POINTER = """@AGENTS.md
 """
 
+# Any of these in a directory at or above the working directory makes Claude Code
+# load CLAUDE.md files only, so it skips a nested AGENTS.md with no CLAUDE.md of
+# its own: https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md
+CLAUDE_FAMILY = (CLAUDE, ".claude/CLAUDE.md", "CLAUDE.local.md")
+
 
 # ---- findings ---------------------------------------------------------------
 
@@ -737,9 +742,53 @@ def _narrowing_findings(texts, inverted):
     return out
 
 
-def _documentation_findings(root, inverted):
+def _shadowing(directory):
+    """The nearest CLAUDE.md-family file in a directory above this one, up to the
+    enclosing repo root, or None."""
+    directory = _resolved(directory)
+    top = _repo_root(directory)
+    if top is None or directory == top:
+        return None
+    for candidate in directory.parents:
+        for name in CLAUDE_FAMILY:
+            if (candidate / name).is_file():
+                return candidate / name
+        if candidate == top:
+            return None
+    return None
+
+
+def _shadowed_finding(rel, shadow, root):
+    return Finding(
+        "shadowed", ERROR, rel,
+        "{} has no {} beside it, and {} above it makes Claude Code load only "
+        "{} files in this tree, so no Claude Code session reads it".format(
+            rel, CLAUDE, _relative_to(shadow, _resolved(root)) or shadow, CLAUDE),
+        "add a {} holding @{} beside it; Claude Code then loads both when it "
+        "reads a file in that directory".format(CLAUDE, AGENTS),
+    )
+
+
+def _nested_findings(root, rels):
+    """`shadowed` for each AGENTS.md below root. The rest of a nested pair's shape
+    is checked when a write to it runs the nudge from its own directory."""
+    out = []
+    for rel in rels:
+        parent = pathlib.PurePosixPath(rel).parent
+        if parent.name == "" or pathlib.PurePosixPath(rel).name != AGENTS:
+            continue
+        directory = root / parent
+        if (directory / CLAUDE).is_file() or not _substantive(_read(directory / AGENTS)):
+            continue
+        shadow = _shadowing(directory)
+        if shadow is not None:
+            out.append(_shadowed_finding(rel, shadow, root))
+    return out
+
+
+def _documentation_findings(root, inverted, rels):
     root = pathlib.Path(root)
-    markdown = {rel: _read(root / rel) for rel in _markdown_files(root)}
+    markdown = {rel: _read(root / rel) for rel in rels}
     doc_set = {rel: text for rel, text in markdown.items() if _in_doc_set(rel)}
     return _restated_findings(doc_set) + _narrowing_findings(markdown, inverted)
 
@@ -779,6 +828,8 @@ def findings_for(root):
             "move the tool-agnostic body to {} and leave {} as the "
             "pointer".format(AGENTS, CLAUDE),
         ))
+    elif has_agents and not has_claude and _shadowing(root) is not None:
+        out.append(_shadowed_finding(AGENTS, _shadowing(root), root))
     elif has_agents and not has_claude:
         out.append(Finding(
             "no-claude", ADVISORY, AGENTS,
@@ -817,7 +868,9 @@ def findings_for(root):
     if has_agents:
         out.extend(_rules_findings(root, agents_text))
     out.extend(_foreign_findings(root))
-    out.extend(_documentation_findings(root, inverted))
+    rels = _markdown_files(root)
+    out.extend(_nested_findings(root, rels))
+    out.extend(_documentation_findings(root, inverted, rels))
     return out
 
 
@@ -1026,6 +1079,9 @@ allowed through."""
 PLACEMENT_TOPIC = """- Is it a topic of its own? Then give it a rule under {rules}/, with `paths:` \
 frontmatter where it is bound to a file type or a tree, instead of growing the \
 file every session loads.
+- Is it bound to one directory? Then put it in an {agents} in that directory, with \
+a {claude} beside it holding @{agents}. Other tools read a nested {agents} too; a \
+rule reaches only Claude Code.
 """
 
 PLACEMENT_EXISTING = """- {files} already carry some of these lines. Link to that copy rather than \
@@ -1099,7 +1155,7 @@ def _placement_reason(session_id, path, content):
         return None
     _mark(session_id, "placed", name)
 
-    topic = PLACEMENT_TOPIC.format(rules=RULES_DIR) if scope == "instruction" else ""
+    topic = PLACEMENT_TOPIC.format(rules=RULES_DIR, agents=AGENTS, claude=CLAUDE) if scope == "instruction" else ""
     copies = _existing_copies(path, content, added)
     existing = PLACEMENT_EXISTING.format(files=", ".join(copies)) if copies else ""
     return PLACEMENT_REASON.format(name=path.name, topic=topic, existing=existing,
@@ -1225,10 +1281,26 @@ def _bootstrap(session_id, path):
     if _under_user_claude(path):
         return None
 
+    shadow = None
     if path.name == AGENTS:
         claude_text = _read(directory / CLAUDE)
-        # With no CLAUDE.md, Claude Code reads AGENTS.md at startup by default;
-        # the check's no-claude advisory covers the sessions that skip it.
+        if not (directory / CLAUDE).is_file():
+            shadow = _shadowing(directory)
+    if shadow is not None:
+        trigger = "agents-shadowed"
+        summary = (
+            "{0} was just read by hand. There is no {1} beside it, and {2} above "
+            "it makes Claude Code load only {1} files in this tree, so this "
+            "guidance never reaches a Claude Code session.".format(
+                AGENTS, CLAUDE, shadow)
+        )
+        action = (
+            "Offer to add a {} here holding @{}, so Claude Code loads it whenever "
+            "it reads a file in this directory.".format(CLAUDE, AGENTS)
+        )
+    elif path.name == AGENTS:
+        # With no CLAUDE.md here or above, Claude Code reads AGENTS.md by
+        # default; the check's no-claude advisory covers the sessions that skip it.
         if not _substantive(claude_text) or REF.search(claude_text):
             return None
         trigger = "agents-unlinked"

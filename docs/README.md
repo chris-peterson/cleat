@@ -50,7 +50,7 @@ Three hooks, no commands:
 |---|---|
 | You write a substantive `CLAUDE.md` into a repo with no `AGENTS.md` | The write is stopped, with the reason and the instruction to split it in two. The content isn't lost: the model still holds it, so it re-issues rather than regenerates. |
 | A write leaves `AGENTS.md`/`CLAUDE.md` in a near-miss shape | The finding and its repair come back in the same turn: add the missing ref, write the `AGENTS.md` a pointer imports, flip an inversion, drop content duplicated from `AGENTS.md`. |
-| An agent reads an `AGENTS.md` that `CLAUDE.md` doesn't import, the `README.md` of a repo with no agent guidance, or a rival tool's config | You get one offer to fix it. Once per session per directory. |
+| An agent reads an `AGENTS.md` that `CLAUDE.md` doesn't import, a nested `AGENTS.md` with no pointer beside it, the `README.md` of a repo with no agent guidance, or a rival tool's config | You get one offer to fix it. Once per session per directory. |
 
 ### When `CLAUDE.md` really is all Claude-specific
 
@@ -75,7 +75,8 @@ scripts/cleat check .
 ```
 
 Findings come in two severities. **Errors** (a missing `AGENTS.md`, a pointer
-to an `AGENTS.md` that doesn't exist, a missing ref, an inversion, content
+to an `AGENTS.md` that doesn't exist, a missing ref, an inversion, a nested
+`AGENTS.md` that Claude Code skips for want of a pointer beside it, content
 duplicated across both files, a rival tool's config sitting alongside, a topic
 rule glob cleat can't evaluate) exit non-zero, so CI can gate on them.
 **Advisories** (a repo with no agent guidance at all, an `AGENTS.md` with no

@@ -33,6 +33,12 @@ Ubiquitous (`The <system> shall …`), State-Driven (`While …`), Event-Driven
   makes the pointer load `AGENTS.md`; a link alone does not.
 - **Substantive content** — a file body that is more than whitespace and more
   than the pointer shape. The gate acts on substantive `CLAUDE.md` content only.
+- **Shadowed** — an `AGENTS.md` below the repository root with no `CLAUDE.md`
+  beside it, under a directory holding `CLAUDE.md`, `.claude/CLAUDE.md`, or
+  `CLAUDE.local.md`. Claude Code reads `AGENTS.md` directly only where none of
+  those sits at or above the working directory, so it never reads a shadowed
+  file. A `CLAUDE.md` pointer beside it is what loads it, when Claude Code reads
+  a file in that directory.
 - **Inversion** — the reverse of the target shape: `AGENTS.md` is a stub pointing
   back at `CLAUDE.md`, so every non-Claude tool gets the stub.
 - **Foreign config** — a single-tool instruction file (`.cursorrules`,
@@ -55,7 +61,7 @@ Ubiquitous (`The <system> shall …`), State-Driven (`While …`), Event-Driven
   at launch. Past it, the index competes with the guidance it points at.
 - **Finding** — one code, the path it concerns, a severity, and the repair that
   clears it. The codes are `no-agents`, `dangling-ref`, `no-claude`, `no-ref`,
-  `inverted`, `duplicated`, `unguided`, `foreign-config`, `unlisted-rule`,
+  `inverted`, `duplicated`, `unguided`, `shadowed`, `foreign-config`, `unlisted-rule`,
   `dead-rule-listed`, `toc-bloat`, `bad-glob`, `restated`, and `narrowing-ref`.
 - **Severity** — a finding is either an **error** (the shape is broken; drives
   the exit code) or an **advisory** (reported, but a repo can legitimately sit
@@ -89,7 +95,8 @@ Ubiquitous (`The <system> shall …`), State-Driven (`While …`), Event-Driven
   written somewhere, link to it; for end users, `docs/`; for anyone changing the
   repo, `README.md` or its peers; for the agent, a hook or linter where one can
   decide it from a single tool call's inputs, else `AGENTS.md` or `CLAUDE.md`
-  where every session needs it, else a topic rule, skill, or guide.
+  where every session needs it, else a nested `AGENTS.md` and pointer where it
+  is bound to one directory, else a topic rule, skill, or guide.
 - **Placement guide** — the file carrying the placement tree, the audience tiers,
   and the reference direction. Like the rubric, a file named by path.
 
@@ -157,12 +164,13 @@ and the nudge reports whatever the check finds. The ID is not reused._
 #### `CHECK-13`
 Each finding shall carry the repair that clears it: create the pointer, add the
 ref, flip the inversion, delete the duplicated content from `CLAUDE.md`, replace
-a restated copy with a link or an include, or remove a link that points at a narrower tier.
+a restated copy with a link or an include, remove a link that points at a narrower tier,
+or add the pointer beside a shadowed `AGENTS.md`.
 
 #### `CHECK-14`
 Each finding shall carry a severity. `no-agents`, `dangling-ref`, `no-ref`,
-`inverted`, `foreign-config`, `unlisted-rule`, `dead-rule-listed`, `bad-glob`,
-`narrowing-ref`, and line-level `duplicated` shall be errors; `no-claude`,
+`inverted`, `shadowed`, `foreign-config`, `unlisted-rule`, `dead-rule-listed`,
+`bad-glob`, `narrowing-ref`, and line-level `duplicated` shall be errors; `no-claude`,
 `unguided`, `toc-bloat`, `restated`, and heading-only `duplicated` shall be
 advisories.
 
@@ -191,6 +199,14 @@ When a relative markdown link outside a fenced code block resolves to a file in
 a narrower audience tier than the file holding the link, the check shall report
 `narrowing-ref` naming both paths, unless the same pair is already reported as
 `inverted`.
+
+#### `CHECK-19`
+When `DIR` holds a shadowed `AGENTS.md`, the check shall report `shadowed`, naming
+the nearest file above that shadows it, in place of `no-claude`.
+
+#### `CHECK-20`
+The check shall report `shadowed` for each shadowed `AGENTS.md` below `DIR`,
+naming its path relative to `DIR`.
 
 ### `RULE`
 Topic rules and the index
@@ -242,6 +258,12 @@ symlink cycle cannot stall the check or a hook.
 If a topic rule's glob is absolute, climbs out of the repo with `..`, or expands
 to more than 64 patterns, then the check shall report `bad-glob` naming the rule
 and the glob, and shall not classify that rule.
+
+#### `RULE-12`
+Where a `.claude/rules/` directory sits below the repository root, the system
+shall classify its rules with globs relative to the directory that owns it and
+index them from that directory's `AGENTS.md`, which is how Claude Code anchors a
+nested rule's globs.
 
 ### `INDEX`
 The index projector
@@ -398,7 +420,8 @@ inputs, and whether every session needs it.
 #### `PLACEMENT-02`
 When the addition targets `CLAUDE.md` or `AGENTS.md`, the reason shall also ask
 whether the content belongs in its own topic rule, path-scoped where it is bound
-to a file type or tree.
+to a file type or tree, or in a nested `AGENTS.md` and pointer where it is bound
+to one directory.
 
 #### `PLACEMENT-03`
 When the added content restates a run of lines already in another file of the
@@ -449,6 +472,10 @@ Each bootstrap trigger shall fire at most once per session per directory.
 #### `BOOT-05`
 Each bootstrap trigger shall emit both `systemMessage`, so the user sees it, and
 `additionalContext`, so the model can act on a yes.
+
+#### `BOOT-06`
+When a shadowed `AGENTS.md` is read, the system shall surface that no Claude Code
+session reads it and offer to add the pointer beside it.
 
 ### `PREFILTER`
 Prefilter and cost
@@ -501,9 +528,16 @@ rows `no-claude`, and the F rows `unguided`. A disagreement is a defect in the
 check.
 
 #### `PACKAGING-08`
-The placement guide shall carry the placement tree, the audience tiers, and the
-reference direction, name the rubric as the split for the `AGENTS.md` /
-`CLAUDE.md` leaf, and project to the docs site with the other guides.
+The placement guide shall carry the placement tree, where guidance for one
+directory goes, the audience tiers, and the reference direction, name the rubric
+as the split for the `AGENTS.md` / `CLAUDE.md` leaf, and project to the docs
+site with the other guides.
+
+#### `PACKAGING-09`
+The docs site shall carry a feedback loops page, written for end users, with the
+four kinds of guidance and what each costs, the case for pairing a rule with a hook, and how each tool
+loads a nested instruction file, so the guide an agent reads holds only what it
+acts on.
 
 ### `STATE`
 Session state

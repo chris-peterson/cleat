@@ -6,6 +6,7 @@ docs/*
 !docs/README.md
 !docs/_sidebar.md
 !docs/favicon.svg
+!docs/feedback-loops.md
 
 __pycache__
 .DS_Store

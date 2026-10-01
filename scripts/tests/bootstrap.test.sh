@@ -51,6 +51,18 @@ d="$(mkrepo "AGENTS.md:::$BODY" "CLAUDE.md:::$POINTER")"
 run_hook "$(payload PostToolUse Read "$d/AGENTS.md")"
 check "silent" "$BOOT_OUT" ""
 
+echo "== reading a nested AGENTS.md that a CLAUDE.md above shadows =="
+d="$(mkrepo "AGENTS.md:::$BODY" "CLAUDE.md:::$POINTER" "pkg/AGENTS.md:::$BODY")"
+run_hook "$(payload PostToolUse Read "$d/pkg/AGENTS.md")"
+contains "the user sees it" "$(sysmsg)" "never reaches a Claude Code session"
+contains "the model gets the action" "$(context)" "Offer to add a CLAUDE.md here"
+
+echo "== a nested pair with its pointer is unremarkable =="
+d="$(mkrepo "AGENTS.md:::$BODY" "CLAUDE.md:::$POINTER" \
+            "pkg/AGENTS.md:::$BODY" "pkg/CLAUDE.md:::$POINTER")"
+run_hook "$(payload PostToolUse Read "$d/pkg/AGENTS.md")"
+check "silent" "$BOOT_OUT" ""
+
 echo "== reading a repo root's README where neither file exists =="
 d="$(mkrepo "README.md:::# widget\n")"
 run_hook "$(payload PostToolUse Read "$d/README.md")"

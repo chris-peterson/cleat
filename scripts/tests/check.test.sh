@@ -44,6 +44,30 @@ run_check "$(mkrepo "AGENTS.md:::$BODY")"
 check "code" "$CHECK_CODES" "no-claude"
 check "advisory alone exits 0" "$CHECK_EXIT" "0"
 
+echo "== shadowed: a nested AGENTS.md under a CLAUDE.md Claude Code never reads =="
+d="$(mkrepo "AGENTS.md:::$BODY" "CLAUDE.md:::$POINTER" "pkg/AGENTS.md:::$BODY")"
+run_check "$d"
+check "found from the root" "$CHECK_CODES" "shadowed"
+check "error exits 1" "$CHECK_EXIT" "1"
+contains "names the nested file" "$CHECK_OUT" "pkg/AGENTS.md"
+run_check "$d/pkg"
+check "and in place of no-claude from its own directory" "$CHECK_CODES" "shadowed"
+contains "names the shadowing file" "$CHECK_OUT" "CLAUDE.md above it"
+
+echo "== a pointer beside the nested AGENTS.md clears it =="
+run_check "$(mkrepo "AGENTS.md:::$BODY" "CLAUDE.md:::$POINTER" \
+                    "pkg/AGENTS.md:::$BODY" "pkg/CLAUDE.md:::$POINTER")"
+check "no findings" "$CHECK_CODES" ""
+
+echo "== a CLAUDE.local.md above shadows it too =="
+run_check "$(mkrepo "AGENTS.md:::$BODY" "CLAUDE.local.md:::Use my sandbox.\n" \
+                    "pkg/AGENTS.md:::$BODY")"
+contains "reported" "$CHECK_CODES" "shadowed"
+
+echo "== with no CLAUDE.md anywhere, nested AGENTS.md files are read directly =="
+run_check "$(mkrepo "AGENTS.md:::$BODY" "pkg/AGENTS.md:::$BODY")"
+check "only the root's portability advisory" "$CHECK_CODES" "no-claude"
+
 echo "== a blank CLAUDE.md loads nothing, so it counts as absent =="
 run_check "$(mkrepo "AGENTS.md:::$BODY" "CLAUDE.md:::\n \n")"
 check "code" "$CHECK_CODES" "no-claude"

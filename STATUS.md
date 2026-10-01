@@ -7,7 +7,7 @@ in-repo implementation. Status vocabulary: **Covered** · **Partial** ·
 **Evidence pointers:** file + enclosing symbol. A line number is invalidated by
 any edit above it, and the ledger is read long after that edit.
 
-**Coverage: 87/87 requirements Covered (100%)**
+**Coverage: 92/92 requirements Covered (100%)**
 
 ## CHECK — The check command
 
@@ -32,6 +32,8 @@ CHECK-12 is retired and not counted.
 | CHECK-16 | Covered | scripts/cleat (`cmd_check`, `cmd_index`) |
 | CHECK-17 | Covered | scripts/cleat (`_restated_findings`, `_content_lines`, `_runs`, `_markdown_files`, `_generated`); scripts/tests/check.test.sh |
 | CHECK-18 | Covered | scripts/cleat (`_narrowing_findings`, `_link_targets`, `_resolve_link`, `_tier`); scripts/tests/check.test.sh |
+| CHECK-19 | Covered | scripts/cleat (`findings_for`, `_shadowing`, `_shadowed_finding`); scripts/tests/check.test.sh |
+| CHECK-20 | Covered | scripts/cleat (`_nested_findings`); scripts/tests/check.test.sh |
 
 ## RULE — Topic rules and the index
 
@@ -48,6 +50,7 @@ CHECK-12 is retired and not counted.
 | RULE-09 | Covered | scripts/cleat (`findings_for`) — guarded by `has_agents` |
 | RULE-10 | Covered | scripts/cleat (`_matches_any_file`) — `os.walk` without `followlinks`; scripts/tests/rules.test.sh |
 | RULE-11 | Covered | scripts/cleat (`_expanded`, `_expand_braces`, `_rules_findings`) — the `bad-glob` constructor |
+| RULE-12 | Covered | scripts/cleat (`_rules_owner`, `_topic_rules`); scripts/tests/rules.test.sh |
 
 ## INDEX — The index projector
 
@@ -122,6 +125,7 @@ CHECK-12 is retired and not counted.
 | BOOT-03 | Covered | scripts/cleat (`_bootstrap`, `_foreign_relative`) |
 | BOOT-04 | Covered | scripts/cleat (`_bootstrap`) |
 | BOOT-05 | Covered | scripts/cleat (`_bootstrap`) |
+| BOOT-06 | Covered | scripts/cleat (`_bootstrap`, `_shadowing`); scripts/tests/bootstrap.test.sh |
 
 ## PREFILTER — Prefilter and cost
 
@@ -144,6 +148,7 @@ CHECK-12 is retired and not counted.
 | PACKAGING-06 | Covered | AGENTS.md; CLAUDE.md; `just self-check` |
 | PACKAGING-07 | Covered | scripts/tests/check.test.sh — the grading-table fixtures |
 | PACKAGING-08 | Covered | guides/placement.md; docs/_sidebar.md |
+| PACKAGING-09 | Covered | docs/feedback-loops.md; docs/_sidebar.md |
 
 ## STATE — Session state
 
@@ -154,6 +159,10 @@ CHECK-12 is retired and not counted.
 | STATE-03 | Covered | scripts/cleat (`_prune_sessions`) |
 
 ## Audit history
+
+### 2026-10-01 — Nested instruction files (spec-req)
+
++5 IDs (CHECK-19, CHECK-20, RULE-12, BOOT-06, PACKAGING-09); CHECK-13, CHECK-14, PLACEMENT-02, and PACKAGING-08 amended. RULE-12 records behavior the nudge already had; the rest landed with the `shadowed` finding and the feedback loops page. 92/92 Covered.
 
 ### 2026-09-28 — Placement and reference direction (spec-req)
 

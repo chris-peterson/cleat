@@ -19,6 +19,7 @@ flowchart TD
     Gate -->|Yes| Hook[Hook or linter]
     Gate -->|No| When{Needed every session?}
     When -->|Yes| Agents[AGENTS.md or CLAUDE.md]
+    When -->|Only in one directory| Nested[AGENTS.md and pointer in that directory]
     When -->|Only for some files| Rule[Path-scoped topic rule]
     When -->|Only for some tasks| Skill[Skill or guide]
 ```
@@ -130,6 +131,22 @@ frames the harness as feedforward guides and feedback sensors, and the
 Thoughtworks Technology Radar's
 [Feedback sensors for coding agents](https://www.thoughtworks.com/radar/techniques/feedback-sensors-for-coding-agents)
 recommends running those sensors in the session, before a commit.
+
+## Guidance for one directory
+
+Put guidance bound to one directory in an `AGENTS.md` there, with a `CLAUDE.md`
+beside it holding `@AGENTS.md`. Without that pointer Claude Code never reads the
+nested file, because the root `CLAUDE.md` turns off its direct `AGENTS.md`
+reading for the whole tree. cleat reports the missing pointer as `shadowed`.
+
+| Bound to | Put it in |
+|---|---|
+| One directory | That directory's `AGENTS.md`, plus the pointer |
+| A file type across the tree | A path-scoped rule under the root's `.claude/rules/`, indexed from the root `AGENTS.md` |
+| A file type within one directory | A rule under that directory's `.claude/rules/`, its globs relative to that directory, indexed from that directory's `AGENTS.md` |
+
+How each tool loads a nested file is on the docs site:
+[Nested instruction files](https://chris-peterson.github.io/cleat/#/feedback-loops?id=nested-instruction-files).
 
 ## Audience tiers
 
