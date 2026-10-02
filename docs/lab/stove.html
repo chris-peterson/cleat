@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hot stove</title>
+<link rel="icon" type="image/svg+xml" href="../favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: an arcade cabinet (coach ticket, then controls left and board right, costs under the bins).
+   Each layer owns one hue everywhere; green and red mean only "acceptable result" and "needs correction". */
+:root {
+  --bg: #f1f0fa;
+  --surface: #ffffff;
+  --fg: #1d1b3a;
+  --muted: #615f7d;
+  --rule: #dcdaee;
+  --always: #6c3fc0;
+  --jit: #0873a0;
+  --advisory: #a86200;
+  --blocking: #c4246a;
+  --right: #1f9e6a;
+  --wrong: #b42318;
+  --right-ink: #137049;
+  --wrong-ink: #b42318;
+  --brand: #c41e7a;
+  --frame: #1d1b3a;
+  --peg-off: #cfcde2;
+  --ink: #2a2850;
+  --stove: #8f8cad;
+  --stove-dark: #6b6890;
+  --hot: #ff6a2b;
+  --on-color: #ffffff;
+  --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", sans-serif;
+  --body: "Figtree", "Helvetica Neue", Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #21222c; --surface: #282a36; --fg: #f8f8f2; --muted: #a4a9c8; --rule: #44475a;
+    --always: #a98bff; --jit: #5cc8f2; --advisory: #f5ae5c; --blocking: #ff72b0;
+    --right: #50fa7b; --wrong: #ff5555; --right-ink: #50fa7b; --wrong-ink: #ff6e6e; --brand: #ff79c6; --frame: #6272a4; --peg-off: #44475a;
+    --ink: #e2e2ec; --stove: #44475a; --stove-dark: #383a4a; --hot: #ffb86c; --on-color: #21222c; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #21222c; --surface: #282a36; --fg: #f8f8f2; --muted: #a4a9c8; --rule: #44475a;
+  --always: #a98bff; --jit: #5cc8f2; --advisory: #f5ae5c; --blocking: #ff72b0;
+  --right: #50fa7b; --wrong: #ff5555; --right-ink: #50fa7b; --wrong-ink: #ff6e6e; --brand: #ff79c6; --frame: #6272a4; --peg-off: #44475a;
+    --ink: #e2e2ec; --stove: #44475a; --stove-dark: #383a4a; --hot: #ffb86c; --on-color: #21222c; color-scheme: dark;
+}
+[hidden] { display: none !important; }
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 16px; line-height: 1.55; margin: 0; }
+main { max-width: 1040px; margin: 0 auto; padding-inline: 16px; padding-block: 0 16px; display: grid; gap: 14px; }
+.plinko { color: var(--brand); display: inline-flex; align-items: baseline; gap: 0.03em; margin-inline-start: 0.3em; font-size: 1.1em; letter-spacing: 0; }
+.plinko span { display: inline-block; }
+.plinko span:nth-child(odd) { transform: translateY(-0.1em); }
+.plinko span:nth-child(even) { transform: translateY(0.03em); }
+.plinko .o { inline-size: 0.56em; block-size: 0.56em; margin-inline-start: 0.04em; border-radius: 50%; border: 0.11em solid currentColor; background: linear-gradient(90deg, var(--right) 50%, var(--wrong) 50%) content-box; padding: 0.04em; transform: translateY(-0.2em) rotate(-15deg); }
+h1 { font-family: var(--display); font-weight: 800; font-size: clamp(24px, 3.6vw, 32px); line-height: 1; letter-spacing: -0.02em; margin: 0; white-space: nowrap; }
+h2 { font-family: var(--display); font-weight: 700; font-size: 24px; line-height: 1.1; letter-spacing: -0.01em; margin: 0; }
+h3 { font-family: var(--display); font-weight: 700; font-size: 18px; line-height: 1.15; margin: 0; }
+p { margin: 0; max-width: 62ch; }
+button { font: inherit; color: inherit; }
+button:focus-visible, input:focus-visible { outline: 3px solid var(--jit); outline-offset: 2px; }
+.bar { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; flex-wrap: wrap; gap: 6px 16px; padding-block: 10px; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(8px); }
+.play { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-inline-start: auto; }
+.learn-btn { font-weight: 700; font-size: 14px; background: var(--surface); border: 1.5px solid var(--rule); border-radius: 999px; padding-block: 6px; padding-inline: 14px; cursor: pointer; }
+.learn-btn:hover { border-color: var(--fg); }
+.theme-toggle { display: flex; align-items: center; position: relative; background: var(--rule); border: 0; border-radius: 20px; padding: 3px; cursor: pointer; }
+.theme-toggle:hover { background: color-mix(in srgb, var(--rule) 70%, var(--fg)); }
+.theme-toggle:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+.theme-toggle span { display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; position: relative; z-index: 1; color: var(--muted); transition: color 0.35s ease; }
+.theme-toggle i { position: absolute; left: 3px; top: 3px; width: 26px; height: 26px; border-radius: 50%; background: var(--surface); transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+.theme-toggle[aria-checked="true"] i { transform: translateX(26px); }
+.theme-toggle[aria-checked="false"] .sun, .theme-toggle[aria-checked="true"] .moon { color: var(--fg); }
+@media (prefers-reduced-motion: reduce) { .theme-toggle i, .theme-toggle span { transition: none; } }
+#learn-open { background: var(--fg); border-color: var(--fg); color: var(--surface); }
+#learn-open:hover { background: color-mix(in srgb, var(--fg) 85%, var(--surface)); }
+.disclaimer { font-size: 13px; color: var(--muted); text-align: center; }
+
+
+/* The cabinet. */
+.cabinet { background: var(--surface); border-radius: 22px; padding-block: 14px; padding-inline: 18px; display: grid; gap: 12px; }
+
+/* The coach: a prize ticket that reports the last run and offers the next layer. */
+.coach { --c: var(--fg); display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 6px 20px; padding-block: 6px; padding-inline: 18px; border-radius: 16px; background: color-mix(in srgb, var(--c) 11%, var(--surface)); }
+.coach .big { font-family: var(--display); font-weight: 800; font-size: 40px; line-height: 0.9; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; color: var(--big, var(--c)); }
+.coach .big small { display: block; font-family: var(--body); font-size: 13px; font-weight: 600; letter-spacing: 0; color: var(--muted); margin-block-start: 6px; }
+.coach .say { display: grid; gap: 2px; }
+.coach .say b { font-size: 17px; }
+.coach .say span { font-size: 14.5px; color: var(--muted); }
+.coach .moves { display: flex; flex-wrap: wrap; gap: 2px 16px; }
+.coach .moves i { font-style: normal; font-weight: 700; }
+.coach .moves .good { color: var(--right-ink); }
+.coach .moves .bad { color: var(--wrong-ink); }
+.coach .add { font-weight: 700; font-size: 15px; color: var(--surface); background: var(--c); border: 0; border-radius: 999px; padding-block: 9px; padding-inline: 18px; cursor: pointer; white-space: nowrap; }
+.coach .big:empty { display: none; }
+/* Sized to the tallest state (a comparison plus a tip), so the board below never jumps between runs. */
+@media (min-width: 761px) { .coach { min-height: 113px; } }
+.coach.plain { background: var(--bg); }
+.coach .say .hint { color: var(--fg); display: flex; gap: 8px; align-items: baseline; font-size: 14.5px; margin-block-start: 4px; }
+.coach .say .hint::before { content: "i"; flex: none; display: inline-grid; place-items: center; inline-size: 18px; block-size: 18px; border-radius: 50%; background: var(--c); color: var(--surface); font: italic 700 12px/1 Georgia, serif; transform: translateY(3px); }
+@media (max-width: 640px) { .coach { grid-template-columns: auto minmax(0, 1fr); } .coach .add { grid-column: 1 / -1; justify-self: start; } }
+@media (prefers-reduced-motion: no-preference) { .coach.fresh { animation: ticket 420ms cubic-bezier(.2, 1.4, .4, 1); } }
+@keyframes ticket { from { transform: translateY(-6px) scale(0.98); opacity: 0.4; } }
+
+.board { display: grid; grid-template-columns: 236px minmax(0, 1fr); gap: 24px; align-items: start; }
+@media (max-width: 760px) { .board { grid-template-columns: 1fr; } }
+.controls { display: grid; gap: 6px; }
+/* An empty slot is as tall as the layer card that replaces it, so adding a layer moves nothing. */
+.ctl, .slot { min-height: 65px; }
+.ctl { --c: var(--fg); border-radius: 12px; padding-block: 6px; padding-inline: 12px; display: grid; gap: 2px; background: color-mix(in srgb, var(--c) 10%, var(--surface)); }
+.ctl .name { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 700; font-size: 14.5px; color: var(--c); }
+.ctl .x { flex: none; width: 22px; height: 22px; border-radius: 50%; font-size: 16px; line-height: 1; font-weight: 700; color: var(--muted); background: var(--surface); border: 0; padding: 0; cursor: pointer; }
+.ctl .x:hover { color: var(--surface); background: var(--c); }
+.ctl .eff { display: flex; align-items: baseline; justify-content: space-between; font-size: 13px; color: var(--muted); }
+.ctl output { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--fg); }
+.ctl input[type=range] { width: 100%; margin: 0; appearance: none; height: 6px; border-radius: 3px; background: linear-gradient(to right, var(--c) var(--p), color-mix(in srgb, var(--c) 20%, var(--surface)) var(--p)); }
+.ctl input[type=range]::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--c); border: 2px solid var(--surface); }
+.ctl input[type=range]::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--c); border: 2px solid var(--surface); }
+.ctl input[type=range]:focus-visible { outline: 2px solid var(--c); outline-offset: 4px; }
+.slot { --c: var(--fg); text-align: start; font-weight: 700; font-size: 14px; color: var(--c); background: none; border: 2px dashed color-mix(in srgb, var(--c) 50%, transparent); border-radius: 12px; padding-block: 12px; padding-inline: 12px; cursor: pointer; }
+.slot:hover { background: color-mix(in srgb, var(--c) 8%, transparent); }
+.edit-line { height: 14px; }
+.table { display: grid; gap: 8px; position: relative; }
+.toast { --t: var(--fg); position: absolute; left: 50%; z-index: 2; translate: -50% 0; white-space: nowrap; font-weight: 700; font-size: 13.5px; color: var(--t); background: color-mix(in srgb, var(--t) 16%, var(--surface)); border-radius: 999px; padding-block: 5px; padding-inline: 12px; pointer-events: none; opacity: 0; }
+.toast.show { opacity: 1; }
+@media (prefers-reduced-motion: no-preference) { .toast { transition: opacity 0.25s ease, translate 0.25s ease; translate: -50% 6px; } .toast.show { translate: -50% 0; } }
+.launch { display: grid; padding-block: 6px; margin-block-end: 10px; }
+.launch b { font-family: var(--display); font-size: 18px; }
+.launch span { font-size: 13px; color: var(--muted); }
+.aim { position: absolute; inset-inline: 0; top: 0; width: 100%; background: none; border: 0; padding: 0; cursor: pointer; border-radius: 14px 14px 0 0; }
+.aim:focus-visible { outline: 3px solid var(--jit); outline-offset: -3px; }
+canvas { display: block; width: 100%; height: auto; border-radius: 14px; }
+.tip { position: absolute; z-index: 5; pointer-events: none; display: grid; gap: 2px; max-width: 240px; background: var(--fg); color: var(--bg); border-radius: 10px; padding-block: 8px; padding-inline: 12px; font-size: 13px; }
+.tip b { font-family: var(--display); font-size: 15px; }
+.tip b.good { color: color-mix(in srgb, var(--right) 55%, var(--bg)); }
+.tip b.bad { color: color-mix(in srgb, var(--wrong) 55%, var(--bg)); }
+.tip ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
+.tip li { display: flex; align-items: center; gap: 6px; }
+.tip li::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+.tip .cost { opacity: 0.75; font-variant-numeric: tabular-nums; }
+.costs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 520px) { .costs { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.costs div { display: grid; }
+.costs b { font-family: var(--display); font-size: 24px; font-weight: 800; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.costs span { font-size: 14px; font-weight: 600; }
+.costs small { font-size: 13px; color: var(--muted); }
+.costs .you b { color: var(--wrong-ink); }
+
+/* Learn more: a sheet that slides in from the right. */
+.sheet { overflow-y: auto; overscroll-behavior: contain; margin: 0 0 0 auto; width: min(540px, 100vw); height: 100dvh; max-height: none; max-width: none; border: 0; padding: 0; background: var(--surface); color: var(--fg); }
+.sheet::backdrop { background: color-mix(in srgb, #000 45%, transparent); }
+@media (prefers-reduced-motion: no-preference) { .sheet[open] { animation: slide 260ms cubic-bezier(.2, .8, .2, 1); } }
+@keyframes slide { from { transform: translateX(40px); opacity: 0; } }
+.sheet .in { padding-block: 20px 40px; padding-inline: 24px; display: grid; gap: 28px; }
+.sheet header { display: flex; align-items: center; justify-content: space-between; gap: 12px; position: sticky; top: 0; background: var(--surface); padding-block: 4px; }
+.sheet section { display: grid; gap: 12px; }
+.stove .stage { --c: var(--wrong); background: var(--bg); border-radius: 16px; padding-block: 8px 0; padding-inline: 8px; overflow: hidden; }.stove svg { display: block; width: 100%; height: auto; }.stove .ink { fill: var(--ink); }.stove .limb { stroke: var(--ink); stroke-width: 15; stroke-linecap: round; fill: none; }.stove .child .limb { stroke-width: 11; }.stove .arm { transition: transform 520ms cubic-bezier(.3, 1.3, .5, 1); transform: rotate(-80deg); }.stove [data-state] .arm { transform: rotate(42deg); }.stove .child { transition: transform 520ms cubic-bezier(.3, 1.3, .5, 1); }.stove .adult { transition: transform 520ms cubic-bezier(.3, 1.3, .5, 1); transform: translateX(-70px); }.stove [data-state="advisory"] .adult, .stove [data-state="blocking"] .adult { transform: none; }.stove [data-state="always"] .child, .stove [data-state="jit"] .child { transform: translateX(30px); }.stove .cook-arm { transition: transform 520ms cubic-bezier(.3, 1.3, .5, 1); transform: rotate(80deg); }.stove [data-state="blocking"] .cook-arm { transform: rotate(22deg); }.stove .show { opacity: 0; transition: opacity 260ms; }.stove [data-state="none"] .s-none, .stove [data-state="always"] .s-always, .stove [data-state="jit"] .s-jit, .stove [data-state="advisory"] .s-advisory, .stove [data-state="blocking"] .s-blocking { opacity: 1; }.stove [data-state="blocking"] .glow { opacity: 0; animation: none; }.stove [data-state="blocking"] .burner { fill: var(--surface); }.stove .glow, .stove .burner { transition: opacity 260ms 360ms, fill 260ms 360ms; }
+@media (prefers-reduced-motion: no-preference) {.stove .burst { transform-box: fill-box; transform-origin: center; }.stove [data-state="none"] .s-none .burst, .stove [data-state="advisory"] .s-advisory .burst { animation: pop 520ms 380ms both; }.stove .glow { animation: flicker 2.4s ease-in-out infinite alternate; }
+}
+@media (prefers-reduced-motion: reduce) {.stove .arm, .stove .child, .stove .adult, .stove .cook-arm, .stove .show, .stove .glow, .stove .burner { transition: none; } }
+@keyframes pop { from { transform: scale(0.2); opacity: 0; } 60% { transform: scale(1.15); opacity: 1; } }
+@keyframes flicker { to { opacity: 0.7; } }.stove .bubble-text { font-family: var(--display); font-weight: 800; font-size: 19px; fill: var(--on-color); }.stove .tag-text { font-family: var(--body); font-weight: 700; font-size: 14px; fill: var(--on-color); }.stove .ouch { font-family: var(--display); font-weight: 800; font-size: 20px; fill: var(--wrong); }.stove .picker { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px 10px; align-items: end; }
+@media (max-width: 480px) {.stove .picker { grid-template-columns: 1fr 1fr; }.stove .picker .solo { grid-column: 1 / -1; } }.stove .group { display: grid; gap: 6px; }
+.stove .picker .solo { grid-column: 1 / -1; grid-template-columns: auto auto; justify-content: start; align-items: center; gap: 10px; }
+.stove .picker .solo > span::after { content: none; }.stove .group > span { font-size: 13px; font-weight: 600; color: var(--muted); display: flex; align-items: center; gap: 8px; }.stove .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }.stove .pick { --c: var(--fg); font-weight: 700; font-size: 13.5px; color: var(--c); background: color-mix(in srgb, var(--c) 9%, var(--surface)); border: 2px solid transparent; border-radius: 12px; padding-block: 8px; padding-inline: 10px; cursor: pointer; text-align: start; }.stove .pick:hover { border-color: color-mix(in srgb, var(--c) 45%, transparent); }.stove .pick[aria-pressed="true"] { background: var(--c); color: var(--on-color); }.stove .caption { --c: var(--fg); display: grid; gap: 4px; border-inline-start: 5px solid var(--c); padding-inline-start: 14px; min-height: 126px; align-content: start; }.stove .caption h3 { font-family: var(--display); font-weight: 800; font-size: 19px; line-height: 1.15; margin: 0; color: var(--c); }.stove .caption p { margin: 0; max-width: 60ch; }.stove .caption .agent { color: var(--muted); font-size: 15px; }
+.why { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 420px) { .why { grid-template-columns: 1fr; } }
+.why div { display: grid; gap: 2px; }
+.why b { color: var(--blocking); }
+.why b { font-family: var(--display); font-size: 16px; }
+.why span { font-size: 14px; color: var(--muted); }
+.price { width: 100%; border-collapse: collapse; font-size: 14px; }
+.price th { white-space: nowrap; text-align: start; font-weight: 700; padding-block: 7px; padding-inline: 0 10px; vertical-align: top; }
+.price td { padding-block: 7px; color: var(--muted); font-variant-numeric: tabular-nums; vertical-align: top; }
+.price td b { color: var(--fg); font-weight: 700; }
+
+.price .group th { font-family: var(--display); font-size: 13.5px; color: var(--muted); padding-block: 14px 4px; }
+
+.price .human th, .price .human td { background: color-mix(in srgb, var(--wrong) 10%, var(--surface)); }
+.price .human th { border-radius: 10px 0 0 10px; padding-inline-start: 10px; color: var(--wrong-ink); }
+.price .human td { border-radius: 0 10px 10px 0; padding-inline-end: 10px; }
+.price .human td b { color: var(--wrong-ink); }
+.price i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-inline-end: 6px; background: var(--c); }
+.price i.all { background: conic-gradient(var(--always) 0 25%, var(--jit) 0 50%, var(--advisory) 0 75%, var(--blocking) 0); }
+.facts { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.facts li { --c: var(--fg); font-size: 15px; display: grid; grid-template-columns: 10px minmax(0, 1fr); gap: 10px; align-items: baseline; }
+.facts li::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--c); transform: translateY(-1px); }
+.facts b { font-family: var(--display); color: var(--c); }
+.facts li.all::before { background: conic-gradient(var(--always) 0 25%, var(--jit) 0 50%, var(--advisory) 0 75%, var(--blocking) 0); }
+</style>
+<style>body { background: transparent; } main.embed { padding-block: 4px; padding-inline: 4px; max-width: 640px; }</style>
+</head>
+<body>
+<main class="embed"><section class="stove">
+      <div class="stage" id="stove-stage">
+        <svg id="stove-scene" viewBox="0 0 640 316" role="img" aria-labelledby="stove-title" data-state="none">
+          <title id="stove-title">An adult and a child, with a stove between them</title>
+          <defs>
+            
+            
+          </defs>
+          <line x1="0" y1="300" x2="640" y2="300" stroke="var(--rule)" stroke-width="3"/>
+
+          <!-- Stove -->
+          <rect x="250" y="138" width="150" height="30" rx="6" fill="var(--stove-dark)"/>
+          <g fill="var(--surface)"><circle cx="276" cy="153" r="6"/><circle cx="304" cy="153" r="6"/><circle cx="346" cy="153" r="6"/><circle cx="374" cy="153" r="6"/></g>
+          <rect x="244" y="166" width="162" height="10" rx="4" fill="var(--stove-dark)"/>
+          <rect x="250" y="174" width="150" height="126" rx="8" fill="var(--stove)"/>
+          <rect x="268" y="196" width="114" height="66" rx="8" fill="var(--stove-dark)"/>
+          
+          <ellipse class="burner" cx="292" cy="166" rx="22" ry="4" fill="var(--hot)"/><ellipse class="burner" cx="358" cy="166" rx="22" ry="4" fill="var(--hot)"/>
+
+          <!-- Adult: arms in proportion, hung from the shoulders like a sign pictogram. -->
+          <g class="adult">
+            <circle class="ink" cx="200" cy="78" r="22"/>
+            <path class="ink" d="M168 110 Q200 98 232 110 L240 214 Q200 222 160 214 Z"/>
+            <rect class="ink" x="170" y="206" width="25" height="94" rx="11"/>
+            <rect class="ink" x="205" y="206" width="25" height="94" rx="11"/>
+            <line class="limb" x1="172" y1="120" x2="160" y2="192"/>
+            <g transform="translate(228 120)"><g class="cook-arm"><line class="limb" x1="0" y1="0" x2="72" y2="0"/></g></g>
+          </g>
+
+          <!-- Child, standing at the stove -->
+          <g class="child">
+            <circle class="ink" cx="440" cy="178" r="16"/>
+            <path class="ink" d="M422 198 Q440 192 458 198 L462 250 Q440 256 418 250 Z"/>
+            <rect class="ink" x="424" y="246" width="13" height="54" rx="6"/>
+            <rect class="ink" x="443" y="246" width="13" height="54" rx="6"/>
+            <line class="limb" x1="455" y1="206" x2="463" y2="240"/>
+            <g transform="translate(425 206)"><g class="arm"><line class="limb" x1="0" y1="0" x2="-44" y2="0"/></g></g>
+          </g>
+
+          <!-- No help: the touch burns. -->
+          <g class="show s-none">
+            <g class="burst"><path d="M372 150 l6 -16 l5 14 l14 -8 l-6 14 l16 3 l-15 6 l9 12 l-15 -4 l-2 15 l-8 -12 l-9 11 l-1 -15 l-15 2 l10 -11 l-12 -9 l15 -2 z" fill="var(--wrong)"/></g>
+            <text class="ouch" x="410" y="122">Ouch</text>
+          </g>
+
+          <!-- Always-on: a reminder every morning. -->
+          <g class="show s-always">
+            <rect x="156" y="8" width="176" height="42" rx="14" fill="var(--always)"/>
+            <path d="M168 46 h22 l-38 20 z" fill="var(--always)"/>
+            <text class="bubble-text" x="244" y="36" text-anchor="middle">Stoves are hot.</text>
+          </g>
+
+          <!-- Just-in-time: a sign on the stove itself. -->
+          <g class="show s-jit">
+            <rect x="274" y="206" width="102" height="46" rx="8" fill="var(--jit)"/>
+            <path d="M290 238 l9 -17 l9 17 z" fill="none" stroke="var(--on-color)" stroke-width="2.5" stroke-linejoin="round"/>
+            <text class="tag-text" x="315" y="227">Caution:</text>
+            <text class="tag-text" x="315" y="244">hot</text>
+          </g>
+
+          <!-- Advisory: "Hot!" at the touch, first aid at hand. -->
+          <g class="show s-advisory">
+            <g class="burst"><path d="M372 150 l5 -10 l4 9 l9 -5 l-4 9 l10 2 l-10 4 l6 8 l-10 -3 l-1 10 l-5 -8 l-6 7 l-1 -10 l-10 1 l7 -7 l-8 -6 l10 -1 z" fill="var(--advisory)"/></g>
+            <rect x="226" y="8" width="96" height="42" rx="14" fill="var(--advisory)"/>
+            <path d="M238 46 h22 l-38 20 z" fill="var(--advisory)"/>
+            <text class="bubble-text" x="274" y="36" text-anchor="middle">Hot!</text>
+            <rect x="100" y="262" width="40" height="34" rx="6" fill="var(--advisory)"/>
+            <rect x="112" y="256" width="16" height="8" rx="3" fill="none" stroke="var(--advisory)" stroke-width="3"/>
+            <path d="M120 270 v18 M111 279 h18" stroke="var(--on-color)" stroke-width="4" stroke-linecap="round"/>
+          </g>
+
+          <!-- Blocking: the touch happens, and the stove shuts off, for anyone who touches it. -->
+          <g class="show s-blocking">
+            <defs><g id="no"><circle r="12" fill="var(--surface)" fill-opacity="0.6" stroke="var(--blocking)" stroke-width="4"/><path d="M-8.5 -8.5 L8.5 8.5" stroke="var(--blocking)" stroke-width="4" stroke-linecap="round"/></g></defs>
+            <use href="#no" x="390" y="166"/><use href="#no" x="296" y="148"/>
+            <g transform="translate(325 104)">
+              <path d="M0 -20 C9 -9 14 -2 12 7 C10 16 -10 16 -12 7 C-14 -2 -5 -6 0 -20 Z" fill="var(--hot)"/>
+              <path d="M0 -4 C4 1 6 4 5 8 C4 12 -4 12 -5 8 C-6 4 -2 2 0 -4 Z" fill="var(--advisory)"/>
+              <circle r="22" fill="none" stroke="var(--blocking)" stroke-width="4.5"/>
+              <path d="M-15.5 -15.5 L15.5 15.5" stroke="var(--blocking)" stroke-width="4.5" stroke-linecap="round"/>
+            </g>
+          </g>
+        </svg>
+      </div>
+      <div class="picker" role="group" aria-label="Kind of help">
+        <div class="group"><span>Before the touch</span><div class="pair">
+          <button class="pick" type="button" data-pick="always" style="--c:var(--always)">Always-on</button>
+          <button class="pick" type="button" data-pick="jit" style="--c:var(--jit)">Just-in-time</button>
+        </div></div>
+        <div class="group"><span>After the touch</span><div class="pair">
+          <button class="pick" type="button" data-pick="advisory" style="--c:var(--advisory)">Advisory</button>
+          <button class="pick" type="button" data-pick="blocking" style="--c:var(--blocking)">Blocking</button>
+        </div></div>
+      </div>
+      <div class="caption" id="stove-caption" aria-live="polite"></div>
+      <p style="font-size:14px;color:var(--muted)">The edit is the dividing line: feedforward helps before it, feedback checks after.</p>
+    </section></main>
+<script>
+const root = document.documentElement;
+function readTheme() { try { const t = localStorage.getItem("theme"); if (t === "light" || t === "dark") root.dataset.theme = t; else delete root.dataset.theme; } catch (e) {} }
+readTheme();
+addEventListener("storage", ev => { if (ev.key === "theme") { readTheme(); if (typeof onTheme === "function") onTheme(); } });
+const HELP = {
+  none: { c: "wrong", name: "No help", stove: "The child touches the stove and gets burned.", agent: "Nothing guides or checks the agent. Every mistake lands as is." },
+  always: { c: "always", name: "Always-on feedforward", stove: "\"Stoves are hot,\" said every morning. The child remembers, sometimes.", agent: "Instructions loaded in every session, whether the task needs them or not." },
+  jit: { c: "jit", name: "Just-in-time feedforward", stove: "A sign on the stove: \"Caution: hot.\" It's there right when it matters.", agent: "A skill or rule that loads with the task it's about." },
+  advisory: { c: "advisory", name: "Advisory feedback", stove: "\"Hot!\" at the touch, with first aid right there. A small burn, quickly treated.", agent: "A warning or failing test right after the edit. The agent usually fixes it." },
+  blocking: { c: "blocking", name: "Blocking feedback", stove: "The stove shuts off the moment a hand touches it. No burn, but it shuts off on the cook too.", agent: "A hook that refuses the edit, so the agent starts over. It can't tell who is asking or why." },
+};
+const scene = document.getElementById("stove-scene"), stage = document.getElementById("stove-stage"), caption = document.getElementById("stove-caption");
+function pick(key) {
+  const h = HELP[key];
+  scene.dataset.state = key;
+  stage.style.setProperty("--c", `var(--${h.c})`);
+  caption.style.setProperty("--c", `var(--${h.c})`);
+  caption.innerHTML = `<h3>${h.name}</h3><p>${h.stove}</p><p class="agent">${h.agent}</p>`;
+  document.querySelectorAll(".stove [data-pick]").forEach(b => b.setAttribute("aria-pressed", b.dataset.pick === key));
+}
+document.querySelector(".stove .picker").addEventListener("click", ev => { const b = ev.target.closest("[data-pick]"); if (b) pick(b.dataset.pick); });
+pick("none");
+const onTheme = () => {};
+</script>
+</body>
+</html>

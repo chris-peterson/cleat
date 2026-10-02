@@ -2,7 +2,9 @@
 
 cleat decides where guidance belongs by when it reaches the agent. This page is
 the model behind those decisions: the four kinds of guidance an agent gets,
-which to invest in, and how to tell whether each one works.
+which to invest in, and how to tell whether each one works. For the background,
+what each kind costs and why a block can't do the job alone, see
+[Harness engineering](/harness-engineering).
 
 ## Feedforward and feedback
 
@@ -52,10 +54,6 @@ just-in-time feedforward can work against an always-on rule: drafts written
 from a skill whose own text was full of em dashes were blocked far more often
 than other prose. Guidance loaded at the moment of drafting sets the style of
 what follows it, so a skill's own text is part of the guidance it gives.
-
-Block only when the check has that precision. A list of banned words can only
-warn, because a regex can't tell a field's established term from a word picked
-for effect, and a block makes the agent reword the correct uses.
 
 ## Nested instruction files
 

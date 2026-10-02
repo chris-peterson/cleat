@@ -1,0 +1,689 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Harness lab</title>
+<link rel="icon" type="image/svg+xml" href="../favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: an arcade cabinet (coach ticket, then controls left and board right, costs under the bins).
+   Each layer owns one hue everywhere; green and red mean only "acceptable result" and "needs correction". */
+:root {
+  --bg: #f1f0fa;
+  --surface: #ffffff;
+  --fg: #1d1b3a;
+  --muted: #615f7d;
+  --rule: #dcdaee;
+  --always: #6c3fc0;
+  --jit: #0873a0;
+  --advisory: #a86200;
+  --blocking: #c4246a;
+  --right: #1f9e6a;
+  --wrong: #b42318;
+  --right-ink: #137049;
+  --wrong-ink: #b42318;
+  --brand: #c41e7a;
+  --frame: #1d1b3a;
+  --peg-off: #cfcde2;
+  --ink: #2a2850;
+  --stove: #8f8cad;
+  --stove-dark: #6b6890;
+  --hot: #ff6a2b;
+  --on-color: #ffffff;
+  --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", sans-serif;
+  --body: "Figtree", "Helvetica Neue", Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #21222c; --surface: #282a36; --fg: #f8f8f2; --muted: #a4a9c8; --rule: #44475a;
+    --always: #a98bff; --jit: #5cc8f2; --advisory: #f5ae5c; --blocking: #ff72b0;
+    --right: #50fa7b; --wrong: #ff5555; --right-ink: #50fa7b; --wrong-ink: #ff6e6e; --brand: #ff79c6; --frame: #6272a4; --peg-off: #44475a;
+    --ink: #e2e2ec; --stove: #44475a; --stove-dark: #383a4a; --hot: #ffb86c; --on-color: #21222c; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #21222c; --surface: #282a36; --fg: #f8f8f2; --muted: #a4a9c8; --rule: #44475a;
+  --always: #a98bff; --jit: #5cc8f2; --advisory: #f5ae5c; --blocking: #ff72b0;
+  --right: #50fa7b; --wrong: #ff5555; --right-ink: #50fa7b; --wrong-ink: #ff6e6e; --brand: #ff79c6; --frame: #6272a4; --peg-off: #44475a;
+    --ink: #e2e2ec; --stove: #44475a; --stove-dark: #383a4a; --hot: #ffb86c; --on-color: #21222c; color-scheme: dark;
+}
+[hidden] { display: none !important; }
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 16px; line-height: 1.55; margin: 0; }
+main { max-width: 1040px; margin: 0 auto; padding-inline: 16px; padding-block: 0 16px; display: grid; gap: 14px; }
+.plinko { color: var(--brand); display: inline-flex; align-items: baseline; gap: 0.03em; margin-inline-start: 0.3em; font-size: 1.1em; letter-spacing: 0; }
+.plinko span { display: inline-block; }
+.plinko span:nth-child(odd) { transform: translateY(-0.1em); }
+.plinko span:nth-child(even) { transform: translateY(0.03em); }
+.plinko .o { inline-size: 0.56em; block-size: 0.56em; margin-inline-start: 0.04em; border-radius: 50%; border: 0.11em solid currentColor; background: linear-gradient(90deg, var(--right) 50%, var(--wrong) 50%) content-box; padding: 0.04em; transform: translateY(-0.2em) rotate(-15deg); }
+h1 { font-family: var(--display); font-weight: 800; font-size: clamp(24px, 3.6vw, 32px); line-height: 1; letter-spacing: -0.02em; margin: 0; white-space: nowrap; }
+h2 { font-family: var(--display); font-weight: 700; font-size: 24px; line-height: 1.1; letter-spacing: -0.01em; margin: 0; }
+h3 { font-family: var(--display); font-weight: 700; font-size: 18px; line-height: 1.15; margin: 0; }
+p { margin: 0; max-width: 62ch; }
+button { font: inherit; color: inherit; }
+button:focus-visible, input:focus-visible { outline: 3px solid var(--jit); outline-offset: 2px; }
+.bar { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; flex-wrap: wrap; gap: 6px 16px; padding-block: 10px; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(8px); }
+.play { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-inline-start: auto; }
+a.learn-btn { color: inherit; text-decoration: none; display: inline-flex; align-items: center; }
+.learn-btn { font-weight: 700; font-size: 14px; background: var(--surface); border: 1.5px solid var(--rule); border-radius: 999px; padding-block: 6px; padding-inline: 14px; cursor: pointer; }
+.learn-btn:hover { border-color: var(--fg); }
+.theme-toggle { display: flex; align-items: center; position: relative; background: var(--rule); border: 0; border-radius: 20px; padding: 3px; cursor: pointer; }
+.theme-toggle:hover { background: color-mix(in srgb, var(--rule) 70%, var(--fg)); }
+.theme-toggle:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+.theme-toggle span { display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; position: relative; z-index: 1; color: var(--muted); transition: color 0.35s ease; }
+.theme-toggle i { position: absolute; left: 3px; top: 3px; width: 26px; height: 26px; border-radius: 50%; background: var(--surface); transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+.theme-toggle[aria-checked="true"] i { transform: translateX(26px); }
+.theme-toggle[aria-checked="false"] .sun, .theme-toggle[aria-checked="true"] .moon { color: var(--fg); }
+@media (prefers-reduced-motion: reduce) { .theme-toggle i, .theme-toggle span { transition: none; } }
+#learn-open { background: var(--fg); border-color: var(--fg); color: var(--surface); }
+#learn-open:hover { background: color-mix(in srgb, var(--fg) 85%, var(--surface)); }
+.disclaimer { font-size: 13px; color: var(--muted); text-align: center; }
+
+
+/* The cabinet. */
+.cabinet { background: var(--surface); border-radius: 22px; padding-block: 14px; padding-inline: 18px; display: grid; gap: 12px; }
+
+/* The coach: a prize ticket that reports the last run and offers the next layer. */
+.coach { --c: var(--fg); display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 6px 20px; padding-block: 6px; padding-inline: 18px; border-radius: 16px; background: color-mix(in srgb, var(--c) 11%, var(--surface)); }
+.coach .big { font-family: var(--display); font-weight: 800; font-size: 40px; line-height: 0.9; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; color: var(--big, var(--c)); }
+.coach .big small { display: block; font-family: var(--body); font-size: 13px; font-weight: 600; letter-spacing: 0; color: var(--muted); margin-block-start: 6px; }
+.coach .say { display: grid; gap: 2px; }
+.coach .say b { font-size: 17px; }
+.coach .say span { font-size: 14.5px; color: var(--muted); }
+.coach .moves { display: flex; flex-wrap: wrap; gap: 2px 16px; }
+.coach .moves i { font-style: normal; font-weight: 700; }
+.coach .moves .good { color: var(--right-ink); }
+.coach .moves .bad { color: var(--wrong-ink); }
+.coach .add { font-weight: 700; font-size: 15px; color: var(--surface); background: var(--c); border: 0; border-radius: 999px; padding-block: 9px; padding-inline: 18px; cursor: pointer; white-space: nowrap; }
+.coach .big:empty { display: none; }
+/* Sized to the tallest state (a comparison plus a tip), so the board below never jumps between runs. */
+@media (min-width: 761px) { .coach { min-height: 113px; } }
+.coach.plain { background: var(--bg); }
+.coach .say .hint { color: var(--fg); display: flex; gap: 8px; align-items: baseline; font-size: 14.5px; margin-block-start: 4px; }
+.coach .say .hint::before { content: "i"; flex: none; display: inline-grid; place-items: center; inline-size: 18px; block-size: 18px; border-radius: 50%; background: var(--c); color: var(--surface); font: italic 700 12px/1 Georgia, serif; transform: translateY(3px); }
+@media (max-width: 640px) { .coach { grid-template-columns: auto minmax(0, 1fr); } .coach .add { grid-column: 1 / -1; justify-self: start; } }
+@media (prefers-reduced-motion: no-preference) { .coach.fresh { animation: ticket 420ms cubic-bezier(.2, 1.4, .4, 1); } }
+@keyframes ticket { from { transform: translateY(-6px) scale(0.98); opacity: 0.4; } }
+
+.board { display: grid; grid-template-columns: 236px minmax(0, 1fr); gap: 24px; align-items: start; }
+@media (max-width: 760px) { .board { grid-template-columns: 1fr; } }
+.controls { display: grid; gap: 6px; }
+/* An empty slot is as tall as the layer card that replaces it, so adding a layer moves nothing. */
+.ctl, .slot { min-height: 65px; }
+.ctl { --c: var(--fg); border-radius: 12px; padding-block: 6px; padding-inline: 12px; display: grid; gap: 2px; background: color-mix(in srgb, var(--c) 10%, var(--surface)); }
+.ctl .name { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 700; font-size: 14.5px; color: var(--c); }
+.ctl .x { flex: none; width: 22px; height: 22px; border-radius: 50%; font-size: 16px; line-height: 1; font-weight: 700; color: var(--muted); background: var(--surface); border: 0; padding: 0; cursor: pointer; }
+.ctl .x:hover { color: var(--surface); background: var(--c); }
+.ctl .eff { display: flex; align-items: baseline; justify-content: space-between; font-size: 13px; color: var(--muted); }
+.ctl output { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--fg); }
+.ctl input[type=range] { width: 100%; margin: 0; appearance: none; height: 6px; border-radius: 3px; background: linear-gradient(to right, var(--c) var(--p), color-mix(in srgb, var(--c) 20%, var(--surface)) var(--p)); }
+.ctl input[type=range]::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--c); border: 2px solid var(--surface); }
+.ctl input[type=range]::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--c); border: 2px solid var(--surface); }
+.ctl input[type=range]:focus-visible { outline: 2px solid var(--c); outline-offset: 4px; }
+.slot { --c: var(--fg); text-align: start; font-weight: 700; font-size: 14px; color: var(--c); background: none; border: 2px dashed color-mix(in srgb, var(--c) 50%, transparent); border-radius: 12px; padding-block: 12px; padding-inline: 12px; cursor: pointer; }
+.slot:hover { background: color-mix(in srgb, var(--c) 8%, transparent); }
+.edit-line { height: 14px; }
+.table { display: grid; gap: 8px; position: relative; }
+.toast { --t: var(--fg); position: absolute; left: 50%; z-index: 2; translate: -50% 0; white-space: nowrap; font-weight: 700; font-size: 13.5px; color: var(--t); background: color-mix(in srgb, var(--t) 16%, var(--surface)); border-radius: 999px; padding-block: 5px; padding-inline: 12px; pointer-events: none; opacity: 0; }
+.toast.show { opacity: 1; }
+@media (prefers-reduced-motion: no-preference) { .toast { transition: opacity 0.25s ease, translate 0.25s ease; translate: -50% 6px; } .toast.show { translate: -50% 0; } }
+.launch { display: grid; padding-block: 6px; margin-block-end: 10px; }
+.launch b { font-family: var(--display); font-size: 18px; }
+.launch span { font-size: 13px; color: var(--muted); }
+.aim { position: absolute; inset-inline: 0; top: 0; width: 100%; background: none; border: 0; padding: 0; cursor: pointer; border-radius: 14px 14px 0 0; }
+.aim:focus-visible { outline: 3px solid var(--jit); outline-offset: -3px; }
+canvas { display: block; width: 100%; height: auto; border-radius: 14px; }
+.tip { position: absolute; z-index: 5; pointer-events: none; display: grid; gap: 2px; max-width: 240px; background: var(--fg); color: var(--bg); border-radius: 10px; padding-block: 8px; padding-inline: 12px; font-size: 13px; }
+.tip b { font-family: var(--display); font-size: 15px; }
+.tip b.good { color: color-mix(in srgb, var(--right) 55%, var(--bg)); }
+.tip b.bad { color: color-mix(in srgb, var(--wrong) 55%, var(--bg)); }
+.tip ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
+.tip li { display: flex; align-items: center; gap: 6px; }
+.tip li::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+.tip .cost { opacity: 0.75; font-variant-numeric: tabular-nums; }
+.costs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 520px) { .costs { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.costs div { display: grid; }
+.costs b { font-family: var(--display); font-size: 24px; font-weight: 800; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.costs span { font-size: 14px; font-weight: 600; }
+.costs small { font-size: 13px; color: var(--muted); }
+.costs .you b { color: var(--wrong-ink); }
+
+/* Learn more: a sheet that slides in from the right. */
+.sheet { overflow-y: auto; overscroll-behavior: contain; margin: 0 0 0 auto; width: min(540px, 100vw); height: 100dvh; max-height: none; max-width: none; border: 0; padding: 0; background: var(--surface); color: var(--fg); }
+.sheet::backdrop { background: color-mix(in srgb, #000 45%, transparent); }
+@media (prefers-reduced-motion: no-preference) { .sheet[open] { animation: slide 260ms cubic-bezier(.2, .8, .2, 1); } }
+@keyframes slide { from { transform: translateX(40px); opacity: 0; } }
+.sheet .in { padding-block: 20px 40px; padding-inline: 24px; display: grid; gap: 28px; }
+.sheet header { display: flex; align-items: center; justify-content: space-between; gap: 12px; position: sticky; top: 0; background: var(--surface); padding-block: 4px; }
+.sheet section { display: grid; gap: 12px; }
+.stove .stage { --c: var(--wrong); background: var(--bg); border-radius: 16px; padding-block: 8px 0; padding-inline: 8px; overflow: hidden; }.stove svg { display: block; width: 100%; height: auto; }.stove .ink { fill: var(--ink); }.stove .limb { stroke: var(--ink); stroke-width: 15; stroke-linecap: round; fill: none; }.stove .child .limb { stroke-width: 11; }.stove .arm { transition: transform 520ms cubic-bezier(.3, 1.3, .5, 1); transform: rotate(-80deg); }.stove [data-state] .arm { transform: rotate(42deg); }.stove .child { transition: transform 520ms cubic-bezier(.3, 1.3, .5, 1); }.stove .adult { transition: transform 520ms cubic-bezier(.3, 1.3, .5, 1); transform: translateX(-70px); }.stove [data-state="advisory"] .adult, .stove [data-state="blocking"] .adult { transform: none; }.stove [data-state="always"] .child, .stove [data-state="jit"] .child { transform: translateX(30px); }.stove .cook-arm { transition: transform 520ms cubic-bezier(.3, 1.3, .5, 1); transform: rotate(80deg); }.stove [data-state="blocking"] .cook-arm { transform: rotate(22deg); }.stove .show { opacity: 0; transition: opacity 260ms; }.stove [data-state="none"] .s-none, .stove [data-state="always"] .s-always, .stove [data-state="jit"] .s-jit, .stove [data-state="advisory"] .s-advisory, .stove [data-state="blocking"] .s-blocking { opacity: 1; }.stove [data-state="blocking"] .glow { opacity: 0; animation: none; }.stove [data-state="blocking"] .burner { fill: var(--surface); }.stove .glow, .stove .burner { transition: opacity 260ms 360ms, fill 260ms 360ms; }
+@media (prefers-reduced-motion: no-preference) {.stove .burst { transform-box: fill-box; transform-origin: center; }.stove [data-state="none"] .s-none .burst, .stove [data-state="advisory"] .s-advisory .burst { animation: pop 520ms 380ms both; }.stove .glow { animation: flicker 2.4s ease-in-out infinite alternate; }
+}
+@media (prefers-reduced-motion: reduce) {.stove .arm, .stove .child, .stove .adult, .stove .cook-arm, .stove .show, .stove .glow, .stove .burner { transition: none; } }
+@keyframes pop { from { transform: scale(0.2); opacity: 0; } 60% { transform: scale(1.15); opacity: 1; } }
+@keyframes flicker { to { opacity: 0.7; } }.stove .bubble-text { font-family: var(--display); font-weight: 800; font-size: 19px; fill: var(--on-color); }.stove .tag-text { font-family: var(--body); font-weight: 700; font-size: 14px; fill: var(--on-color); }.stove .ouch { font-family: var(--display); font-weight: 800; font-size: 20px; fill: var(--wrong); }.stove .picker { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px 10px; align-items: end; }
+@media (max-width: 480px) {.stove .picker { grid-template-columns: 1fr 1fr; }.stove .picker .solo { grid-column: 1 / -1; } }.stove .group { display: grid; gap: 6px; }
+.stove .picker .solo { grid-column: 1 / -1; grid-template-columns: auto auto; justify-content: start; align-items: center; gap: 10px; }
+.stove .picker .solo > span::after { content: none; }.stove .group > span { font-size: 13px; font-weight: 600; color: var(--muted); display: flex; align-items: center; gap: 8px; }.stove .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }.stove .pick { --c: var(--fg); font-weight: 700; font-size: 13.5px; color: var(--c); background: color-mix(in srgb, var(--c) 9%, var(--surface)); border: 2px solid transparent; border-radius: 12px; padding-block: 8px; padding-inline: 10px; cursor: pointer; text-align: start; }.stove .pick:hover { border-color: color-mix(in srgb, var(--c) 45%, transparent); }.stove .pick[aria-pressed="true"] { background: var(--c); color: var(--on-color); }.stove .caption { --c: var(--fg); display: grid; gap: 4px; border-inline-start: 5px solid var(--c); padding-inline-start: 14px; min-height: 126px; align-content: start; }.stove .caption h3 { font-family: var(--display); font-weight: 800; font-size: 19px; line-height: 1.15; margin: 0; color: var(--c); }.stove .caption p { margin: 0; max-width: 60ch; }.stove .caption .agent { color: var(--muted); font-size: 15px; }
+.why { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 420px) { .why { grid-template-columns: 1fr; } }
+.why div { display: grid; gap: 2px; }
+.why b { color: var(--blocking); }
+.why b { font-family: var(--display); font-size: 16px; }
+.why span { font-size: 14px; color: var(--muted); }
+.price { width: 100%; border-collapse: collapse; font-size: 14px; }
+.price th { white-space: nowrap; text-align: start; font-weight: 700; padding-block: 7px; padding-inline: 0 10px; vertical-align: top; }
+.price td { padding-block: 7px; color: var(--muted); font-variant-numeric: tabular-nums; vertical-align: top; }
+.price td b { color: var(--fg); font-weight: 700; }
+
+.price .group th { font-family: var(--display); font-size: 13.5px; color: var(--muted); padding-block: 14px 4px; }
+
+.price .human th, .price .human td { background: color-mix(in srgb, var(--wrong) 10%, var(--surface)); }
+.price .human th { border-radius: 10px 0 0 10px; padding-inline-start: 10px; color: var(--wrong-ink); }
+.price .human td { border-radius: 0 10px 10px 0; padding-inline-end: 10px; }
+.price .human td b { color: var(--wrong-ink); }
+.price i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-inline-end: 6px; background: var(--c); }
+.price i.all { background: conic-gradient(var(--always) 0 25%, var(--jit) 0 50%, var(--advisory) 0 75%, var(--blocking) 0); }
+.facts { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.facts li { --c: var(--fg); font-size: 15px; display: grid; grid-template-columns: 10px minmax(0, 1fr); gap: 10px; align-items: baseline; }
+.facts li::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--c); transform: translateY(-1px); }
+.facts b { font-family: var(--display); color: var(--c); }
+.facts li.all::before { background: conic-gradient(var(--always) 0 25%, var(--jit) 0 50%, var(--advisory) 0 75%, var(--blocking) 0); }
+</style>
+</head>
+<body>
+<main>
+  <header class="bar">
+    <h1>Harness lab</h1>
+    <div class="play">
+      <button class="theme-toggle" id="theme" type="button" role="switch" aria-label="Dark mode" title="Toggle theme"><span class="sun"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg></span><span class="moon"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></span><i></i></button>
+      <a class="learn-btn" id="learn-open" href="../#/harness-engineering">Learn more</a>
+    </div>
+  </header>
+
+  <section class="cabinet" aria-label="The board">
+    <div class="coach" id="coach" aria-live="polite"></div>
+    <div class="board">
+      <div class="controls" id="controls"></div>
+      <div class="table">
+        <button class="aim" id="aim" type="button" aria-label="Start: make 100 edits"></button>
+        <canvas id="canvas" width="1200" height="1200" role="img" aria-label="A board: edits fall past four colored rows of pegs, one per layer, into two bins"></canvas>
+        <div class="toast" id="toast" role="status" aria-live="polite"></div>
+        <div class="tip" id="tip" role="tooltip" hidden></div>
+        <div class="costs" id="costs" aria-live="polite"></div>
+      </div>
+    </div>
+  </section>
+  <footer class="disclaimer">For illustration and education only. The rates and costs are made up to show how a harness behaves, not measured from real sessions.</footer>
+</main>
+<script>
+const root = document.documentElement;
+function readTheme() { try { const t = localStorage.getItem("theme"); if (t === "light" || t === "dark") root.dataset.theme = t; else delete root.dataset.theme; } catch (e) {} }
+readTheme();
+addEventListener("storage", ev => { if (ev.key === "theme") { readTheme(); if (typeof onTheme === "function") onTheme(); } });
+const PHASES = [
+  { id: "always", name: "Always-on feedforward", ff: true },
+  { id: "jit", name: "Just-in-time feedforward", ff: true },
+  { id: "advisory", name: "Advisory feedback", ff: false },
+  { id: "blocking", name: "Blocking feedback", ff: false },
+];
+const byId = Object.fromEntries(PHASES.map(p => [p.id, p]));
+// The order a harness usually grows in, and how the coach pitches each layer.
+const GROWTH = [
+  { id: "always", eff: 30, ask: "How about adding some instructions?", add: "Add always-on instructions" },
+  { id: "blocking", eff: 50, ask: "How about a backstop for what slips through?", add: "Add a blocking check" },
+  { id: "jit", eff: 30, ask: "Blocks are a full redo. How about guidance that shows up with the task?", add: "Add just-in-time guidance" },
+  { id: "advisory", eff: 30, ask: "How about a targeted warning when an edit goes wrong?", add: "Add advisory feedback" },
+];
+const DEFAULT_EFF = Object.fromEntries(GROWTH.map(g => [g.id, g.eff]));
+const COST = { turn: { min: 2, tok: 20000 }, always: { min: 0.15, tok: 5000 }, jit: { min: 0.1, tok: 2000 }, advisory: { min: 0.1, tok: 1000 }, blocking: { min: 0.1, tok: 1000 }, fix: { min: 1, tok: 10000 }, you: 15 };
+const MAX_EFF = { always: 60, jit: 95, advisory: 95, blocking: 95 };
+const ADHERENCE = { jit: 0.95, advisory: 0.9 };
+const BUILD_MIN = { always: 30, jit: 120, advisory: 60, blocking: 90 };
+const odds = (r) => r / (1 - r);
+// A layer's cost at its default, scaled by how far its odds have climbed past the default's, to the 1.5 power.
+// Turning a layer down never makes it cheaper than half its default: it still takes context and a carrying cost.
+const COST_CURVE = 1.5, COST_FLOOR = 0.5;
+const steep = (id) => Math.max(COST_FLOOR, (odds(state.eff[id] / 100) / odds(DEFAULT_EFF[id] / 100)) ** COST_CURVE);
+const costScale = (id) => id === "jit" ? 1 : steep(id);
+const buildMin = () => PHASES.reduce((t, p) => t + (state.on[p.id] ? BUILD_MIN[p.id] * steep(p.id) : 0), 0);
+const layerCost = (id) => state.on[id] ? { min: COST[id].min * costScale(id), tok: COST[id].tok * costScale(id) } : { min: 0, tok: 0 };
+
+const $ = (id) => document.getElementById(id);
+const state = { base: 50, on: {}, eff: { ...DEFAULT_EFF } };
+const rateOf = (p) => state.on[p.id] ? state.eff[p.id] / 100 * (ADHERENCE[p.id] ?? 1) : 0;
+const DIAL = { always: "agent adherence", jit: "trigger applicability", advisory: "detection accuracy", blocking: "detection accuracy" };
+const dialName = (id) => DIAL[id];
+
+function renderControls() {
+  const phase = (p) => state.on[p.id]
+    ? `<div class="ctl" data-row="${p.id}" style="--c:var(--${p.id})">
+        <div class="name"><span>${p.name}</span><button class="x" type="button" data-remove="${p.id}" aria-label="Remove ${p.name}" title="Remove">×</button></div>
+        <div class="eff"><span>${dialName(p.id)}</span><output id="o-${p.id}">${state.eff[p.id]}%</output></div>
+        <input type="range" min="0" max="${MAX_EFF[p.id]}" step="1" value="${state.eff[p.id]}" data-eff="${p.id}" style="--p:${100 * state.eff[p.id] / MAX_EFF[p.id]}%" aria-label="${p.name} ${dialName(p.id)}">
+      </div>`
+    : `<button class="slot" type="button" data-row="${p.id}" data-add="${p.id}" style="--c:var(${lastRun ? `--${p.id}` : "--muted"})">+ ${p.name}</button>`;
+  $("controls").innerHTML = `<div class="launch" data-row="base"><b>Your harness</b><span>${lastRun ? "Add a layer, then make new edits." : "Run it empty first, then add layers."}</span></div>` + phase(PHASES[0]) + phase(PHASES[1]) + `<div class="edit-line" data-row="edit"></div>` + phase(PHASES[2]) + phase(PHASES[3]);
+}
+const added = [];
+function setLayer(id, on) {
+  state.on[id] = on;
+  added.splice(added.indexOf(id) >>> 0, 1); if (on) added.push(id);
+  renderControls();
+  layoutBoard();
+  changed(`${byId[id].name.toLowerCase()} ${on ? "added" : "removed"}`, id);
+}
+$("controls").addEventListener("input", ev => {
+  const t = ev.target;
+  if (t.dataset.eff) { state.eff[t.dataset.eff] = +t.value; t.style.setProperty("--p", `${100 * t.value / t.max}%`); $("o-" + t.dataset.eff).textContent = t.value + "%"; changed(`${byId[t.dataset.eff].name.toLowerCase()} tuned`, t.dataset.eff); }
+});
+$("controls").addEventListener("click", ev => {
+  const add = ev.target.closest("[data-add]"), rm = ev.target.closest("[data-remove]");
+  if (add) setLayer(add.dataset.add, true);
+  if (rm) setLayer(rm.dataset.remove, false);
+});
+
+/* Runs and the coach. A run is everything on the board since the harness last changed. */
+let prev = null, lastRun = null, coachMsg = null, coachLayer = null;
+const signature = () => JSON.stringify([state.base, PHASES.map(p => state.on[p.id] ? state.eff[p.id] : -1)]);
+function summary() {
+  const done = landed, n = done.length;
+  const sum = (f) => done.reduce((t, d) => t + f(d), 0);
+  return { n, human: sum(d => d.wrong ? 1 : 0), rescued: sum(d => d.rescued ? 1 : 0), min: sum(d => d.cost.min), tok: sum(d => d.cost.tok), you: sum(d => d.cost.you), build: buildMin() };
+}
+let toastTimer = 0;
+function toast(msg, id) {
+  const el = $("toast"), aim = $("aim");
+  el.textContent = `✓ ${msg[0].toUpperCase()}${msg.slice(1)}`;
+  el.style.setProperty("--t", `var(--${id})`);
+  el.style.top = `${aim.offsetHeight - 18}px`;
+  el.classList.add("show");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove("show"), 2200);
+}
+function changed(msg, id) { coachMsg = msg; coachLayer = id; toast(msg, id); reset(); }
+const pct = (a, b) => b ? Math.round(100 * a / b) : 0;
+const nextLayer = () => GROWTH.find(g => !state.on[g.id]);
+const move = (up, text) => `<i class="${up ? "bad" : "good"}">${up ? "▲" : "▼"} ${text}</i>`;
+function delta(a, b) { const r = Math.round(100 * (a - b) / b); return r === 0 ? "same" : move(r > 0, Math.abs(r) + "%"); }
+function renderCoach(fresh) {
+  const s = summary(), next = nextLayer(), el = $("coach");
+  let big = "", head, sub = "", tip = "", tone = "";
+  if (!s.n || falling.length) {
+    head = falling.length ? "100 edits on the way…" : lastRun ? "Make 100 new edits to compare." : "Make 100 edits and see where they land.";
+    sub = falling.length || lastRun ? "" : "Half of all edits will start out wrong.";
+  } else {
+    const rate = pct(s.human, s.n);
+    if (prev) {
+      const was = pct(prev.human, prev.n);
+      if (was === rate) { big = `${rate}%<small>need correction, same as before</small>`; tone = "var(--fg)"; head = "No change in edits that need correction."; }
+      else if (rate > was) { big = `${rate}%<small>need correction, was ${was}%</small>`; tone = "var(--wrong-ink)"; head = `Worse: ${rate - was} more in every 100 need correction.`; }
+      else {
+        const rel = Math.round(100 * (was - rate) / was);
+        big = `${rate}%<small>need correction, was ${was}%</small>`; tone = "var(--right-ink)";
+        head = `${rel}% fewer edits need correction.`;
+      }
+      sub = `<span class="moves"><span>Needs correction ${s.human === prev.human ? "same" : move(s.human > prev.human, `${prev.human} → ${s.human}`)}</span>` +
+        `<span>Agent time per edit ${delta(s.min / s.n, prev.min / prev.n)}</span><span>Tokens per edit ${delta(s.tok / s.n, prev.tok / prev.n)}</span>` +
+        (Math.round(prev.build) !== Math.round(s.build) ? `<span>Building ${move(s.build > prev.build, `${fmtMin(prev.build)} → ${fmtMin(s.build)}`)}</span>` : "") + "</span>";
+    } else {
+      big = `${rate}%<small>need correction</small>`;
+      head = `${s.human} of ${s.n} edits need correction.`;
+    }
+    const worse = prev && pct(s.human, s.n) > pct(prev.human, prev.n);
+    tip = worse ? (s.you / s.n > prev.you / prev.n && s.tok / s.n < prev.tok / prev.n ? "Cheaper for the agent, pricier for you." : "")
+      : next ? next.ask : "That's a full harness. Move a slider, or remove a layer and compare.";
+  }
+  if (tone) el.style.setProperty("--big", tone); else el.style.removeProperty("--big");
+  const suggest = next && s.n && !falling.length;
+  el.style.setProperty("--c", suggest ? `var(--${next.id})` : "var(--fg)");
+  el.classList.toggle("plain", !suggest);
+  el.innerHTML = `<div class="big">${big}</div><div class="say"><b>${head}</b>${sub ? `<span>${sub}</span>` : ""}${tip ? `<span class="hint">${tip}</span>` : ""}</div>` +
+    (next && s.n && !falling.length ? `<button class="add" type="button" data-add="${next.id}">${next.add}</button>` : "");
+  if (fresh) { el.classList.remove("fresh"); void el.offsetWidth; el.classList.add("fresh"); }
+}
+$("coach").addEventListener("click", ev => { const b = ev.target.closest("[data-add]"); if (b) setLayer(b.dataset.add, true); });
+
+/* The board. */
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const canvas = $("canvas"), ctx = canvas.getContext("2d");
+const BW = 600, LEFT = 0, RIGHT = 600, BINS_H = 130, BIN_HEAD = 80;
+let BH = 600, ROW0 = 40, BIN_TOP = 398, ROWS = [92, 172, 252, 332], EDIT_Y = 204;
+const BINS = ["Acceptable result", "Needs correction"];
+const binX = (i) => LEFT + (RIGHT - LEFT) * (i + 0.5) / 2;
+const rowY = (k) => ROWS[k];
+const dropX = () => (LEFT + RIGHT) / 2;
+
+function layoutBoard() {
+  const side = getComputedStyle(document.querySelector(".board")).gridTemplateColumns.split(" ").length > 1;
+  const cw = canvas.clientWidth || BW;
+  if (side) {
+    const top = $("controls").getBoundingClientRect().top, k = BW / cw;
+    const mid = (sel) => { const r = $("controls").querySelector(`[data-row="${sel}"]`).getBoundingClientRect(); return (r.top - top + r.height / 2) * k; };
+    ROW0 = mid("base");
+    ROWS = PHASES.map(p => mid(p.id));
+    EDIT_Y = mid("edit");
+    BIN_TOP = $("controls").getBoundingClientRect().height * k + 18;
+  } else {
+    ROW0 = 50; ROWS = [112, 192, 272, 352]; EDIT_Y = 232; BIN_TOP = 418;
+  }
+  BH = Math.round(BIN_TOP + BINS_H);
+  $("aim").style.height = `${(ROW0 + 52) * cw / BW}px`;
+  canvas.height = Math.round(BH * canvas.width / BW);
+  paint();
+}
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+let rand = mulberry32(3), falling = [], landed = [], flashes = [], raf = 0, last = 0, running = false;
+
+const MAX_BLOCKS = 3;
+const newSeed = () => Math.floor(Math.random() * 2 ** 31);
+let EDIT_SEED = newSeed();
+const dice = (edit, attempt, slot) => mulberry32(EDIT_SEED ^ (edit * 7919 + attempt * 104729 + slot * 15485863))();
+// One edit, possibly several attempts: a block refuses the whole edit and the agent starts it over, which can go
+// wrong all over again. After MAX_BLOCKS refusals the agent is stuck and the edit needs correction.
+function simulate(edit) {
+  const cost = { min: 0, tok: 0, you: 0 }, attempts = [];
+  let mistakes = 0, stuck = false;
+  for (let a = 0; ; a++) {
+    mistakes = dice(edit, a, 0) < state.base / 100 ? 1 : 0;
+    const att = { mistakes, steps: [], blocked: false };
+    attempts.push(att);
+    cost.min += COST.turn.min; cost.tok += COST.turn.tok;
+    for (const ph of PHASES) { const c = layerCost(ph.id); cost.min += c.min; cost.tok += c.tok; }
+    for (const [k, ph] of PHASES.entries()) {
+      let fixed = 0, caught = false;
+      for (let m = 0; m < mistakes; m++) if (dice(edit, a, k + 1) < rateOf(ph)) { if (ph.id === "blocking") caught = true; else fixed++; }
+      mistakes -= fixed;
+      if (fixed && !ph.ff) { cost.min += COST.fix.min; cost.tok += COST.fix.tok; }
+      att.steps.push({ phase: ph, fixed, flipped: fixed > 0, blocked: caught, wrong: mistakes > 0 });
+      if (caught) { att.blocked = true; break; }
+    }
+    if (!att.blocked) break;
+    if (a + 1 >= MAX_BLOCKS) { stuck = true; break; }
+  }
+  const endWrong = stuck || mistakes > 0;
+  if (endWrong) cost.you = COST.you;
+  const all = attempts.flatMap(t => t.steps);
+  return { attempts, stuck, startWrong: attempts[0].mistakes > 0, endWrong, cost,
+    taints: all.filter(t => t.flipped || t.blocked).map(t => t.phase.id) };
+}
+const binCount = (b) => landed.filter(d => d.bin === b).length;
+function cellFor(n) {
+  const w = (RIGHT - LEFT) / 2 - 36, h = BH - 18 - (BIN_TOP + BIN_HEAD);
+  for (const c of [13, 10, 8, 6.5, 5.5, 4.5, 3.8, 3.2]) { if (Math.ceil(n / Math.floor(w / c)) * c <= h) return c; }
+  return 3.2;
+}
+const nextSlot = (b) => { const n = binCount(b); return slotAt(b, n, n + 1); };
+function slotAt(b, i, n) {
+  const c = cellFor(n), per = Math.floor(((RIGHT - LEFT) / 2 - 36) / c);
+  return { x: binX(b) - (per - 1) * c / 2 + (i % per) * c, y: BH - 18 - Math.floor(i / per) * c, r: c * 0.4 };
+}
+// The path is a list of stops: the drop point, each row reached, back to the top after a block, and the bin.
+function pathFor(e) {
+  const pts = [];
+  let x = 0;
+  e.attempts.forEach(att => {
+    x = Math.min(RIGHT - 18, Math.max(LEFT + 18, dropX() + (rand() - 0.5) * 40));
+    pts.push({ x, y: ROW0, wrong: att.mistakes > 0, top: pts.length > 0 });
+    att.steps.forEach(st => {
+      x = Math.min(RIGHT - 18, Math.max(LEFT + 18, x + (binX(st.wrong ? 1 : 0) - x) * 0.45 + (rand() - 0.5) * 70));
+      pts.push({ x, y: rowY(PHASES.indexOf(st.phase)), step: st, wrong: st.wrong });
+    });
+  });
+  const b = e.endWrong ? 1 : 0;
+  pts.push({ ...nextSlot(b), wrong: e.endWrong });
+  return { pts, bin: b };
+}
+// A disc's fall takes longer as its edit costs more: always-on context slows every row, a fix holds it at the row,
+// and a block flings it back to the top to fall again.
+const MOVE = 0.34, SECONDS_PER_MIN = 0.45, BLOCK_HOLD = 0.3, BOUNCE = 0.5;
+function timing(e, pts) {
+  const move = MOVE * Math.min(4, 1 + layerCost("always").min);
+  const segs = [];
+  for (let k = 1; k < pts.length; k++) {
+    const q = pts[k], st = q.step;
+    let hold = 0;
+    if (st && st.blocked) hold = BLOCK_HOLD;
+    else if (st && st.flipped && !st.phase.ff) hold = COST.fix.min * SECONDS_PER_MIN;
+    else if (st && st.flipped) hold = 0.12;
+    else if (st && st.phase.id === "jit" && state.on.jit) hold = Math.min(1.5, layerCost("jit").min * SECONDS_PER_MIN);
+    segs.push({ move: q.top ? BOUNCE : k === pts.length - 1 ? move * 1.2 : move, hold });
+  }
+  return { segs, total: segs.reduce((t, g) => t + g.move + g.hold, 0) };
+}
+function drop(n) {
+  for (let i = 0; i < n; i++) {
+    const e = simulate(i), p = pathFor(e);
+    const disc = { e, ...p, ...timing(e, p.pts), time: -i * Math.min(0.07, 3 / n), fired: new Set() };
+    if (reduced) land(disc); else falling.push(disc);
+  }
+  running = true;
+  if (reduced) finish(); else { renderCoach(false); if (!raf) raf = requestAnimationFrame(tick); }
+}
+function land(d) {
+  landed.push({ bin: d.bin, wrong: d.e.endWrong, rescued: d.e.startWrong && !d.e.endWrong, taints: d.e.taints, cost: d.e.cost, e: d.e, pts: d.pts });
+}
+function finish() {
+  running = false;
+  const s = { ...summary(), sig: signature() };
+  if (lastRun && lastRun.sig !== s.sig) prev = lastRun;
+  const first = !lastRun;
+  lastRun = s;
+  if (first) { renderControls(); layoutBoard(); }
+  paint(); renderCoach(true);
+}
+function tick(ts) {
+  const dt = last ? Math.min(0.05, (ts - last) / 1000) : 0.016; last = ts;
+  for (const d of falling) {
+    d.time += dt;
+    Object.assign(d.pts[d.pts.length - 1], nextSlot(d.bin));
+    const k = discAt(d).reached;
+    for (let j = 1; j <= k; j++) { const s = d.pts[j].step; if (s && (s.flipped || s.blocked) && !d.fired.has(j)) { d.fired.add(j); flashes.push({ x: d.pts[j].x, y: d.pts[j].y, id: s.phase.id, ff: s.phase.ff, blocked: s.blocked, life: 1 }); } }
+  }
+  for (const d of falling.filter(d => d.time >= d.total)) { Object.assign(d.pts[d.pts.length - 1], nextSlot(d.bin)); land(d); }
+  falling = falling.filter(d => d.time < d.total);
+  flashes.forEach(f => f.life -= dt * 1.5); flashes = flashes.filter(f => f.life > 0);
+  paint();
+  if (running && !falling.length) finish();
+  if (falling.length || flashes.length) raf = requestAnimationFrame(tick); else { raf = 0; last = 0; }
+}
+// Where a disc is at its own clock: falling (eased like gravity) or held at a row, shaking while a phase works on it.
+function discAt(d) {
+  let t = Math.max(0, d.time);
+  for (let k = 0; k < d.segs.length; k++) {
+    const g = d.segs[k], a = d.pts[k], b = d.pts[k + 1];
+    if (t < g.move) { const f = b.top ? 1 - (1 - t / g.move) ** 2 : (t / g.move) ** 1.6; return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f, wrong: a.wrong, reached: k }; }
+    t -= g.move;
+    if (t < g.hold) { const jig = Math.sin(t * 40) * 2.2 * (1 - t / g.hold); return { x: b.x + jig, y: b.y - 3, wrong: b.wrong, reached: k + 1 }; }
+    t -= g.hold;
+  }
+  const z = d.pts[d.pts.length - 1];
+  return { x: z.x, y: z.y, wrong: d.e.endWrong, reached: d.pts.length - 1 };
+}
+// One ring around a disc, split into an arc per layer that corrected it, in the order they did.
+function taintRing(x, y, r, ids, lw) {
+  const n = ids.length;
+  ids.forEach((id, j) => {
+    ctx.beginPath(); ctx.arc(x, y, r, -Math.PI / 2 + j * 2 * Math.PI / n, -Math.PI / 2 + (j + 1) * 2 * Math.PI / n);
+    ctx.strokeStyle = cssVar("--" + id); ctx.lineWidth = lw; ctx.stroke();
+  });
+}
+function mixHex(a, b, t) {
+  const n = (h) => parseInt(h.replace("#", ""), 16), x = n(a), y = n(b);
+  const ch = (sh) => Math.round((x >> sh & 255) * (1 - t) + (y >> sh & 255) * t);
+  return `rgb(${ch(16)},${ch(8)},${ch(0)})`;
+}
+function tint(hex, alpha) {
+  const h = hex.replace("#", ""), n = parseInt(h.length === 3 ? h.split("").map(c => c + c).join("") : h, 16);
+  return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${alpha})`;
+}
+const fmtMin = (m) => { const r = Math.round(m); return r < 60 ? `${r} min` : `${Math.floor(r / 60)}h ${String(r % 60).padStart(2, "0")}m`; };
+const fmtTok = (t) => t < 1000 ? `${Math.round(t)}` : t < 1e6 ? `${Math.round(t / 1000)}k` : `${(t / 1e6).toFixed(1)}M`;
+function paint() {
+  const dpr = canvas.width / BW;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = cssVar("--surface"); ctx.fillRect(0, 0, BW, BH);
+  const font = (w, s, fam) => `${w} ${s}px ${fam || '"Figtree", "Helvetica Neue", Arial, sans-serif'}`;
+  const WALL = 5, inset = WALL / 2 + 1, fadeEnd = ROW0 + 38;
+  const fade = (hex) => { const g = ctx.createLinearGradient(0, 0, 0, fadeEnd); g.addColorStop(0, hex + "00"); g.addColorStop(1, hex); return g; };
+  const cabinet = () => { ctx.beginPath(); ctx.rect(inset, 0, BW - 2 * inset, BH - inset); };
+  cabinet(); ctx.fillStyle = fade(cssVar("--bg")); ctx.fill();
+  ctx.save(); cabinet(); ctx.clip();
+  PHASES.forEach((p, k) => {
+    const y = rowY(k), on = !!state.on[p.id], c = cssVar("--" + p.id);
+    ctx.fillStyle = on ? tint(c, 0.14) : "transparent";
+    ctx.fillRect(0, y - 26, BW, 52);
+    for (let x = (k % 2 ? 40 : 20); x <= BW - 20; x += 40) {
+      ctx.beginPath(); ctx.arc(x, y, 3.8, 0, Math.PI * 2); ctx.fillStyle = on ? c : cssVar("--peg-off"); ctx.fill();
+    }
+  });
+  // The next edit waits at the top of the board, half green and half red: half of all edits start out wrong.
+  const hx = dropX();
+  const disc = (x, r, y = ROW0) => {
+    ctx.beginPath(); ctx.arc(x, y, r, Math.PI / 2, Math.PI * 3 / 2); ctx.fillStyle = cssVar("--right"); ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, r, -Math.PI / 2, Math.PI / 2); ctx.fillStyle = cssVar("--wrong"); ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.strokeStyle = cssVar("--surface"); ctx.lineWidth = 2.5; ctx.stroke();
+  };
+  ctx.textAlign = "center";
+  if (falling.length) disc(hx, 9);
+  else {
+    const label = lastRun ? "Make 100 new edits" : "Make 100 edits";
+    ctx.font = font(800, 17, '"Bricolage Grotesque", "Avenir Next", sans-serif');
+    const r = 10, h = 38, cy = ROW0 + 10, tw = ctx.measureText(label).width, w = 12 + 2 * r + 10 + tw + 20, x0 = hx - w / 2;
+    const outline = landed.length && nextLayer();
+    ctx.beginPath(); ctx.roundRect(x0, cy - h / 2, w, h, h / 2);
+    if (outline) { ctx.strokeStyle = cssVar("--fg"); ctx.lineWidth = 2; ctx.stroke(); } else { ctx.fillStyle = cssVar("--fg"); ctx.fill(); }
+    disc(x0 + 12 + r, r, cy);
+    ctx.textAlign = "left"; ctx.textBaseline = "middle"; ctx.fillStyle = cssVar(outline ? "--fg" : "--surface");
+    ctx.fillText(label, x0 + 12 + 2 * r + 10, cy + 1);
+    ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+  }
+  ctx.strokeStyle = cssVar("--muted"); ctx.lineWidth = 1.5; ctx.setLineDash([4, 5]); ctx.beginPath(); ctx.moveTo(0, EDIT_Y); ctx.lineTo(BW, EDIT_Y); ctx.stroke(); ctx.setLineDash([]);
+  [0, 1].forEach(i => { ctx.fillStyle = tint(cssVar(i ? "--wrong" : "--right"), 0.1); ctx.fillRect(i * BW / 2, BIN_TOP, BW / 2, BH - BIN_TOP); });
+  ctx.restore();
+  ctx.fillStyle = cssVar("--frame");
+  ctx.fillRect(BW / 2 - 3, BIN_TOP - 6, 6, BH - BIN_TOP + 6);
+  ctx.beginPath(); ctx.moveTo(BW / 2 - 3, BIN_TOP - 6); ctx.lineTo(BW / 2, BIN_TOP - 18); ctx.lineTo(BW / 2 + 3, BIN_TOP - 6); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(inset, 0); ctx.lineTo(inset, BH - inset); ctx.lineTo(BW - inset, BH - inset); ctx.lineTo(BW - inset, 0);
+  ctx.strokeStyle = fade(cssVar("--frame")); ctx.lineWidth = WALL; ctx.lineJoin = "round"; ctx.stroke();
+  for (const f of flashes) {
+    if (f.blocked) {
+      const r = 10 + (1 - f.life) * 6, c = cssVar("--blocking");
+      ctx.globalAlpha = Math.max(0, f.life); ctx.strokeStyle = c; ctx.lineWidth = 3.5;
+      ctx.beginPath(); ctx.arc(f.x, f.y, r, 0, Math.PI * 2); ctx.moveTo(f.x - r * 0.7, f.y - r * 0.7); ctx.lineTo(f.x + r * 0.7, f.y + r * 0.7); ctx.stroke(); ctx.globalAlpha = 1;
+      continue;
+    }
+    ctx.globalAlpha = Math.max(0, f.life) ** 2; ctx.beginPath(); ctx.arc(f.x, f.y, 9, 0, Math.PI * 2); ctx.fillStyle = cssVar("--fg"); ctx.fill(); ctx.globalAlpha = 1;
+    ctx.beginPath(); ctx.arc(f.x, f.y, 7 + (1 - f.life) * 14, 0, Math.PI * 2);
+    ctx.strokeStyle = cssVar("--" + f.id); ctx.globalAlpha = Math.max(0, f.life); ctx.lineWidth = f.ff ? 2 : 3.5; ctx.setLineDash(f.ff ? [3, 3] : []); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+  }
+  const s = summary();
+  BINS.forEach((name, i) => {
+    const x0 = i * BW / 2 + 8, x1 = (i + 1) * BW / 2 - 8, mid = (x0 + x1) / 2, c = cssVar(i ? "--wrong" : "--right");
+    const n = i ? s.human : s.n - s.human;
+    ctx.fillStyle = cssVar(i ? "--wrong-ink" : "--right-ink"); ctx.font = font(700, 15); ctx.textAlign = "center";
+    ctx.fillText(name, mid, BIN_TOP + 22);
+    const big = font(800, 32, '"Bricolage Grotesque", "Avenir Next", sans-serif'), small = font(700, 16);
+    const num = s.n ? `${n}` : "", share = "";
+    ctx.font = big; const wn = ctx.measureText(num).width; ctx.font = small; const ws = share ? ctx.measureText(share).width + 8 : 0;
+    const x = mid - (wn + ws) / 2;
+    ctx.textAlign = "left"; ctx.font = big; ctx.fillStyle = cssVar("--fg"); ctx.fillText(num, x, BIN_TOP + 56);
+    if (share) { ctx.font = small; ctx.fillStyle = cssVar("--muted"); ctx.fillText(share, x + wn + 8, BIN_TOP + 56); }
+    if (!i && s.rescued) {
+      const cap = `${s.rescued} rescued, ringed by the layers that rescued them`;
+      let size = 13; do { ctx.font = font(600, size); } while (ctx.measureText(cap).width > x1 - x0 - 24 && --size > 9);
+      ctx.fillStyle = cssVar("--muted"); ctx.textAlign = "center";
+      ctx.fillText(cap, mid, BIN_TOP + 74);
+    }
+  });
+  for (const b of [0, 1]) {
+    const pile = landed.filter(d => d.bin === b), n = pile.length;
+    pile.forEach((d, i) => {
+      const at = slotAt(b, i, n);
+      const lw = Math.max(1.4, at.r * 0.5), core = d.taints.length ? at.r - lw / 2 : at.r;
+      ctx.beginPath(); ctx.arc(at.x, at.y, core, 0, Math.PI * 2); ctx.fillStyle = cssVar(d.wrong ? "--wrong" : "--right"); ctx.fill();
+      if (d.taints.length) taintRing(at.x, at.y, at.r, d.taints, lw);
+    });
+  }
+  if (hovered) {
+    const h = hovered, at = slotAt(h.bin, landed.filter(d => d.bin === h.bin).indexOf(h), binCount(h.bin));
+    const pts = [...h.pts.slice(0, -1), at];
+    ctx.strokeStyle = cssVar("--fg"); ctx.globalAlpha = 0.55; ctx.lineWidth = 2; ctx.setLineDash([5, 4]);
+    ctx.beginPath(); pts.forEach((q, k) => k ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+    pts.forEach(q => { if (!q.step) return; const hit = q.step.flipped || q.step.blocked; ctx.beginPath(); ctx.arc(q.x, q.y, hit ? 7 : 3.5, 0, Math.PI * 2); ctx.fillStyle = hit ? cssVar("--" + q.step.phase.id) : cssVar("--muted"); ctx.fill(); });
+    ctx.beginPath(); ctx.arc(at.x, at.y, at.r + 3, 0, Math.PI * 2); ctx.strokeStyle = cssVar("--fg"); ctx.lineWidth = 2; ctx.stroke();
+  }
+  for (const d of falling) {
+    if (d.time < 0) continue;
+    const p = discAt(d);
+    const taints = d.pts.slice(1, p.reached + 1).filter(q => q.step && (q.step.flipped || q.step.blocked)).map(q => q.step.phase.id);
+    ctx.beginPath(); ctx.arc(p.x, p.y, 7, 0, Math.PI * 2); ctx.fillStyle = cssVar(p.wrong ? "--wrong" : "--right"); ctx.fill();
+    if (taints.length) taintRing(p.x, p.y, 8.5, taints, 3.5); else { ctx.strokeStyle = cssVar("--bg"); ctx.lineWidth = 2; ctx.stroke(); }
+  }
+  const per = (v, f) => s.n ? `${f(v / s.n)} per edit` : "per edit";
+  $("costs").innerHTML = `<div><b>${s.n ? fmtMin(s.min) : "–"}</b><span>agent time</span><small>${per(s.min, v => v.toFixed(1) + " min")}</small></div>
+    <div><b>${s.n ? fmtTok(s.tok) : "–"}</b><span>tokens</span><small>${per(s.tok, fmtTok)}</small></div>
+    <div class="you"><b>${s.n ? fmtMin(s.you) : "–"}</b><span>your time</span><small>15 min each time</small></div>
+    <div><b>${PHASES.some(p => state.on[p.id]) ? fmtMin(buildMin()) : "–"}</b><span>building the harness</span><small>your time, once</small></div>`;
+}
+function reset() { hovered = null; tip.hidden = true; falling = []; landed = []; flashes = []; running = false; rand = mulberry32(3 + Math.floor(Math.random() * 1000)); paint(); renderCoach(false); }
+const EDITS = 100;
+function letGo() { reset(); EDIT_SEED = newSeed(); drop(EDITS); }
+$("aim").addEventListener("click", letGo);
+new ResizeObserver(() => layoutBoard()).observe($("controls"));
+addEventListener("resize", layoutBoard);
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", paint);
+let hovered = null;
+const SHORT = { always: "Always-on", jit: "Just-in-time", advisory: "Advisory", blocking: "Blocking" };
+function discUnder(x, y) {
+  for (const b of [0, 1]) {
+    const pile = landed.filter(d => d.bin === b), n = pile.length;
+    for (let i = 0; i < n; i++) { const at = slotAt(b, i, n); if (Math.hypot(at.x - x, at.y - y) <= Math.max(at.r + 1.5, 5)) return pile[i]; }
+  }
+  return null;
+}
+function describe(d) {
+  const e = d.e, items = [];
+  e.attempts.forEach((att, a) => {
+    items.push(`<span>${a ? `Redo ${a}: ` : ""}${att.mistakes ? `${a ? "s" : "S"}tarted wrong` : `${a ? "s" : "S"}tarted out right`}</span>`);
+    const fixes = att.steps.filter(t => t.fixed || t.blocked).map(t => `<li style="--c:var(--${t.phase.id})">${t.blocked ? (e.stuck && a === e.attempts.length - 1 ? "Blocked again" : "Blocked, back to the start") : `${SHORT[t.phase.id]} fixed ${t.fixed === 1 ? "one" : t.fixed}`}</li>`).join("");
+    if (fixes) items.push(`<ul>${fixes}</ul>`);
+  });
+  const end = e.stuck ? `Stuck after ${MAX_BLOCKS} blocks` : d.wrong ? "The mistake slipped through" : e.attempts.length > 1 ? `Got it right on redo ${e.attempts.length - 1}` : e.attempts[0].mistakes ? "Fixed along the way" : "Nothing to fix";
+  return `<b class="${d.wrong ? "bad" : "good"}">${d.wrong ? "Needs correction" : "Acceptable result"}</b>${items.join("")}<span>${end}</span>
+    <span class="cost">${d.cost.min.toFixed(1)} min, ${fmtTok(d.cost.tok)} tokens${d.cost.you ? `, ${d.cost.you} min of yours` : ""}</span>`;
+}
+const tip = $("tip");
+canvas.addEventListener("pointermove", ev => {
+  const r = canvas.getBoundingClientRect(), k = BW / r.width;
+  const d = discUnder((ev.clientX - r.left) * k, (ev.clientY - r.top) * k);
+  if (d !== hovered) { hovered = d; if (!raf) paint(); }
+  if (!d) { tip.hidden = true; return; }
+  tip.innerHTML = describe(d); tip.hidden = false;
+  const tr = canvas.parentElement.getBoundingClientRect(), x = ev.clientX - tr.left, y = ev.clientY - tr.top;
+  tip.style.left = `${Math.min(x + 14, tr.width - tip.offsetWidth - 4)}px`;
+  tip.style.top = `${Math.max(4, y - tip.offsetHeight - 12)}px`;
+});
+canvas.addEventListener("pointerleave", () => { hovered = null; tip.hidden = true; if (!raf) paint(); });
+const themeBtn = $("theme"), darkQuery = matchMedia("(prefers-color-scheme: dark)");
+const isDark = () => document.documentElement.dataset.theme ? document.documentElement.dataset.theme === "dark" : darkQuery.matches;
+function showTheme() { themeBtn.setAttribute("aria-checked", isDark()); paint(); }
+themeBtn.addEventListener("click", () => {
+  const t = isDark() ? "light" : "dark";
+  document.documentElement.dataset.theme = t;
+  try { localStorage.setItem("theme", t); } catch (e) {}
+  showTheme();
+const onTheme = showTheme;
+});
+darkQuery.addEventListener("change", showTheme);
+showTheme();
+renderControls();
+layoutBoard();
+reset();
+</script>
+</body>
+</html>

@@ -7,7 +7,7 @@ in-repo implementation. Status vocabulary: **Covered** · **Partial** ·
 **Evidence pointers:** file + enclosing symbol. A line number is invalidated by
 any edit above it, and the ledger is read long after that edit.
 
-**Coverage: 92/92 requirements Covered (100%)**
+**Coverage: 93/93 requirements Covered (100%)**
 
 ## CHECK — The check command
 
@@ -149,6 +149,7 @@ CHECK-12 is retired and not counted.
 | PACKAGING-07 | Covered | scripts/tests/check.test.sh — the grading-table fixtures |
 | PACKAGING-08 | Covered | guides/placement.md; docs/_sidebar.md |
 | PACKAGING-09 | Covered | docs/feedback-loops.md; docs/_sidebar.md |
+| PACKAGING-10 | Covered | docs/harness-engineering.md; docs/_sidebar.md |
 
 ## STATE — Session state
 
@@ -159,6 +160,10 @@ CHECK-12 is retired and not counted.
 | STATE-03 | Covered | scripts/cleat (`_prune_sessions`) |
 
 ## Audit history
+
+### 2026-10-02 — Harness engineering page and lab (spec-req)
+
++1 ID (PACKAGING-10); PACKAGING-09 amended. The background moves from the feedback loops page to its own page with an interactive stove scene and a lab, and the feedback loops page links to it. 93/93 Covered.
 
 ### 2026-10-01 — Nested instruction files (spec-req)
 

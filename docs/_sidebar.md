@@ -2,4 +2,6 @@
 - [Placement](/guides/placement)
 - [Rubric](/guides/agents-vs-claude)
 - [Feedback loops](/feedback-loops)
+- [Harness engineering](/harness-engineering)
+- [Lab](lab/index.html ':ignore')
 - [SPEC](/spec)

@@ -58,17 +58,21 @@ toddler can learn the stove is hot:
 | When | At the stove | For an agent | Kind |
 |---|---|---|---|
 | Every morning | "Stoves are hot." | `AGENTS.md`, always-on rules | Always-on feedforward |
-| The hand moves toward the stove | "Careful, that's hot." | A path-scoped rule loading on a read, a hook adding guidance before a call | Just-in-time feedforward |
-| The hand is about to land | The parent catches the hand | A `PreToolUse` deny, a failing gate | Blocking feedback |
-| After the touch | The burn | A `PostToolUse` report, a failing test | Advisory feedback |
+| The hand moves toward the stove | A sign on the stove: "Caution: hot." | A path-scoped rule loading on a read, a hook adding guidance before a call | Just-in-time feedforward |
+| At the touch | A parent shouts "Hot!"; the child pulls back, and first aid is right there | A `PostToolUse` report, a failing test | Advisory feedback |
+| Any touch at all | The stove shuts off the moment a hand touches it, the cook's included | A `PreToolUse` deny, a failing gate | Blocking feedback |
+
+The docs site's
+[Harness engineering](https://chris-peterson.github.io/cleat/#/harness-engineering)
+page shows each point as a scene, with a lab to try the four together.
 
 Feedforward acts before the agent does and makes a mistake less likely.
 Feedback acts after, and is the only thing that catches one. The more of the
 correction the agent makes itself, within the session, the more the result is
-decided by the loop rather than by the agent's first attempt. The toddler still
-decides at every point. Heeding the warning avoids the burn. Ignoring it still
-teaches, because the burn is feedback too. It just isn't the outcome anyone
-wanted.
+decided by the loop rather than by the agent's first attempt. The toddler
+decides at every point but the last: a warning can be ignored, and the shout
+comes with help already there. With none of them, the burn is worse and no one
+is there to help. For an agent, that's a mistake a person has to find and fix.
 
 **Why just-in-time over always-on.** The morning lecture is said once, hours
 before the stove, alongside everything else the toddler hears that day, and it
@@ -92,12 +96,15 @@ single tool call's own inputs (a branch name in a command, a path in a write, a
 flag) belongs in a hook. A convention like "branch names match `[a-z-]+`" is
 the typical case: as a rule, it rides along in every session; as a hook, it
 denies the bad name in the one command that creates it. Keep prose for what
-needs judgment across the turn, the diff, or the user's intent.
+needs judgment across the turn, the diff, or the user's intent. A hook is a
+blunt instrument: it sees one tool call and none of the context around it, so
+it can't tell a mistake from a correct use that looks the same, and it fixes
+each instance without changing the habit behind it.
 
 **How much the burn costs decides how early to warn.** For a toddler every burn
 hurts. For an agent most are cheap: a failed test, then a rewrite. Some can't be
 undone: a push, a deleted file, a deploy, a message sent to someone. The more a
-mistake costs, the more it's worth catching the hand before it lands.
+mistake costs, the more it's worth a stove that shuts off at the touch.
 
 **When always-on is right.** Some guidance is needed before any trigger could
 fire: what the project is, how to build and test it, the words it uses. That

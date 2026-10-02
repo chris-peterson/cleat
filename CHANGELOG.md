@@ -16,9 +16,13 @@
 - The placement guide says where guidance for one directory goes: a nested
   `AGENTS.md` and pointer, or a rule under that directory's `.claude/rules/`.
 - A Feedback loops page on the docs site explains the model behind cleat's
-  placement: the four kinds of guidance and what each costs, pairing a rule with a hook that checks the
-  same habit, and how Claude Code, Cursor, Copilot, and Codex each load nested
-  instruction files.
+  placement: the four kinds of guidance, pairing a rule with a hook that checks
+  the same habit, and how Claude Code, Cursor, Copilot, and Codex each load
+  nested instruction files.
+- A Harness engineering page on the docs site covers the background: what a
+  harness is, the stove analogy as an interactive scene, why a block can't do
+  the job alone, and what each kind of layer costs. A lab beside it lets you
+  build a harness one layer at a time and compare runs.
 
 ## 0.3.0
 

@@ -535,9 +535,15 @@ site with the other guides.
 
 #### `PACKAGING-09`
 The docs site shall carry a feedback loops page, written for end users, with the
-four kinds of guidance and what each costs, the case for pairing a rule with a hook, and how each tool
+four kinds of guidance, the case for pairing a rule with a hook, and how each tool
 loads a nested instruction file, so the guide an agent reads holds only what it
-acts on.
+acts on. It shall link to the harness engineering page for the background rather
+than restate it.
+
+#### `PACKAGING-10`
+The docs site shall carry a harness engineering page, written for end users, with
+what a harness is, why blocking feedback can't stand alone, and what each kind of
+layer costs.
 
 ### `STATE`
 Session state
