@@ -22,7 +22,8 @@
 - A Harness engineering page on the docs site covers the background: what a
   harness is, the stove analogy as an interactive scene, why a block can't do
   the job alone, and what each kind of layer costs. A lab beside it lets you
-  build a harness one layer at a time and compare runs.
+  build a harness one layer at a time and compare each run with a baseline
+  that runs the same edits with no harness.
 
 ## 0.3.0
 

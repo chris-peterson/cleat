@@ -88,23 +88,16 @@ a.learn-btn { color: inherit; text-decoration: none; display: inline-flex; align
 
 /* The coach: a prize ticket that reports the last run and offers the next layer. */
 .coach { --c: var(--fg); display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 6px 20px; padding-block: 6px; padding-inline: 18px; border-radius: 16px; background: color-mix(in srgb, var(--c) 11%, var(--surface)); }
-.coach .big { font-family: var(--display); font-weight: 800; font-size: 40px; line-height: 0.9; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; color: var(--big, var(--c)); }
+.coach .big { font-family: var(--display); font-weight: 800; font-size: 40px; line-height: 0.9; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; color: var(--big); }
 .coach .big small { display: block; font-family: var(--body); font-size: 13px; font-weight: 600; letter-spacing: 0; color: var(--muted); margin-block-start: 6px; }
-.coach .say { display: grid; gap: 2px; }
+.coach .big .glyph { font-size: 0.55em; vertical-align: 0.3em; margin-inline-end: 0.12em; }
 .coach .say b { font-size: 17px; }
-.coach .say span { font-size: 14.5px; color: var(--muted); }
-.coach .moves { display: flex; flex-wrap: wrap; gap: 2px 16px; }
-.coach .moves i { font-style: normal; font-weight: 700; }
-.coach .moves .good { color: var(--right-ink); }
-.coach .moves .bad { color: var(--wrong-ink); }
 .coach .add { font-weight: 700; font-size: 15px; color: var(--surface); background: var(--c); border: 0; border-radius: 999px; padding-block: 9px; padding-inline: 18px; cursor: pointer; white-space: nowrap; }
 .coach .big:empty { display: none; }
-/* Sized to the tallest state (a comparison plus a tip), so the board below never jumps between runs. */
-@media (min-width: 761px) { .coach { min-height: 113px; } }
+/* Sized to the tallest state (the big number), so the board below never jumps between runs. */
+@media (min-width: 761px) { .coach { min-height: 84px; } }
 .coach.plain { background: var(--bg); }
-.coach .say .hint { color: var(--fg); display: flex; gap: 8px; align-items: baseline; font-size: 14.5px; margin-block-start: 4px; }
-.coach .say .hint::before { content: "i"; flex: none; display: inline-grid; place-items: center; inline-size: 18px; block-size: 18px; border-radius: 50%; background: var(--c); color: var(--surface); font: italic 700 12px/1 Georgia, serif; transform: translateY(3px); }
-@media (max-width: 640px) { .coach { grid-template-columns: auto minmax(0, 1fr); } .coach .add { grid-column: 1 / -1; justify-self: start; } }
+@media (max-width: 640px) { .coach { grid-template-columns: minmax(0, 1fr); padding-block: 12px; } .coach .add { justify-self: start; } }
 @media (prefers-reduced-motion: no-preference) { .coach.fresh { animation: ticket 420ms cubic-bezier(.2, 1.4, .4, 1); } }
 @keyframes ticket { from { transform: translateY(-6px) scale(0.98); opacity: 0.4; } }
 
@@ -151,6 +144,8 @@ canvas { display: block; width: 100%; height: auto; border-radius: 14px; }
 .costs span { font-size: 14px; font-weight: 600; }
 .costs small { font-size: 13px; color: var(--muted); }
 .costs .you b { color: var(--wrong-ink); }
+.costs b em { font-family: var(--body); font-style: normal; font-size: 14px; font-weight: 700; color: var(--muted); margin-inline-start: 6px; }
+.slot:disabled { cursor: default; }
 
 /* Learn more: a sheet that slides in from the right. */
 .sheet { overflow-y: auto; overscroll-behavior: contain; margin: 0 0 0 auto; width: min(540px, 100vw); height: 100dvh; max-height: none; max-width: none; border: 0; padding: 0; background: var(--surface); color: var(--fg); }
@@ -210,7 +205,7 @@ canvas { display: block; width: 100%; height: auto; border-radius: 14px; }
     <div class="board">
       <div class="controls" id="controls"></div>
       <div class="table">
-        <button class="aim" id="aim" type="button" aria-label="Start: make 100 edits"></button>
+        <button class="aim" id="aim" type="button" aria-label="Run the 100 edits"></button>
         <canvas id="canvas" width="1200" height="1200" role="img" aria-label="A board: edits fall past four colored rows of pegs, one per layer, into two bins"></canvas>
         <div class="toast" id="toast" role="status" aria-live="polite"></div>
         <div class="tip" id="tip" role="tooltip" hidden></div>
@@ -266,8 +261,8 @@ function renderControls() {
         <div class="eff"><span>${dialName(p.id)}</span><output id="o-${p.id}">${state.eff[p.id]}%</output></div>
         <input type="range" min="0" max="${MAX_EFF[p.id]}" step="1" value="${state.eff[p.id]}" data-eff="${p.id}" style="--p:${100 * state.eff[p.id] / MAX_EFF[p.id]}%" aria-label="${p.name} ${dialName(p.id)}">
       </div>`
-    : `<button class="slot" type="button" data-row="${p.id}" data-add="${p.id}" style="--c:var(${lastRun ? `--${p.id}` : "--muted"})">+ ${p.name}</button>`;
-  $("controls").innerHTML = `<div class="launch" data-row="base"><b>Your harness</b><span>${lastRun ? "Add a layer, then make new edits." : "Run it empty first, then add layers."}</span></div>` + phase(PHASES[0]) + phase(PHASES[1]) + `<div class="edit-line" data-row="edit"></div>` + phase(PHASES[2]) + phase(PHASES[3]);
+    : `<button class="slot" type="button" data-row="${p.id}" data-add="${p.id}" style="--c:var(${baseline ? `--${p.id}` : "--muted"})"${baseline ? "" : " disabled"}>+ ${p.name}</button>`;
+  $("controls").innerHTML = `<div class="launch" data-row="base"><b>Your harness</b><span>${baseline ? "Add a layer, then run the edits again." : "Running the baseline first."}</span></div>` + phase(PHASES[0]) + phase(PHASES[1]) + `<div class="edit-line" data-row="edit"></div>` + phase(PHASES[2]) + phase(PHASES[3]);
 }
 const added = [];
 function setLayer(id, on) {
@@ -288,8 +283,9 @@ $("controls").addEventListener("click", ev => {
 });
 
 /* Runs and the coach. A run is everything on the board since the harness last changed. */
-let prev = null, lastRun = null, coachMsg = null, coachLayer = null;
-const signature = () => JSON.stringify([state.base, PHASES.map(p => state.on[p.id] ? state.eff[p.id] : -1)]);
+// The baseline is the latest run with no layers; every other run is compared against it.
+let baseline = null, coachMsg = null, coachLayer = null;
+const harnessEmpty = () => !PHASES.some(p => state.on[p.id]);
 function summary() {
   const done = landed, n = done.length;
   const sum = (f) => done.reduce((t, d) => t + f(d), 0);
@@ -307,42 +303,31 @@ function toast(msg, id) {
 function changed(msg, id) { coachMsg = msg; coachLayer = id; toast(msg, id); reset(); }
 const pct = (a, b) => b ? Math.round(100 * a / b) : 0;
 const nextLayer = () => GROWTH.find(g => !state.on[g.id]);
-const move = (up, text) => `<i class="${up ? "bad" : "good"}">${up ? "▲" : "▼"} ${text}</i>`;
-function delta(a, b) { const r = Math.round(100 * (a - b) / b); return r === 0 ? "same" : move(r > 0, Math.abs(r) + "%"); }
+const glyph = (up) => up ? "▲" : "▼";
+// Only the share needing correction is colored: green below the baseline, red above it.
 function renderCoach(fresh) {
   const s = summary(), next = nextLayer(), el = $("coach");
-  let big = "", head, sub = "", tip = "", tone = "";
+  let big = "", head, tone = "var(--fg)";
   if (!s.n || falling.length) {
-    head = falling.length ? "100 edits on the way…" : lastRun ? "Make 100 new edits to compare." : "Make 100 edits and see where they land.";
-    sub = falling.length || lastRun ? "" : "Half of all edits will start out wrong.";
+    head = !baseline ? "Running the baseline: 100 edits with no harness. Half start out wrong."
+      : falling.length ? "100 edits on the way…" : "Run the edits again to compare with the baseline.";
   } else {
-    const rate = pct(s.human, s.n);
-    if (prev) {
-      const was = pct(prev.human, prev.n);
-      if (was === rate) { big = `${rate}%<small>need correction, same as before</small>`; tone = "var(--fg)"; head = "No change in edits that need correction."; }
-      else if (rate > was) { big = `${rate}%<small>need correction, was ${was}%</small>`; tone = "var(--wrong-ink)"; head = `Worse: ${rate - was} more in every 100 need correction.`; }
-      else {
-        const rel = Math.round(100 * (was - rate) / was);
-        big = `${rate}%<small>need correction, was ${was}%</small>`; tone = "var(--right-ink)";
-        head = `${rel}% fewer edits need correction.`;
-      }
-      sub = `<span class="moves"><span>Needs correction ${s.human === prev.human ? "same" : move(s.human > prev.human, `${prev.human} → ${s.human}`)}</span>` +
-        `<span>Agent time per edit ${delta(s.min / s.n, prev.min / prev.n)}</span><span>Tokens per edit ${delta(s.tok / s.n, prev.tok / prev.n)}</span>` +
-        (Math.round(prev.build) !== Math.round(s.build) ? `<span>Building ${move(s.build > prev.build, `${fmtMin(prev.build)} → ${fmtMin(s.build)}`)}</span>` : "") + "</span>";
-    } else {
-      big = `${rate}%<small>need correction</small>`;
-      head = `${s.human} of ${s.n} edits need correction.`;
+    const rate = pct(s.human, s.n), was = pct(baseline.human, baseline.n);
+    if (harnessEmpty()) big = `${rate}%<small>need correction with no harness</small>`;
+    else if (rate === was) big = `${rate}%<small>need correction, same as with no harness</small>`;
+    else {
+      big = `<span class="glyph">${glyph(rate > was)}</span>${rate}%<small>need correction, ${was}% with no harness</small>`;
+      tone = rate > was ? "var(--wrong-ink)" : "var(--right-ink)";
     }
-    const worse = prev && pct(s.human, s.n) > pct(prev.human, prev.n);
-    tip = worse ? (s.you / s.n > prev.you / prev.n && s.tok / s.n < prev.tok / prev.n ? "Cheaper for the agent, pricier for you." : "")
-      : next ? next.ask : "That's a full harness. Move a slider, or remove a layer and compare.";
+    head = !next ? "That's a full harness. Move a slider, or remove a layer and compare."
+      : harnessEmpty() ? `That's the baseline. ${next.ask}` : next.ask;
   }
-  if (tone) el.style.setProperty("--big", tone); else el.style.removeProperty("--big");
+  el.style.setProperty("--big", tone);
   const suggest = next && s.n && !falling.length;
   el.style.setProperty("--c", suggest ? `var(--${next.id})` : "var(--fg)");
   el.classList.toggle("plain", !suggest);
-  el.innerHTML = `<div class="big">${big}</div><div class="say"><b>${head}</b>${sub ? `<span>${sub}</span>` : ""}${tip ? `<span class="hint">${tip}</span>` : ""}</div>` +
-    (next && s.n && !falling.length ? `<button class="add" type="button" data-add="${next.id}">${next.add}</button>` : "");
+  el.innerHTML = `<div class="big">${big}</div><div class="say"><b>${head}</b></div>` +
+    (suggest ? `<button class="add" type="button" data-add="${next.id}">${next.add}</button>` : "");
   if (fresh) { el.classList.remove("fresh"); void el.offsetWidth; el.classList.add("fresh"); }
 }
 $("coach").addEventListener("click", ev => { const b = ev.target.closest("[data-add]"); if (b) setLayer(b.dataset.add, true); });
@@ -380,8 +365,8 @@ const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValu
 let rand = mulberry32(3), falling = [], landed = [], flashes = [], raf = 0, last = 0, running = false;
 
 const MAX_BLOCKS = 3;
-const newSeed = () => Math.floor(Math.random() * 2 ** 31);
-let EDIT_SEED = newSeed();
+// One set of edits per visit, so a run differs from the baseline only by its harness.
+const EDIT_SEED = Math.floor(Math.random() * 2 ** 31);
 const dice = (edit, attempt, slot) => mulberry32(EDIT_SEED ^ (edit * 7919 + attempt * 104729 + slot * 15485863))();
 // One edit, possibly several attempts: a block refuses the whole edit and the agent starts it over, which can go
 // wrong all over again. After MAX_BLOCKS refusals the agent is stuck and the edit needs correction.
@@ -469,10 +454,8 @@ function land(d) {
 }
 function finish() {
   running = false;
-  const s = { ...summary(), sig: signature() };
-  if (lastRun && lastRun.sig !== s.sig) prev = lastRun;
-  const first = !lastRun;
-  lastRun = s;
+  const first = !baseline;
+  if (harnessEmpty()) baseline = summary();
   if (first) { renderControls(); layoutBoard(); }
   paint(); renderCoach(true);
 }
@@ -551,7 +534,7 @@ function paint() {
   ctx.textAlign = "center";
   if (falling.length) disc(hx, 9);
   else {
-    const label = lastRun ? "Make 100 new edits" : "Make 100 edits";
+    const label = "Run the 100 edits";
     ctx.font = font(800, 17, '"Bricolage Grotesque", "Avenir Next", sans-serif');
     const r = 10, h = 38, cy = ROW0 + 10, tw = ctx.measureText(label).width, w = 12 + 2 * r + 10 + tw + 20, x0 = hx - w / 2;
     const outline = landed.length && nextLayer();
@@ -625,14 +608,19 @@ function paint() {
     if (taints.length) taintRing(p.x, p.y, 8.5, taints, 3.5); else { ctx.strokeStyle = cssVar("--bg"); ctx.lineWidth = 2; ctx.stroke(); }
   }
   const per = (v, f) => s.n ? `${f(v / s.n)} per edit` : "per edit";
-  $("costs").innerHTML = `<div><b>${s.n ? fmtMin(s.min) : "–"}</b><span>agent time</span><small>${per(s.min, v => v.toFixed(1) + " min")}</small></div>
-    <div><b>${s.n ? fmtTok(s.tok) : "–"}</b><span>tokens</span><small>${per(s.tok, fmtTok)}</small></div>
-    <div class="you"><b>${s.n ? fmtMin(s.you) : "–"}</b><span>your time</span><small>15 min each time</small></div>
-    <div><b>${PHASES.some(p => state.on[p.id]) ? fmtMin(buildMin()) : "–"}</b><span>building the harness</span><small>your time, once</small></div>`;
+  const vs = (key) => {
+    if (!baseline || !s.n || falling.length || harnessEmpty() || !baseline[key]) return "";
+    const r = Math.round(100 * (s[key] / s.n - baseline[key] / baseline.n) / (baseline[key] / baseline.n));
+    return r ? `<em title="Per edit, compared with no harness">${glyph(r > 0)} ${Math.abs(r)}%</em>` : "";
+  };
+  $("costs").innerHTML = `<div><b>${s.n ? fmtMin(s.min) : "–"}${vs("min")}</b><span>agent time</span><small>${per(s.min, v => v.toFixed(1) + " min")}</small></div>
+    <div><b>${s.n ? fmtTok(s.tok) : "–"}${vs("tok")}</b><span>tokens</span><small>${per(s.tok, fmtTok)}</small></div>
+    <div class="you"><b>${s.n ? fmtMin(s.you) : "–"}${vs("you")}</b><span>your time</span><small>15 min each time</small></div>
+    <div><b>${harnessEmpty() ? "–" : fmtMin(buildMin())}</b><span>building the harness</span><small>your time, once</small></div>`;
 }
 function reset() { hovered = null; tip.hidden = true; falling = []; landed = []; flashes = []; running = false; rand = mulberry32(3 + Math.floor(Math.random() * 1000)); paint(); renderCoach(false); }
 const EDITS = 100;
-function letGo() { reset(); EDIT_SEED = newSeed(); drop(EDITS); }
+function letGo() { reset(); drop(EDITS); }
 $("aim").addEventListener("click", letGo);
 new ResizeObserver(() => layoutBoard()).observe($("controls"));
 addEventListener("resize", layoutBoard);
@@ -684,6 +672,7 @@ showTheme();
 renderControls();
 layoutBoard();
 reset();
+document.fonts.ready.then(letGo);
 </script>
 </body>
 </html>

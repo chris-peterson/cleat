@@ -73,7 +73,9 @@ forward to make the mistake happen less often.
 The [lab](lab/index.html ':ignore') drops 100 edits through a harness you build
 one layer at a time, then shows how many land as acceptable, how many need
 correction, and what the harness cost in agent time, tokens, and your time.
-Start with an empty harness, add a layer, and compare.
+It opens by running the edits with no harness, the baseline (an ablation test
+of the whole harness). Each run after that sends the same 100 edits through
+the layers you've added and compares the result with the baseline.
 
 The rates and costs in the lab are made up to show how a harness behaves, not
 measured from real sessions.
