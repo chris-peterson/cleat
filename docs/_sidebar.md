@@ -3,5 +3,5 @@
 - [Rubric](/guides/agents-vs-claude)
 - [Feedback loops](/feedback-loops)
 - [Harness engineering](/harness-engineering)
-- [Lab](lab/index.html ':ignore')
+  - [Lab](/lab)
 - [SPEC](/spec)

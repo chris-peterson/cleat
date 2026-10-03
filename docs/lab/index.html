@@ -81,6 +81,10 @@ a.learn-btn { color: inherit; text-decoration: none; display: inline-flex; align
 #learn-open { background: var(--fg); border-color: var(--fg); color: var(--surface); }
 #learn-open:hover { background: color-mix(in srgb, var(--fg) 85%, var(--surface)); }
 .disclaimer { font-size: 13px; color: var(--muted); text-align: center; }
+.embedded body { background: transparent; }
+.embedded main { padding-inline: 0; padding-block: 4px; }
+.embedded .bar, .embedded .disclaimer { display: none; }
+.embedded .cabinet { background: none; padding-inline: 0; }
 
 
 /* The cabinet. */
@@ -217,6 +221,7 @@ canvas { display: block; width: 100%; height: auto; border-radius: 14px; }
 </main>
 <script>
 const root = document.documentElement;
+if (window.frameElement) root.classList.add("embedded");
 function readTheme() { try { const t = localStorage.getItem("theme"); if (t === "light" || t === "dark") root.dataset.theme = t; else delete root.dataset.theme; } catch (e) {} }
 readTheme();
 addEventListener("storage", ev => { if (ev.key === "theme") { readTheme(); if (typeof onTheme === "function") onTheme(); } });
@@ -665,8 +670,13 @@ themeBtn.addEventListener("click", () => {
   document.documentElement.dataset.theme = t;
   try { localStorage.setItem("theme", t); } catch (e) {}
   showTheme();
-const onTheme = showTheme;
 });
+const onTheme = showTheme;
+// Embedded in the docs page, the site supplies the title, theme toggle and navigation, and the frame grows to fit.
+if (window.frameElement) {
+  const fit = () => { window.frameElement.style.height = `${Math.ceil(document.querySelector("main").getBoundingClientRect().height)}px`; };
+  new ResizeObserver(fit).observe(document.querySelector("main"));
+}
 darkQuery.addEventListener("change", showTheme);
 showTheme();
 renderControls();

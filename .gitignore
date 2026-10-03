@@ -9,6 +9,7 @@ docs/*
 !docs/feedback-loops.md
 !docs/harness-engineering.md
 !docs/lab/
+!docs/lab.md
 
 __pycache__
 .DS_Store
