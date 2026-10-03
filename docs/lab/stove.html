@@ -126,9 +126,6 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--jit); outli
 .slot:hover { background: color-mix(in srgb, var(--c) 8%, transparent); }
 .edit-line { height: 14px; }
 .table { display: grid; gap: 8px; position: relative; }
-.toast { --t: var(--fg); position: absolute; left: 50%; z-index: 2; translate: -50% 0; white-space: nowrap; font-weight: 700; font-size: 13.5px; color: var(--t); background: color-mix(in srgb, var(--t) 16%, var(--surface)); border-radius: 999px; padding-block: 5px; padding-inline: 12px; pointer-events: none; opacity: 0; }
-.toast.show { opacity: 1; }
-@media (prefers-reduced-motion: no-preference) { .toast { transition: opacity 0.25s ease, translate 0.25s ease; translate: -50% 6px; } .toast.show { translate: -50% 0; } }
 .launch { display: grid; padding-block: 6px; margin-block-end: 10px; }
 .launch b { font-family: var(--display); font-size: 18px; }
 .launch span { font-size: 13px; color: var(--muted); }
@@ -165,7 +162,7 @@ canvas { display: block; width: 100%; height: auto; border-radius: 14px; }
 @media (prefers-reduced-motion: reduce) {.stove .arm, .stove .child, .stove .adult, .stove .cook-arm, .stove .show, .stove .glow, .stove .burner { transition: none; } }
 @keyframes pop { from { transform: scale(0.2); opacity: 0; } 60% { transform: scale(1.15); opacity: 1; } }
 @keyframes flicker { to { opacity: 0.7; } }.stove .bubble-text { font-family: var(--display); font-weight: 800; font-size: 19px; fill: var(--on-color); }.stove .tag-text { font-family: var(--body); font-weight: 700; font-size: 14px; fill: var(--on-color); }.stove .ouch { font-family: var(--display); font-weight: 800; font-size: 20px; fill: var(--wrong); }.stove .picker { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px 10px; align-items: end; }
-@media (max-width: 480px) {.stove .picker { grid-template-columns: 1fr 1fr; }.stove .picker .solo { grid-column: 1 / -1; } }.stove .group { display: grid; gap: 6px; }
+@media (max-width: 560px) {.stove .picker { grid-template-columns: 1fr; }.stove .picker .solo { grid-column: 1 / -1; } }.stove .group { display: grid; gap: 6px; }
 .stove .picker .solo { grid-column: 1 / -1; grid-template-columns: auto auto; justify-content: start; align-items: center; gap: 10px; }
 .stove .picker .solo > span::after { content: none; }.stove .group > span { font-size: 13px; font-weight: 600; color: var(--muted); display: flex; align-items: center; gap: 8px; }.stove .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }.stove .pick { --c: var(--fg); font-weight: 700; font-size: 13.5px; color: var(--c); background: color-mix(in srgb, var(--c) 9%, var(--surface)); border: 2px solid transparent; border-radius: 12px; padding-block: 8px; padding-inline: 10px; cursor: pointer; text-align: start; }.stove .pick:hover { border-color: color-mix(in srgb, var(--c) 45%, transparent); }.stove .pick[aria-pressed="true"] { background: var(--c); color: var(--on-color); }.stove .caption { --c: var(--fg); display: grid; gap: 4px; border-inline-start: 5px solid var(--c); padding-inline-start: 14px; min-height: 126px; align-content: start; }.stove .caption h3 { font-family: var(--display); font-weight: 800; font-size: 19px; line-height: 1.15; margin: 0; color: var(--c); }.stove .caption p { margin: 0; max-width: 60ch; }.stove .caption .agent { color: var(--muted); font-size: 15px; }
 .why { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
@@ -193,12 +190,27 @@ canvas { display: block; width: 100%; height: auto; border-radius: 14px; }
 .facts b { font-family: var(--display); color: var(--c); }
 .facts li.all::before { background: conic-gradient(var(--always) 0 25%, var(--jit) 0 50%, var(--advisory) 0 75%, var(--blocking) 0); }
 </style>
-<style>body { background: transparent; } main.embed { padding-block: 4px; padding-inline: 4px; max-width: 640px; }</style>
+<style>
+body { background: transparent; }
+main.embed { padding-block: 4px; padding-inline: 4px; max-width: none; }
+.stove { display: grid; gap: 14px; }
+.stove .caption .agent b { color: var(--fg); font-weight: 600; }
+/* Every caption sits in one cell, hidden but the current one, so the tallest sets the height and picking never moves the page. */
+.stove .caption { min-height: 0; }
+.stove .caption > div { grid-area: 1 / 1; display: grid; gap: 4px; align-content: start; }
+.stove .caption .ghost { visibility: hidden; }
+/* Wide: the scene on the left, the picker and what it means on the right. */
+@media (min-width: 720px) {
+  .stove { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); grid-template-rows: auto 1fr; gap: 16px 24px; align-items: start; }
+  .stove .stage { grid-row: 1 / span 2; }
+  .stove .picker { grid-template-columns: 1fr; gap: 12px; }
+}
+</style>
 </head>
 <body>
 <main class="embed"><section class="stove">
       <div class="stage" id="stove-stage">
-        <svg id="stove-scene" viewBox="0 0 640 316" role="img" aria-labelledby="stove-title" data-state="none">
+        <svg id="stove-scene" viewBox="84 0 432 316" role="img" aria-labelledby="stove-title" data-state="none">
           <title id="stove-title">An adult and a child, with a stove between them</title>
           <defs>
             
@@ -281,17 +293,16 @@ canvas { display: block; width: 100%; height: auto; border-radius: 14px; }
         </svg>
       </div>
       <div class="picker" role="group" aria-label="Kind of help">
-        <div class="group"><span>Before the touch</span><div class="pair">
+        <div class="group"><span>Before the touch (feedforward)</span><div class="pair">
           <button class="pick" type="button" data-pick="always" style="--c:var(--always)">Always-on</button>
           <button class="pick" type="button" data-pick="jit" style="--c:var(--jit)">Just-in-time</button>
         </div></div>
-        <div class="group"><span>After the touch</span><div class="pair">
+        <div class="group"><span>After the touch (feedback)</span><div class="pair">
           <button class="pick" type="button" data-pick="advisory" style="--c:var(--advisory)">Advisory</button>
           <button class="pick" type="button" data-pick="blocking" style="--c:var(--blocking)">Blocking</button>
         </div></div>
       </div>
       <div class="caption" id="stove-caption" aria-live="polite"></div>
-      <p style="font-size:14px;color:var(--muted)">The edit is the dividing line: feedforward helps before it, feedback checks after.</p>
     </section></main>
 <script>
 const root = document.documentElement;
@@ -299,24 +310,28 @@ function readTheme() { try { const t = localStorage.getItem("theme"); if (t === 
 readTheme();
 addEventListener("storage", ev => { if (ev.key === "theme") { readTheme(); if (typeof onTheme === "function") onTheme(); } });
 const HELP = {
-  none: { c: "wrong", name: "No help", stove: "The child touches the stove and gets burned.", agent: "Nothing guides or checks the agent. Every mistake lands as is." },
+  none: { c: "wrong", name: "No help", stove: "The child touches the stove and gets burned.", agent: "Nothing guides or checks it. Every mistake lands as is." },
   always: { c: "always", name: "Always-on feedforward", stove: "\"Stoves are hot,\" said every morning. The child remembers, sometimes.", agent: "Instructions loaded in every session, whether the task needs them or not." },
   jit: { c: "jit", name: "Just-in-time feedforward", stove: "A sign on the stove: \"Caution: hot.\" It's there right when it matters.", agent: "A skill or rule that loads with the task it's about." },
   advisory: { c: "advisory", name: "Advisory feedback", stove: "\"Hot!\" at the touch, with first aid right there. A small burn, quickly treated.", agent: "A warning or failing test right after the edit. The agent usually fixes it." },
-  blocking: { c: "blocking", name: "Blocking feedback", stove: "The stove shuts off the moment a hand touches it. No burn, but it shuts off on the cook too.", agent: "A hook that refuses the edit, so the agent starts over. It can't tell who is asking or why." },
+  blocking: { c: "blocking", name: "Blocking feedback", stove: "The stove shuts off the moment a hand touches it. No burn, but the cook gets stopped too: a false positive.", agent: "A hook that refuses the edit, so the agent starts over. It can't tell a correct edit from a wrong one that looks the same." },
 };
+const text = (h) => `<h3>${h.name}</h3><p>${h.stove}</p><p class="agent"><b>For the agent:</b> ${h.agent}</p>`;
 const scene = document.getElementById("stove-scene"), stage = document.getElementById("stove-stage"), caption = document.getElementById("stove-caption");
+caption.innerHTML = Object.values(HELP).map(h => `<div class="ghost" aria-hidden="true">${text(h)}</div>`).join("") + `<div class="live"></div>`;
 function pick(key) {
   const h = HELP[key];
   scene.dataset.state = key;
   stage.style.setProperty("--c", `var(--${h.c})`);
   caption.style.setProperty("--c", `var(--${h.c})`);
-  caption.innerHTML = `<h3>${h.name}</h3><p>${h.stove}</p><p class="agent">${h.agent}</p>`;
+  caption.querySelector(".live").innerHTML = text(h);
   document.querySelectorAll(".stove [data-pick]").forEach(b => b.setAttribute("aria-pressed", b.dataset.pick === key));
 }
 document.querySelector(".stove .picker").addEventListener("click", ev => { const b = ev.target.closest("[data-pick]"); if (b) pick(b.dataset.pick); });
 pick("none");
 const onTheme = () => {};
+// Same-origin embed: size the iframe to the content, which reflows between one and two columns.
+if (window.frameElement) new ResizeObserver(() => { window.frameElement.style.height = `${document.body.offsetHeight}px`; }).observe(document.body);
 </script>
 </body>
 </html>

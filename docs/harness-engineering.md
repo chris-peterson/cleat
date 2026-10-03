@@ -6,32 +6,20 @@ before each edit (feedforward) and checks on each edit once it's made
 
 ## A toddler and a hot stove
 
-Pick a kind of help and watch what changes.
+Picture the agent as a toddler in a kitchen with a hot stove. You can't watch
+every move, so you set up help around them. Each kind of help in the kitchen is
+one layer of a harness: two work before the touch (feedforward), and two work
+after it (feedback).
 
-<iframe src="lab/stove.html" title="A toddler, an adult, and a hot stove, with four kinds of help to pick from" loading="lazy" style="width: 100%; height: 560px; border: 0;"></iframe>
+| In the kitchen | In a coding session |
+| --- | --- |
+| The toddler | The agent |
+| Touching the hot stove | An edit that needs correction |
+| The adult, stopped from cooking | A false positive: a correct edit a check flags anyway |
 
-## Why not just block everything?
+Pick a kind of help to see what it does in the kitchen and for the agent.
 
-A block judges the action without its context. A stove that shuts off at the
-touch can't tell a toddler from an adult who's cooking, so it stops both. A hook
-sees one action at a time: not the task, not what the person asked for, not why
-the agent is doing it.
-
-- **Can't judge:** a branch name or a chained `git push` can be matched with a
-  pattern. A misread request, an edit outside what was asked, or a misleading
-  comment takes judgment.
-- **Can't tell look-alikes:** a list of banned words blocked the word "arm"
-  where it named an experiment's arm, and the agent reworded a correct term.
-  That's why listed words only warn, while em dashes, which a regex finds with
-  full precision, still block.
-- **Doesn't teach:** each block is a round trip, and the same trigger comes
-  back. Feedforward is what makes the mistake rarer.
-- **Can strand:** with no clear way around it, a person has to step in, the
-  outcome the harness exists to avoid.
-
-So block what a single action reveals precisely, especially when the mistake is
-costly or hard to undo. Advise where the call needs judgment. Feed guidance
-forward to make the mistake happen less often.
+<iframe src="lab/stove.html" title="A toddler, an adult, and a hot stove, with four kinds of help to pick from" loading="lazy" style="width: 100%; height: 350px; border: 0;"></iframe>
 
 ## What it costs
 
@@ -49,6 +37,30 @@ forward to make the mistake happen less often.
 | **Needs correction** | **The priciest:** someone finds the mistake, then fixes it or re-prompts. |
 | **Building a layer** | **Up front, then a carrying cost.** Reliable triggers take the longest. |
 
+## Why not just block everything?
+
+Blocking is the only help in the kitchen that guarantees no burn. But a block
+judges the action without its context: a stove that shuts off at the touch
+can't tell a toddler from an adult who's cooking, so it stops the cook too. A
+hook sees one action at a time: not the task, not what the person asked for, not
+why the agent is doing it.
+
+- **Can't judge:** a branch name or a chained `git push` can be matched with a
+  pattern. A misread request, an edit outside what was asked, or a misleading
+  comment takes judgment.
+- **Can't tell look-alikes:** a list of banned words blocked the word "arm"
+  where it named an experiment's arm, and the agent reworded a correct term.
+  That's why listed words only warn, while em dashes, which a regex finds with
+  full precision, still block.
+- **Doesn't teach:** each block is a round trip, and the same trigger comes
+  back. Feedforward is what makes the mistake rarer.
+- **Can strand:** with no clear way around it, a person has to step in, the
+  outcome the harness exists to avoid.
+
+So block what a single action reveals precisely, especially when the mistake is
+costly or hard to undo. Advise where the call needs judgment. Feed guidance
+forward to make the mistake happen less often.
+
 ## Tips for building a harness
 
 - **Earlier is cheaper:** feedforward costs context on every turn, but a mistake
@@ -60,13 +72,6 @@ forward to make the mistake happen less often.
 - **Feedforward leaves no trace:** to credit it, remove it and compare.
 - **Layers compound:** each one catches part of what the layers before it
   missed.
-
-## Gotchas
-
-- **False alarms:** checks also flag fine edits, and each one costs a turn or
-  talks the agent out of a right answer.
-- **Carrying cost:** every rule, skill, hook and check needs more time to keep
-  current as the code and the tools change.
 
 ## Lab
 

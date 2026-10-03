@@ -94,7 +94,6 @@ a.learn-btn { color: inherit; text-decoration: none; display: inline-flex; align
 .coach { --c: var(--fg); display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 6px 20px; padding-block: 6px; padding-inline: 18px; border-radius: 16px; background: color-mix(in srgb, var(--c) 11%, var(--surface)); }
 .coach .big { font-family: var(--display); font-weight: 800; font-size: 40px; line-height: 0.9; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; color: var(--big); }
 .coach .big small { display: block; font-family: var(--body); font-size: 13px; font-weight: 600; letter-spacing: 0; color: var(--muted); margin-block-start: 6px; }
-.coach .big .glyph { font-size: 0.55em; vertical-align: 0.3em; margin-inline-end: 0.12em; }
 .coach .say b { font-size: 17px; }
 .coach .add { font-weight: 700; font-size: 15px; color: var(--surface); background: var(--c); border: 0; border-radius: 999px; padding-block: 9px; padding-inline: 18px; cursor: pointer; white-space: nowrap; }
 .coach .big:empty { display: none; }
@@ -124,9 +123,6 @@ a.learn-btn { color: inherit; text-decoration: none; display: inline-flex; align
 .slot:hover { background: color-mix(in srgb, var(--c) 8%, transparent); }
 .edit-line { height: 14px; }
 .table { display: grid; gap: 8px; position: relative; }
-.toast { --t: var(--fg); position: absolute; left: 50%; z-index: 2; translate: -50% 0; white-space: nowrap; font-weight: 700; font-size: 13.5px; color: var(--t); background: color-mix(in srgb, var(--t) 16%, var(--surface)); border-radius: 999px; padding-block: 5px; padding-inline: 12px; pointer-events: none; opacity: 0; }
-.toast.show { opacity: 1; }
-@media (prefers-reduced-motion: no-preference) { .toast { transition: opacity 0.25s ease, translate 0.25s ease; translate: -50% 6px; } .toast.show { translate: -50% 0; } }
 .launch { display: grid; padding-block: 6px; margin-block-end: 10px; }
 .launch b { font-family: var(--display); font-size: 18px; }
 .launch span { font-size: 13px; color: var(--muted); }
@@ -211,7 +207,6 @@ canvas { display: block; width: 100%; height: auto; border-radius: 14px; }
       <div class="table">
         <button class="aim" id="aim" type="button" aria-label="Run the 100 edits"></button>
         <canvas id="canvas" width="1200" height="1200" role="img" aria-label="A board: edits fall past four colored rows of pegs, one per layer, into two bins"></canvas>
-        <div class="toast" id="toast" role="status" aria-live="polite"></div>
         <div class="tip" id="tip" role="tooltip" hidden></div>
         <div class="costs" id="costs" aria-live="polite"></div>
       </div>
@@ -296,16 +291,7 @@ function summary() {
   const sum = (f) => done.reduce((t, d) => t + f(d), 0);
   return { n, human: sum(d => d.wrong ? 1 : 0), rescued: sum(d => d.rescued ? 1 : 0), min: sum(d => d.cost.min), tok: sum(d => d.cost.tok), you: sum(d => d.cost.you), build: buildMin() };
 }
-let toastTimer = 0;
-function toast(msg, id) {
-  const el = $("toast"), aim = $("aim");
-  el.textContent = `✓ ${msg[0].toUpperCase()}${msg.slice(1)}`;
-  el.style.setProperty("--t", `var(--${id})`);
-  el.style.top = `${aim.offsetHeight - 18}px`;
-  el.classList.add("show");
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove("show"), 2200);
-}
-function changed(msg, id) { coachMsg = msg; coachLayer = id; toast(msg, id); reset(); }
+function changed(msg, id) { coachMsg = msg; coachLayer = id; reset(); }
 const pct = (a, b) => b ? Math.round(100 * a / b) : 0;
 const nextLayer = () => GROWTH.find(g => !state.on[g.id]);
 const glyph = (up) => up ? "▲" : "▼";
@@ -321,7 +307,7 @@ function renderCoach(fresh) {
     if (harnessEmpty()) big = `${rate}%<small>need correction with no harness</small>`;
     else if (rate === was) big = `${rate}%<small>need correction, same as with no harness</small>`;
     else {
-      big = `<span class="glyph">${glyph(rate > was)}</span>${rate}%<small>need correction, ${was}% with no harness</small>`;
+      big = `${rate}%<small>need correction, ${rate > was ? "up" : "down"} from ${was}% with no harness</small>`;
       tone = rate > was ? "var(--wrong-ink)" : "var(--right-ink)";
     }
     head = !next ? "That's a full harness. Move a slider, or remove a layer and compare."
