@@ -14,5 +14,6 @@
     "hooks",
     "claude-code"
   ],
-  "homepage": "https://chris-peterson.github.io/cleat/#/"
+  "homepage": "https://chris-peterson.github.io/cleat/#/",
+  "documentationUrl": "https://chris-peterson.github.io/cleat/#/"
 }
