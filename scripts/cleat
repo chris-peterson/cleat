@@ -30,8 +30,8 @@ AGENTS = "AGENTS.md"
 CLAUDE = "CLAUDE.md"
 
 # Topic rules belong here rather than in a foreign config: Claude Code loads a
-# path-scoped rule only when it reads a matching file, and no import mechanism
-# does that — an `@path` import loads at launch whatever it costs.
+# path-scoped rule only when it reads, writes, or edits a matching file, and no
+# import mechanism does that — an `@path` import loads at launch whatever it costs.
 RULES_DIR = ".claude/rules"
 # Every reader loads the index at launch, in every session. Past this it starts
 # competing with the guidance it exists to point at.
@@ -765,7 +765,7 @@ def _shadowed_finding(rel, shadow, root):
         "{} files in this tree, so no Claude Code session reads it".format(
             rel, CLAUDE, _relative_to(shadow, _resolved(root)) or shadow, CLAUDE),
         "add a {} holding @{} beside it; Claude Code then loads both when it "
-        "reads a file in that directory".format(CLAUDE, AGENTS),
+        "reads, writes, or edits a file in that directory".format(CLAUDE, AGENTS),
     )
 
 
@@ -1296,7 +1296,7 @@ def _bootstrap(session_id, path):
         )
         action = (
             "Offer to add a {} here holding @{}, so Claude Code loads it whenever "
-            "it reads a file in this directory.".format(CLAUDE, AGENTS)
+            "it reads, writes, or edits a file in this directory.".format(CLAUDE, AGENTS)
         )
     elif path.name == AGENTS:
         # With no CLAUDE.md here or above, Claude Code reads AGENTS.md by

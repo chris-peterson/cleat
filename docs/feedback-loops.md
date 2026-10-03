@@ -60,14 +60,14 @@ what follows it, so a skill's own text is part of the guidance it gives.
 An instruction file in a subdirectory, such as a package in a monorepo, loads
 when the agent works there, and every session elsewhere in the repo skips it.
 That makes it just-in-time feedforward triggered by the directory. Its trigger
-is as loose as a glob: any read in the directory loads it, not only a read
-ahead of an edit, so it suits conventions that apply to most work there.
+is as loose as a glob: any read or write in the directory loads it, not only a
+read ahead of an edit, so it suits conventions that apply to most work there.
 
 Each tool loads a nested `AGENTS.md` its own way:
 
 | Tool | How a nested `AGENTS.md` combines | When it loads |
 |---|---|---|
-| Claude Code | Concatenated after the parent directories' files, through the `CLAUDE.md` beside it that imports it | When a file in that directory is read |
+| Claude Code | Concatenated after the parent directories' files, through the `CLAUDE.md` beside it that imports it | When a file in that directory is read, written, or edited |
 | Cursor | Combined with the parent directories' files, the more specific taking precedence | When working with files in that directory or below |
 | GitHub Copilot | The nearest one to the file takes precedence | When working on a file under it |
 | Codex | One per directory from the repo root down to the working directory, later ones overriding earlier | At launch; files below the working directory aren't read |
@@ -79,11 +79,12 @@ shape has one at the root, so the pointer repeats in each directory that has
 its own guidance.
 
 A `.claude/rules/` directory can sit below the root too. Claude Code loads its
-rules when it reads a file in that directory, and their `paths:` globs are
-relative to the directory that holds `.claude/`, not to the repo root. A rule
-there without `paths:` is scoped to the directory rather than loaded in every
-session. The Claude Code docs don't state the glob anchoring; it was checked
-against Claude Code 2.1.287.
+rules when it reads, writes, or edits a file in that directory, and their
+`paths:` globs are relative to the directory that holds `.claude/`, not to the
+repo root. A rule there without `paths:` is scoped to the directory rather than
+loaded in every session. The Claude Code docs don't state the glob anchoring; it
+was checked against Claude Code 2.1.288, the version that also loads rules on a
+write or an edit.
 
 Sources: Claude Code's
 [memory](https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md)

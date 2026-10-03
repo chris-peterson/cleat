@@ -37,16 +37,17 @@ Ubiquitous (`The <system> shall …`), State-Driven (`While …`), Event-Driven
   beside it, under a directory holding `CLAUDE.md`, `.claude/CLAUDE.md`, or
   `CLAUDE.local.md`. Claude Code reads `AGENTS.md` directly only where none of
   those sits at or above the working directory, so it never reads a shadowed
-  file. A `CLAUDE.md` pointer beside it is what loads it, when Claude Code reads
-  a file in that directory.
+  file. A `CLAUDE.md` pointer beside it is what loads it, when Claude Code reads,
+  writes, or edits a file in that directory.
 - **Inversion** — the reverse of the target shape: `AGENTS.md` is a stub pointing
   back at `CLAUDE.md`, so every non-Claude tool gets the stub.
 - **Foreign config** — a single-tool instruction file (`.cursorrules`,
   `.cursor/rules/*`, `.github/copilot-instructions.md`, `.windsurfrules`,
   `GEMINI.md`) holding guidance every other tool ignores. `.claude/rules/` is not
   one: it is the location cleat recommends for topic rules, because Claude Code
-  loads a path-scoped rule only when it reads a matching file, and no import
-  mechanism does that — an `@path` import loads at launch whatever it costs.
+  loads a path-scoped rule only when it reads, writes, or edits a matching file,
+  and no import mechanism does that — an `@path` import loads at launch
+  whatever it costs.
 - **Topic rule** — a markdown file under `.claude/rules/`, discovered
   recursively. **Always-on** when it carries no `paths:` frontmatter,
   **path-scoped** when its globs can match a file, **retired** when every glob it
