@@ -4,35 +4,23 @@
 
 ### Added
 - `cleat check` reports `shadowed`, an error, for a nested `AGENTS.md` with no
-  `CLAUDE.md` beside it in a repo whose root has one. Claude Code never reads
-  such a file, because any `CLAUDE.md` at or above the working directory turns
-  off its direct `AGENTS.md` reading. The repair is a `CLAUDE.md` pointer beside
-  it. `cleat check` at the root finds every one in the tree, and a repo whose
-  check was green can report it after upgrading.
+  `CLAUDE.md` beside it under a root `CLAUDE.md`, a file no Claude Code session
+  reads. A repo whose check was green can report it after upgrading; the repair
+  is a `CLAUDE.md` pointer beside it.
 - Reading a shadowed `AGENTS.md` offers to add that pointer.
-- When a write adds guidance to `CLAUDE.md` or `AGENTS.md`, the placement
-  question also asks whether it's bound to one directory, and suggests a nested
-  `AGENTS.md` and pointer there.
-- The placement guide says where guidance for one directory goes: a nested
-  `AGENTS.md` and pointer, or a rule under that directory's `.claude/rules/`.
-- A Feedback loops page on the docs site explains the model behind cleat's
-  placement: the four kinds of guidance, pairing a rule with a hook that checks
-  the same habit, and how Claude Code, Cursor, Copilot, and Codex each load
-  nested instruction files.
-- A Harness engineering page on the docs site covers the background: what a
-  harness is, the stove analogy as an interactive scene, why a block can't do
-  the job alone, and what each kind of layer costs. A lab beside it lets you
-  build a harness one layer at a time and compare each run with a baseline
-  that runs the same edits with no harness.
+- When a write adds guidance to `CLAUDE.md` or `AGENTS.md`, cleat also asks
+  whether it's bound to one directory, and suggests a nested `AGENTS.md` and
+  pointer there.
+- Two docs pages: Feedback loops, the model behind cleat's placement, and
+  Harness engineering, with an interactive stove scene and a lab that runs 100
+  edits through a harness you build.
 
 ### Changed
-- The placement guide holds only what the agent acts on. The docs site's
-  Placement and Rubric pages show each guide as the agent reads it. The
-  background the guide carried moves to the Feedback loops page (how to tell
-  whether each kind of guidance is working, and how cleat applies the model to
-  itself) and the Harness engineering page (further reading).
-- The docs site leads with Feedback loops, then Harness engineering and the
-  lab, and groups the guides below them.
+- The placement guide holds only what the agent acts on; the docs site shows it
+  and the rubric with a short intro on how cleat uses each.
+- The rubric no longer sends a `/verify` shortcut to `CLAUDE.md` when it names a
+  `verify` skill, which Claude Code already runs before each commit.
+- The plugin lists the docs site as its documentation.
 
 ## 0.3.0
 
