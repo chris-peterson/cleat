@@ -1,6 +1,6 @@
 {
   "name": "cleat",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Keep a repo's instructions in one AGENTS.md that every agent reads, with CLAUDE.md reduced to a pointer at it.",
   "author": {
     "name": "chris-peterson"

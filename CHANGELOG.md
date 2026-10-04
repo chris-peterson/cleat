@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.0
 
 ### Added
 - `cleat check` reports `shadowed`, an error, for a nested `AGENTS.md` with no
