@@ -33,6 +33,7 @@
   --stove-dark: #6b6890;
   --hot: #ff6a2b;
   --on-color: #ffffff;
+  --bar-h: 0px;
   --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", sans-serif;
   --body: "Figtree", "Helvetica Neue", Arial, sans-serif;
 }
@@ -83,8 +84,20 @@ a.learn-btn { color: inherit; text-decoration: none; display: inline-flex; align
 .disclaimer { font-size: 13px; color: var(--muted); text-align: center; }
 .embedded body { background: transparent; }
 .embedded main { padding-inline: 0; padding-block: 4px; }
-.embedded .bar, .embedded .disclaimer { display: none; }
+.embedded .disclaimer, .embedded .bar > :not(.ticker) { display: none; }
+.embedded .bar { position: fixed; inset-inline: 0; padding-block: 0; background: none; backdrop-filter: none; }
 .embedded .cabinet { background: none; padding-inline: 0; }
+
+/* The ticker: the coach, condensed under the title bar once the coach scrolls out of view. */
+.ticker { --c: var(--fg); position: absolute; inset-inline: 0; top: 100%; display: flex; align-items: center; gap: 12px; min-height: 52px; padding-block: 6px; padding-inline: 14px 6px; border-radius: 14px; background: color-mix(in srgb, var(--c) 11%, var(--surface)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--c) 22%, var(--rule)); visibility: hidden; opacity: 0; transform: translateY(-6px); transition: opacity 160ms, transform 160ms, visibility 0s 160ms; }
+.ticker.on { visibility: visible; opacity: 1; transform: none; transition: opacity 160ms, transform 160ms; }
+.ticker .now { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.ticker .now b { font-family: var(--display); font-weight: 800; font-size: 26px; line-height: 1.05; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: var(--big); }
+.ticker .now span { font-size: 13.5px; font-weight: 600; line-height: 1.25; font-variant-numeric: tabular-nums; }
+.ticker .now b + span { color: var(--muted); }
+.ticker .add { flex: none; font-weight: 700; font-size: 14px; color: var(--surface); background: var(--c); border: 0; border-radius: 999px; padding-block: 9px; padding-inline: 14px; cursor: pointer; max-width: 55%; line-height: 1.2; text-align: center; }
+@media (prefers-reduced-motion: reduce) { .ticker, .ticker.on { transition: none; } }
+@media (prefers-reduced-motion: no-preference) { .ticker.on.fresh { animation: ticket 420ms cubic-bezier(.2, 1.4, .4, 1); } }
 
 
 /* The cabinet. */
@@ -101,6 +114,8 @@ a.learn-btn { color: inherit; text-decoration: none; display: inline-flex; align
 @media (min-width: 761px) { .coach { min-height: 84px; } }
 .coach.plain { background: var(--bg); }
 @media (max-width: 640px) { .coach { grid-template-columns: minmax(0, 1fr); padding-block: 12px; } .coach .add { justify-self: start; } }
+/* Side by side, the board's own run button sits right under the coach; stacked, it is a screen away. */
+@media (min-width: 761px) { .coach .run { display: none; } }
 @media (prefers-reduced-motion: no-preference) { .coach.fresh { animation: ticket 420ms cubic-bezier(.2, 1.4, .4, 1); } }
 @keyframes ticket { from { transform: translateY(-6px) scale(0.98); opacity: 0.4; } }
 
@@ -128,7 +143,7 @@ a.learn-btn { color: inherit; text-decoration: none; display: inline-flex; align
 .launch span { font-size: 13px; color: var(--muted); }
 .aim { position: absolute; inset-inline: 0; top: 0; width: 100%; background: none; border: 0; padding: 0; cursor: pointer; border-radius: 14px 14px 0 0; }
 .aim:focus-visible { outline: 3px solid var(--jit); outline-offset: -3px; }
-canvas { display: block; width: 100%; height: auto; border-radius: 14px; }
+canvas { display: block; width: 100%; height: auto; border-radius: 14px; scroll-margin-top: calc(var(--bar-h) + 64px); scroll-margin-bottom: 8px; }
 .tip { position: absolute; z-index: 5; pointer-events: none; display: grid; gap: 2px; max-width: 240px; background: var(--fg); color: var(--bg); border-radius: 10px; padding-block: 8px; padding-inline: 12px; font-size: 13px; }
 .tip b { font-family: var(--display); font-size: 15px; }
 .tip b.good { color: color-mix(in srgb, var(--right) 55%, var(--bg)); }
@@ -198,6 +213,7 @@ canvas { display: block; width: 100%; height: auto; border-radius: 14px; }
       <button class="theme-toggle" id="theme" type="button" role="switch" aria-label="Dark mode" title="Toggle theme"><span class="sun"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg></span><span class="moon"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></span><i></i></button>
       <a class="learn-btn" id="learn-open" href="../#/harness-engineering">Learn more</a>
     </div>
+    <div class="ticker" id="ticker"></div>
   </header>
 
   <section class="cabinet" aria-label="The board">
@@ -296,32 +312,49 @@ const pct = (a, b) => b ? Math.round(100 * a / b) : 0;
 const nextLayer = () => GROWTH.find(g => !state.on[g.id]);
 const glyph = (up) => up ? "▲" : "▼";
 // Only the share needing correction is colored: green below the baseline, red above it.
+const progress = () => `${landed.length} of ${EDITS} edits sorted`;
 function renderCoach(fresh) {
-  const s = summary(), next = nextLayer(), el = $("coach");
-  let big = "", head, tone = "var(--fg)";
+  const s = summary(), next = nextLayer(), el = $("coach"), tk = $("ticker");
+  let big = "", head, now, tone = "var(--fg)";
   if (!s.n || falling.length) {
     head = !baseline ? "Running the baseline: 100 edits with no harness. Half start out wrong."
       : falling.length ? "100 edits on the way…" : "Run the edits again to compare with the baseline.";
+    now = falling.length ? `<span id="progress">${progress()}</span>` : `<span>${baseline ? "Harness changed" : head}</span>`;
   } else {
     const rate = pct(s.human, s.n), was = pct(baseline.human, baseline.n);
-    if (harnessEmpty()) big = `${rate}%<small>need correction with no harness</small>`;
-    else if (rate === was) big = `${rate}%<small>need correction, same as with no harness</small>`;
+    let short;
+    if (harnessEmpty()) { big = `${rate}%<small>need correction with no harness</small>`; short = "with no harness"; }
+    else if (rate === was) { big = `${rate}%<small>need correction, same as with no harness</small>`; short = "same as with no harness"; }
     else {
       big = `${rate}%<small>need correction, ${rate > was ? "up" : "down"} from ${was}% with no harness</small>`;
+      short = `${rate > was ? "up" : "down"} from ${was}%`;
       tone = rate > was ? "var(--wrong-ink)" : "var(--right-ink)";
     }
+    now = `<b>${rate}%</b><span>need correction, ${short}</span>`;
     head = !next ? "All four layers are on. Move a slider, or remove a layer to see if it carries its weight (an ablation test)."
       : harnessEmpty() ? `That's the baseline. ${next.ask}` : next.ask;
   }
-  el.style.setProperty("--big", tone);
-  const suggest = next && s.n && !falling.length;
-  el.style.setProperty("--c", suggest ? `var(--${next.id})` : "var(--fg)");
+  const suggest = next && s.n && !falling.length, rerun = baseline && !s.n && !falling.length;
+  const cta = suggest ? `<button class="add" type="button" data-add="${next.id}">${next.add}</button>`
+    : rerun ? `<button class="add run" type="button" data-run>Run the 100 edits</button>` : "";
+  for (const box of [el, tk]) {
+    box.style.setProperty("--big", tone);
+    box.style.setProperty("--c", suggest ? `var(--${next.id})` : "var(--fg)");
+  }
   el.classList.toggle("plain", !suggest);
-  el.innerHTML = `<div class="big">${big}</div><div class="say"><b>${head}</b></div>` +
-    (suggest ? `<button class="add" type="button" data-add="${next.id}">${next.add}</button>` : "");
-  if (fresh) { el.classList.remove("fresh"); void el.offsetWidth; el.classList.add("fresh"); }
+  el.innerHTML = `<div class="big">${big}</div><div class="say"><b>${head}</b></div>` + cta;
+  tk.innerHTML = `<div class="now">${now}</div>` + cta;
+  if (fresh) for (const box of [el, tk]) { box.classList.remove("fresh"); void box.offsetWidth; box.classList.add("fresh"); }
 }
-$("coach").addEventListener("click", ev => { const b = ev.target.closest("[data-add]"); if (b) setLayer(b.dataset.add, true); });
+function onCta(ev) {
+  const b = ev.target.closest("[data-add], [data-run]");
+  if (!b) return;
+  if (b.dataset.add) return setLayer(b.dataset.add, true);
+  letGo();
+  canvas.scrollIntoView({ block: "nearest", behavior: reduced ? "auto" : "smooth" });
+}
+$("coach").addEventListener("click", onCta);
+$("ticker").addEventListener("click", onCta);
 
 /* The board. */
 function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
@@ -458,7 +491,9 @@ function tick(ts) {
     const k = discAt(d).reached;
     for (let j = 1; j <= k; j++) { const s = d.pts[j].step; if (s && (s.flipped || s.blocked) && !d.fired.has(j)) { d.fired.add(j); flashes.push({ x: d.pts[j].x, y: d.pts[j].y, id: s.phase.id, ff: s.phase.ff, blocked: s.blocked, life: 1 }); } }
   }
-  for (const d of falling.filter(d => d.time >= d.total)) { Object.assign(d.pts[d.pts.length - 1], nextSlot(d.bin)); land(d); }
+  const sorted = falling.filter(d => d.time >= d.total);
+  for (const d of sorted) { Object.assign(d.pts[d.pts.length - 1], nextSlot(d.bin)); land(d); }
+  if (sorted.length && $("progress")) $("progress").textContent = progress();
   falling = falling.filter(d => d.time < d.total);
   flashes.forEach(f => f.life -= dt * 1.5); flashes = flashes.filter(f => f.life > 0);
   paint();
@@ -502,6 +537,8 @@ function paint() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.fillStyle = cssVar("--surface"); ctx.fillRect(0, 0, BW, BH);
   const font = (w, s, fam) => `${w} ${s}px ${fam || '"Figtree", "Helvetica Neue", Arial, sans-serif'}`;
+  // The board shrinks with the screen; its text stops shrinking at a readable size.
+  const k = BW / (canvas.clientWidth || BW), atLeast = (size, cssPx) => Math.max(size, cssPx * k);
   const WALL = 5, inset = WALL / 2 + 1, fadeEnd = ROW0 + 38;
   const fade = (hex) => { const g = ctx.createLinearGradient(0, 0, 0, fadeEnd); g.addColorStop(0, hex + "00"); g.addColorStop(1, hex); return g; };
   const cabinet = () => { ctx.beginPath(); ctx.rect(inset, 0, BW - 2 * inset, BH - inset); };
@@ -526,8 +563,8 @@ function paint() {
   if (falling.length) disc(hx, 9);
   else {
     const label = "Run the 100 edits";
-    ctx.font = font(800, 17, '"Bricolage Grotesque", "Avenir Next", sans-serif');
-    const r = 10, h = 38, cy = ROW0 + 10, tw = ctx.measureText(label).width, w = 12 + 2 * r + 10 + tw + 20, x0 = hx - w / 2;
+    ctx.font = font(800, atLeast(17, 14), '"Bricolage Grotesque", "Avenir Next", sans-serif');
+    const r = atLeast(10, 8), h = atLeast(38, 30), cy = ROW0 + 10, tw = ctx.measureText(label).width, w = 12 + 2 * r + 10 + tw + 20, x0 = hx - w / 2;
     const outline = landed.length && nextLayer();
     ctx.beginPath(); ctx.roundRect(x0, cy - h / 2, w, h, h / 2);
     if (outline) { ctx.strokeStyle = cssVar("--fg"); ctx.lineWidth = 2; ctx.stroke(); } else { ctx.fillStyle = cssVar("--fg"); ctx.fill(); }
@@ -559,17 +596,20 @@ function paint() {
   BINS.forEach((name, i) => {
     const x0 = i * BW / 2 + 8, x1 = (i + 1) * BW / 2 - 8, mid = (x0 + x1) / 2, c = cssVar(i ? "--wrong" : "--right");
     const n = i ? s.human : s.n - s.human;
-    ctx.fillStyle = cssVar(i ? "--wrong-ink" : "--right-ink"); ctx.font = font(700, 15); ctx.textAlign = "center";
+    ctx.fillStyle = cssVar(i ? "--wrong-ink" : "--right-ink"); ctx.font = font(700, atLeast(15, 12)); ctx.textAlign = "center";
     ctx.fillText(name, mid, BIN_TOP + 22);
-    const big = font(800, 32, '"Bricolage Grotesque", "Avenir Next", sans-serif'), small = font(700, 16);
+    const big = font(800, atLeast(32, 20), '"Bricolage Grotesque", "Avenir Next", sans-serif'), small = font(700, 16);
     const num = s.n ? `${n}` : "", share = "";
     ctx.font = big; const wn = ctx.measureText(num).width; ctx.font = small; const ws = share ? ctx.measureText(share).width + 8 : 0;
     const x = mid - (wn + ws) / 2;
     ctx.textAlign = "left"; ctx.font = big; ctx.fillStyle = cssVar("--fg"); ctx.fillText(num, x, BIN_TOP + 56);
     if (share) { ctx.font = small; ctx.fillStyle = cssVar("--muted"); ctx.fillText(share, x + wn + 8, BIN_TOP + 56); }
     if (!i && s.rescued) {
-      const cap = `${s.rescued} rescued, ringed by the layers that rescued them`;
-      let size = 13; do { ctx.font = font(600, size); } while (ctx.measureText(cap).width > x1 - x0 - 24 && --size > 9);
+      const room = x1 - x0 - 24, size = atLeast(13, 11);
+      ctx.font = font(600, size);
+      let cap = `${s.rescued} rescued, ringed by the layers that rescued them`;
+      if (ctx.measureText(cap).width > room) cap = `${s.rescued} rescued, ringed by layer`;
+      for (let fit = size; ctx.measureText(cap).width > room && fit > 9; ) ctx.font = font(600, --fit);
       ctx.fillStyle = cssVar("--muted"); ctx.textAlign = "center";
       ctx.fillText(cap, mid, BIN_TOP + 74);
     }
@@ -618,12 +658,17 @@ addEventListener("resize", layoutBoard);
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", paint);
 let hovered = null;
 const SHORT = { always: "Always-on", jit: "Just-in-time", advisory: "Advisory", blocking: "Blocking" };
-function discUnder(x, y) {
+// The nearest disc within reach; a fingertip reaches further than a mouse pointer.
+function discUnder(x, y, reach) {
+  let best = null, bestD = Infinity;
   for (const b of [0, 1]) {
     const pile = landed.filter(d => d.bin === b), n = pile.length;
-    for (let i = 0; i < n; i++) { const at = slotAt(b, i, n); if (Math.hypot(at.x - x, at.y - y) <= Math.max(at.r + 1.5, 5)) return pile[i]; }
+    for (let i = 0; i < n; i++) {
+      const at = slotAt(b, i, n), dist = Math.hypot(at.x - x, at.y - y);
+      if (dist <= Math.max(at.r + 1.5, reach) && dist < bestD) { best = pile[i]; bestD = dist; }
+    }
   }
-  return null;
+  return best;
 }
 function describe(d) {
   const e = d.e, items = [];
@@ -637,17 +682,29 @@ function describe(d) {
     <span class="cost">${d.cost.min.toFixed(1)} min, ${fmtTok(d.cost.tok)} tokens${d.cost.you ? `, ${d.cost.you} min of yours` : ""}</span>`;
 }
 const tip = $("tip");
-canvas.addEventListener("pointermove", ev => {
-  const r = canvas.getBoundingClientRect(), k = BW / r.width;
-  const d = discUnder((ev.clientX - r.left) * k, (ev.clientY - r.top) * k);
+const bar = document.querySelector(".bar"), ticker = $("ticker");
+function showTip(ev) {
+  const r = canvas.getBoundingClientRect(), k = BW / r.width, mouse = ev.pointerType === "mouse";
+  const d = discUnder((ev.clientX - r.left) * k, (ev.clientY - r.top) * k, (mouse ? 5 : 14) * k);
   if (d !== hovered) { hovered = d; if (!raf) paint(); }
   if (!d) { tip.hidden = true; return; }
   tip.innerHTML = describe(d); tip.hidden = false;
   const tr = canvas.parentElement.getBoundingClientRect(), x = ev.clientX - tr.left, y = ev.clientY - tr.top;
-  tip.style.left = `${Math.min(x + 14, tr.width - tip.offsetWidth - 4)}px`;
-  tip.style.top = `${Math.max(4, y - tip.offsetHeight - 12)}px`;
-});
-canvas.addEventListener("pointerleave", () => { hovered = null; tip.hidden = true; if (!raf) paint(); });
+  tip.style.left = `${Math.max(4, Math.min(mouse ? x + 14 : x - tip.offsetWidth / 2, tr.width - tip.offsetWidth - 4))}px`;
+  // Above the pointer unless the title bar or ticker would cover it; then below, clear of a fingertip.
+  const covered = (ticker.classList.contains("on") ? ticker : bar).getBoundingClientRect().bottom - tr.top;
+  const above = y - tip.offsetHeight - 12;
+  tip.style.top = `${above >= Math.max(4, covered + 4) ? above : y + (mouse ? 16 : 28)}px`;
+}
+function hideTip() { if (!hovered && tip.hidden) return; hovered = null; tip.hidden = true; if (!raf) paint(); }
+canvas.addEventListener("pointermove", ev => { if (ev.pointerType === "mouse") showTip(ev); });
+// A finger has no hover: tapping a disc tells its story, and tapping anywhere else puts it away.
+canvas.addEventListener("pointerdown", ev => { if (ev.pointerType !== "mouse") showTip(ev); });
+canvas.addEventListener("pointerleave", ev => { if (ev.pointerType === "mouse") hideTip(); });
+addEventListener("pointerdown", ev => { if (ev.pointerType !== "mouse" && ev.target !== canvas) hideTip(); });
+function placeTicker() { ticker.classList.toggle("on", $("coach").getBoundingClientRect().bottom < bar.getBoundingClientRect().bottom); }
+addEventListener("scroll", placeTicker, { passive: true });
+new ResizeObserver(() => { root.style.setProperty("--bar-h", `${bar.offsetHeight}px`); placeTicker(); }).observe(bar);
 const themeBtn = $("theme"), darkQuery = matchMedia("(prefers-color-scheme: dark)");
 const isDark = () => document.documentElement.dataset.theme ? document.documentElement.dataset.theme === "dark" : darkQuery.matches;
 function showTheme() { themeBtn.setAttribute("aria-checked", isDark()); paint(); }
@@ -659,9 +716,17 @@ themeBtn.addEventListener("click", () => {
 });
 const onTheme = showTheme;
 // Embedded in the docs page, the site supplies the title, theme toggle and navigation, and the frame grows to fit.
+// Once the board stacks under the controls, the run's result and its next step are a screen apart, so the frame
+// instead fills the screen below the site's fixed title bar and the lab scrolls inside it, keeping the ticker in view.
 if (window.frameElement) {
-  const fit = () => { window.frameElement.style.height = `${Math.ceil(document.querySelector("main").getBoundingClientRect().height)}px`; };
+  const frame = window.frameElement, stacked = matchMedia("(max-width: 760px)");
+  const fit = () => {
+    frame.style.height = stacked.matches
+      ? `${parent.innerHeight - parent.document.querySelector(".titlebar").offsetHeight}px`
+      : `${Math.ceil(document.querySelector("main").getBoundingClientRect().height)}px`;
+  };
   new ResizeObserver(fit).observe(document.querySelector("main"));
+  parent.addEventListener("resize", fit);
 }
 darkQuery.addEventListener("change", showTheme);
 showTheme();
