@@ -531,8 +531,9 @@ check.
 #### `PACKAGING-08`
 The placement guide shall carry the placement tree, where guidance for one
 directory goes, the audience tiers, and the reference direction, name the rubric
-as the split for the `AGENTS.md` / `CLAUDE.md` leaf, and project to the docs
-site with the other guides.
+as the split for the `AGENTS.md` / `CLAUDE.md` leaf, and hold only what the
+agent acts on. The docs site shall show each guide on a page that includes it
+verbatim, where the background for people is added.
 
 #### `PACKAGING-09`
 The docs site shall carry a feedback loops page, written for end users, with the

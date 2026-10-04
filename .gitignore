@@ -5,11 +5,13 @@
 docs/*
 !docs/README.md
 !docs/_sidebar.md
+!docs/agents-vs-claude.md
 !docs/favicon.svg
 !docs/feedback-loops.md
 !docs/harness-engineering.md
 !docs/lab/
 !docs/lab.md
+!docs/placement.md
 
 __pycache__
 .DS_Store

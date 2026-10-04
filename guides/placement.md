@@ -50,94 +50,42 @@ copy. A generated projection isn't a copy either. It's rendered from its source
 and can't drift, so cleat skips any file git ignores or marks
 `linguist-generated` in `.gitattributes`.
 
-## Why the moment of action
+## Guidance for the agent
 
-Picture a toddler reaching for a hot stove. There are four points where the
-toddler can learn the stove is hot:
+Pick the kind of guidance by when it has to reach the agent:
 
-| When | At the stove | For an agent | Kind |
-|---|---|---|---|
-| Every morning | "Stoves are hot." | `AGENTS.md`, always-on rules | Always-on feedforward |
-| The hand moves toward the stove | A sign on the stove: "Caution: hot." | A path-scoped rule loading on a read, a hook adding guidance before a call | Just-in-time feedforward |
-| At the touch | A parent shouts "Hot!"; the child pulls back, and first aid is right there | A `PostToolUse` report, a failing test | Advisory feedback |
-| Any touch at all | The stove shuts off the moment a hand touches it, the cook's included | A `PreToolUse` deny, a failing gate | Blocking feedback |
+| Kind | Where it lives |
+|---|---|
+| Always-on feedforward | `AGENTS.md`, always-on rules |
+| Just-in-time feedforward | A path-scoped rule loading on a read, a hook adding guidance before a call |
+| Advisory feedback | A `PostToolUse` report, a failing test |
+| Blocking feedback | A `PreToolUse` deny, a failing gate |
 
-The docs site's
-[Harness engineering](https://chris-peterson.github.io/cleat/#/harness-engineering)
-page shows each point as a scene, with a lab to try the four together.
+- **A hook first, when one can decide it.** A constraint decidable from a single
+  tool call's own inputs (a branch name in a command, a path in a write, a flag)
+  belongs in a hook. A hook costs nothing until it fires and acts on what the
+  agent did rather than on what it was told. As a rule, "branch names match
+  `[a-z-]+`" rides along in every session; as a hook, it denies the bad name in
+  the one command that creates it.
+- **Block only what one call reveals precisely.** A hook sees one tool call and
+  none of the context around it, so it can't tell a mistake from a correct use
+  that looks the same. Block where the mistake is costly or hard to undo (a
+  push, a deploy, a deleted file), and advise where the call needs judgment.
+- **Just-in-time over always-on.** Everything always-on is paid for in every
+  session, whether that session needs it or not, and competes with every other
+  always-on line: the more an agent carries, the less reliably it honors each.
+  Just-in-time guidance arrives with its trigger, specific to what the agent is
+  doing right then.
+- **Don't shout.** Rewriting an ignored rule as `IMPORTANT: ...` rarely changes
+  what the agent does, and it can backfire: a nag that never stops gets tuned
+  out. Move the rule to where it applies instead.
+- **Always-on for what every session needs:** what the project is, how to build
+  and test it, the words it uses. Keep the set small enough that each line in
+  `AGENTS.md` applies to nearly every session.
 
-Feedforward acts before the agent does and makes a mistake less likely.
-Feedback acts after, and is the only thing that catches one. The more of the
-correction the agent makes itself, within the session, the more the result is
-decided by the loop rather than by the agent's first attempt. The toddler
-decides at every point but the last: a warning can be ignored, and the shout
-comes with help already there. With none of them, the burn is worse and no one
-is there to help. For an agent, that's a mistake a person has to find and fix.
-
-**Why just-in-time over always-on.** The morning lecture is said once, hours
-before the stove, alongside everything else the toddler hears that day, and it
-doesn't say which stove. The warning at the stove names the exact hazard at the
-moment the choice is made. Instruction files work the same way:
-
-- Everything always-on is paid for in every session, whether that session goes
-  near the stove or not.
-- Every always-on instruction competes with every other one. The more an agent
-  carries, the less reliably it honors each.
-- A just-in-time instruction arrives with its trigger, so it's specific to what
-  the agent is doing right then.
-- A just-in-time instruction can be measured: it fires, and the agent's next
-  action either follows it or doesn't. An always-on instruction's effect only
-  shows when you ablate it, running without it and comparing.
-
-**Why a hook first, when one can decide it.** A hook costs nothing until it
-fires, acts on what the agent actually did rather than on what it was told, and
-can't be forgotten halfway through a long session. A constraint decidable from a
-single tool call's own inputs (a branch name in a command, a path in a write, a
-flag) belongs in a hook. A convention like "branch names match `[a-z-]+`" is
-the typical case: as a rule, it rides along in every session; as a hook, it
-denies the bad name in the one command that creates it. Keep prose for what
-needs judgment across the turn, the diff, or the user's intent. A hook is a
-blunt instrument: it sees one tool call and none of the context around it, so
-it can't tell a mistake from a correct use that looks the same, and it fixes
-each instance without changing the habit behind it.
-
-**How much the burn costs decides how early to warn.** For a toddler every burn
-hurts. For an agent most are cheap: a failed test, then a rewrite. Some can't be
-undone: a push, a deleted file, a deploy, a message sent to someone. The more a
-mistake costs, the more it's worth a stove that shuts off at the touch.
-
-**When always-on is right.** Some guidance is needed before any trigger could
-fire: what the project is, how to build and test it, the words it uses. That
-belongs in `AGENTS.md`. Keep the set small enough that each line in it applies
-to nearly every session.
-
-cleat follows its own advice. Nothing of it loads at launch. Its gate stops a
-write before it lands, and its nudge reports right after one. That's also why
-it asks where new guidance belongs at the write rather than earlier: a hook
-sees what the agent does, not what it suggests in chat, so the question arrives
-when the agent acts on a preference instead of when it recommends one. The
-session that answers pays one round trip; every later session that would have
-carried the misplaced line is the one that benefits.
-
-### How to tell whether it's working
-
-Each kind fails differently, so each has its own measure:
-
-- **Always-on feedforward**: whether the mistake it exists to prevent still
-  happens. If the matching feedback keeps firing, the instruction isn't working.
-- **Just-in-time feedforward**: how often it loads where it doesn't apply. A
-  rule whose globs match too much turns into always-on feedforward at a higher
-  price.
-- **Feedback**: how often it fires, and how often the agent acts on it. A deny
-  that's re-issued unchanged every time is noise, and the rule behind it belongs
-  in a narrower place or nowhere.
-
-Further reading: Birgitta Böckeler's
-[Harness engineering for coding agent users](https://martinfowler.com/articles/exploring-gen-ai/harness-engineering.html)
-frames the harness as feedforward guides and feedback sensors, and the
-Thoughtworks Technology Radar's
-[Feedback sensors for coding agents](https://www.thoughtworks.com/radar/techniques/feedback-sensors-for-coding-agents)
-recommends running those sensors in the session, before a commit.
+The background for these choices, with what each kind costs, is on the docs
+site:
+[Harness engineering](https://chris-peterson.github.io/cleat/#/harness-engineering).
 
 ## Guidance for one directory
 
@@ -201,7 +149,7 @@ keep the one whose reader acts on it and link from the other.
 
 ## Why a finding can be overridden
 
-The toddler decides. cleat's checks decide facts (a copy exists, a link points
+The agent decides. cleat's checks decide facts (a copy exists, a link points
 the wrong way), but whether a given copy or link is the right call is judgment,
 and the agent in the session has context cleat doesn't. So a deny stops a write
 once. Re-issue the identical write and it goes through, and cleat stays quiet

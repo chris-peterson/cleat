@@ -147,7 +147,7 @@ CHECK-12 is retired and not counted.
 | PACKAGING-05 | Covered | guides/agents-vs-claude.md; scripts/cleat (`RUBRIC`, `_deny_reason`, `_bootstrap`) |
 | PACKAGING-06 | Covered | AGENTS.md; CLAUDE.md; `just self-check` |
 | PACKAGING-07 | Covered | scripts/tests/check.test.sh — the grading-table fixtures |
-| PACKAGING-08 | Covered | guides/placement.md; docs/_sidebar.md |
+| PACKAGING-08 | Covered | guides/placement.md; docs/placement.md; docs/agents-vs-claude.md; docs/_sidebar.md |
 | PACKAGING-09 | Covered | docs/feedback-loops.md; docs/_sidebar.md |
 | PACKAGING-10 | Covered | docs/harness-engineering.md; docs/_sidebar.md |
 
@@ -160,6 +160,10 @@ CHECK-12 is retired and not counted.
 | STATE-03 | Covered | scripts/cleat (`_prune_sessions`) |
 
 ## Audit history
+
+### 2026-10-04 — Agent guides and their docs pages (spec-req)
+
+PACKAGING-08 amended. The placement guide holds only what the agent acts on; the docs site's Placement and Rubric pages include each guide verbatim and carry the background for people. 93/93 Covered.
 
 ### 2026-10-02 — Harness engineering page and lab (spec-req)
 

@@ -16,6 +16,11 @@ either file alone reaches half your tools. cleat holds a repo in the one shape
 that satisfies both, using hooks, so there's no command to remember, and nothing
 sitting in your context window.
 
+cleat is one layer of a harness: the guidance and checks around a coding agent
+that steer its work. [Harness engineering](/harness-engineering) shows each
+kind of layer as a toddler at a hot stove, with what each one costs, and the
+[lab](/lab) lets you build a harness and run 100 edits through it.
+
 ## In action
 
 <div class="cw-session" data-cw-session="session"></div>

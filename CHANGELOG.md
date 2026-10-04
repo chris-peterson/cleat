@@ -25,6 +25,14 @@
   build a harness one layer at a time and compare each run with a baseline
   that runs the same edits with no harness.
 
+### Changed
+- The placement guide holds only what the agent acts on. The docs site's
+  Placement and Rubric pages show each guide as the agent reads it, and the
+  Placement page adds the background for people: how to tell whether each kind
+  of guidance is working, and further reading.
+- The docs site leads with Harness engineering and the lab, and groups the
+  guides below them.
+
 ## 0.3.0
 
 ### Added

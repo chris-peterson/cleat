@@ -17,9 +17,10 @@ after it (feedback).
 | Touching the hot stove | An edit that needs correction |
 | The adult, stopped from cooking | A false positive: a correct edit a check flags anyway |
 
-Pick a kind of help to see what it does in the kitchen and for the agent.
+Start with no help, then pick a kind of help to see what it does in the kitchen
+and for the agent.
 
-<iframe src="lab/stove.html" title="A toddler, an adult, and a hot stove, with four kinds of help to pick from" loading="lazy" style="width: 100%; height: 350px; border: 0;"></iframe>
+<iframe src="lab/stove.html" title="A toddler, an adult, and a hot stove, with no help or one of four kinds of help to pick" loading="lazy" style="width: 100%; height: 350px; border: 0;"></iframe>
 
 ## What it costs
 
@@ -28,9 +29,9 @@ Pick a kind of help to see what it does in the kitchen and for the agent.
 | **Every edit** | **The baseline:** a turn of the agent's time and tokens. |
 | **Always-on** | **Paid on every turn,** needed or not, and followed less as it grows. |
 | **Just-in-time** | **Paid only when it fires** with the task it's for. |
-| **Advisory** | **Cheap to run, cheap to act on:** a check on the edits it targets. A catch is a warning the agent reads and repairs. |
-| **Blocking** | **Cheap to run, costly to act on:** a check on the edits it targets. A catch refuses the edit, the agent starts over, and the redo can go wrong too. |
-| **Chasing perfection** | **The 80/20 rule:** most mistakes are cheap to catch; chasing the rest brings diminishing returns. |
+| **Advisory** | **Cheap to run, cheap to act on:** a check on the edits it targets. A flagged edit gets a warning the agent reads and repairs. |
+| **Blocking** | **Cheap to run, costly to act on:** a check on the edits it targets. A flagged edit is refused, the agent starts over, and the redo can go wrong too. |
+| **Chasing perfection** | **The 80/20 rule:** most mistakes are cheap to rescue; chasing the rest brings diminishing returns. |
 
 | | Your time |
 | --- | --- |
@@ -40,8 +41,8 @@ Pick a kind of help to see what it does in the kitchen and for the agent.
 ## Why not just block everything?
 
 Blocking is the only help in the kitchen that guarantees no burn. But a block
-judges the action without its context: a stove that shuts off at the touch
-can't tell a toddler from an adult who's cooking, so it stops the cook too. A
+judges the action without its context: a stove that refuses every touch can't
+tell a toddler from an adult who's cooking, so it stops the cook too. A
 hook sees one action at a time: not the task, not what the person asked for, not
 why the agent is doing it.
 
@@ -67,13 +68,14 @@ forward to make the mistake happen less often.
   it prevents needs no fix or redo.
 - **Later costs a redo:** a block sends the agent back to start the edit over,
   and the redo can go wrong too.
-- **Just-in-time is the best catch, when it fires:** making it fire on the right
-  task is the hard part.
-- **Feedforward leaves no trace:** to credit it, remove it and compare.
-- **Layers compound:** each one catches part of what the layers before it
+- **Just-in-time is the best rescue, when it fires:** making it fire on the
+  right task is the hard part.
+- **Feedforward leaves no trace:** to credit it, remove it and compare (an
+  ablation test).
+- **Layers compound:** each one rescues part of what the layers before it
   missed.
 
 ## Lab
 
 The [lab](/lab) puts these layers together: build a harness one layer at a
-time, and compare what each run catches with what it costs.
+time, and compare what each run rescues with what it costs.

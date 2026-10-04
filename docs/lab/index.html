@@ -310,7 +310,7 @@ function renderCoach(fresh) {
       big = `${rate}%<small>need correction, ${rate > was ? "up" : "down"} from ${was}% with no harness</small>`;
       tone = rate > was ? "var(--wrong-ink)" : "var(--right-ink)";
     }
-    head = !next ? "That's a full harness. Move a slider, or remove a layer and compare."
+    head = !next ? "All four layers are on. Move a slider, or remove a layer to see if it carries its weight (an ablation test)."
       : harnessEmpty() ? `That's the baseline. ${next.ask}` : next.ask;
   }
   el.style.setProperty("--big", tone);

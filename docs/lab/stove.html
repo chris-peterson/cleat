@@ -156,12 +156,20 @@ canvas { display: block; width: 100%; height: auto; border-radius: 14px; }
 .sheet .in { padding-block: 20px 40px; padding-inline: 24px; display: grid; gap: 28px; }
 .sheet header { display: flex; align-items: center; justify-content: space-between; gap: 12px; position: sticky; top: 0; background: var(--surface); padding-block: 4px; }
 .sheet section { display: grid; gap: 12px; }
-.stove .stage { --c: var(--wrong); background: var(--bg); border-radius: 16px; padding-block: 8px 0; padding-inline: 8px; overflow: hidden; }.stove svg { display: block; width: 100%; height: auto; }.stove .ink { fill: var(--ink); }.stove .limb { stroke: var(--ink); stroke-width: 15; stroke-linecap: round; fill: none; }.stove .child .limb { stroke-width: 11; }.stove .arm { transition: transform 520ms cubic-bezier(.3, 1.3, .5, 1); transform: rotate(-80deg); }.stove [data-state] .arm { transform: rotate(42deg); }.stove .child { transition: transform 520ms cubic-bezier(.3, 1.3, .5, 1); }.stove .adult { transition: transform 520ms cubic-bezier(.3, 1.3, .5, 1); transform: translateX(-70px); }.stove [data-state="advisory"] .adult, .stove [data-state="blocking"] .adult { transform: none; }.stove [data-state="always"] .child, .stove [data-state="jit"] .child { transform: translateX(30px); }.stove .cook-arm { transition: transform 520ms cubic-bezier(.3, 1.3, .5, 1); transform: rotate(80deg); }.stove [data-state="blocking"] .cook-arm { transform: rotate(22deg); }.stove .show { opacity: 0; transition: opacity 260ms; }.stove [data-state="none"] .s-none, .stove [data-state="always"] .s-always, .stove [data-state="jit"] .s-jit, .stove [data-state="advisory"] .s-advisory, .stove [data-state="blocking"] .s-blocking { opacity: 1; }.stove [data-state="blocking"] .glow { opacity: 0; animation: none; }.stove [data-state="blocking"] .burner { fill: var(--surface); }.stove .glow, .stove .burner { transition: opacity 260ms 360ms, fill 260ms 360ms; }
-@media (prefers-reduced-motion: no-preference) {.stove .burst { transform-box: fill-box; transform-origin: center; }.stove [data-state="none"] .s-none .burst, .stove [data-state="advisory"] .s-advisory .burst { animation: pop 520ms 380ms both; }.stove .glow { animation: flicker 2.4s ease-in-out infinite alternate; }
+.stove .stage { --c: var(--wrong); background: var(--bg); border-radius: 16px; padding-block: 8px 0; padding-inline: 8px; overflow: hidden; }.stove svg { display: block; width: 100%; height: auto; }.stove .ink { fill: var(--ink); }.stove .limb { stroke: var(--ink); stroke-width: 15; stroke-linecap: round; fill: none; }.stove .child .limb { stroke-width: 11; }.stove .arm { transition: transform 520ms cubic-bezier(.3, 1.3, .5, 1); transform: rotate(-80deg); }.stove [data-state] .arm { transform: rotate(42deg); }.stove [data-state="always"] .arm, .stove [data-state="blocking"] .arm { transform: rotate(-80deg); }.stove .child { transition: transform 520ms cubic-bezier(.3, 1.3, .5, 1); }.stove .adult { transition: transform 520ms cubic-bezier(.3, 1.3, .5, 1); transform: translateX(-70px); }.stove [data-state="advisory"] .adult, .stove [data-state="blocking"] .adult { transform: none; }.stove [data-state="jit"] .adult { transform: translateX(-230px); }.stove [data-state="always"] .child, .stove [data-state="jit"] .child { transform: translateX(30px); }.stove [data-state="blocking"] .child { transform: translateX(120px); }.stove .cook-arm { transition: transform 520ms cubic-bezier(.3, 1.3, .5, 1); transform: rotate(80deg); }.stove [data-state="blocking"] .cook-arm { transform: rotate(75deg); }.stove .fore { transition: transform 520ms cubic-bezier(.3, 1.3, .5, 1); }.stove [data-state="blocking"] .fore { transform: rotate(-75deg); }.stove .pan { transition: transform 520ms cubic-bezier(.3, 1.3, .5, 1); transform: rotate(-80deg); opacity: 0; }.stove [data-state="blocking"] .pan { transform: none; opacity: 1; }.stove .show { opacity: 0; transition: opacity 260ms; }.stove [data-state="none"] .s-none, .stove [data-state="always"] .s-always, .stove [data-state="jit"] .s-jit, .stove [data-state="advisory"] .s-advisory, .stove [data-state="blocking"] .s-blocking { opacity: 1; }.stove [data-state="blocking"] .glow { opacity: 0; animation: none; }.stove [data-state="always"] .burner, .stove [data-state="blocking"] .burner { fill: var(--surface); }.stove .glow, .stove .burner { transition: opacity 260ms 360ms, fill 260ms 360ms; }
+@media (prefers-reduced-motion: no-preference) {.stove .burst { transform-box: fill-box; transform-origin: center; }.stove [data-state="none"] .s-none .burst, .stove [data-state="advisory"] .s-advisory .burst { animation: pop 520ms 380ms both; }.stove .glow { animation: flicker 2.4s ease-in-out infinite alternate; }.stove .nag { transform-box: fill-box; transform-origin: 0% 100%; }.stove .ponder { transform-box: fill-box; transform-origin: 50% 100%; }.stove [data-state="always"] .nag { animation: nag 4s ease-in-out infinite; }.stove [data-state="always"] .ponder { animation: ponder 4s ease-in-out infinite; }.stove .sign { transform-box: fill-box; transform-origin: center; }.stove [data-state="jit"] .arm { animation: reach 4s ease-in-out infinite; }.stove [data-state="jit"] .sign { animation: sign 4s ease-in-out infinite; }.stove [data-state="jit"] .adult { transition: transform 900ms ease-in; }.stove [data-state="blocking"] .adult { animation: enter 900ms ease-out both; }.stove [data-state="blocking"] .child { transition: transform 900ms ease-in; }.stove [data-state="blocking"] .cook-arm { animation: cook 400ms 900ms ease-in-out both; }.stove [data-state="blocking"] .fore { animation: bend 400ms 900ms ease-in-out both; }.stove [data-state="blocking"] .pan { animation: level 400ms 900ms ease-in-out both; }.stove [data-state="blocking"] .s-blocking { transition-delay: 1300ms; }.stove [data-state="blocking"] .burner { transition-delay: 0s; }.stove .fume { transform-box: fill-box; transform-origin: 50% 100%; }.stove [data-state="blocking"] .fume { animation: pop 420ms 1700ms both; }
 }
-@media (prefers-reduced-motion: reduce) {.stove .arm, .stove .child, .stove .adult, .stove .cook-arm, .stove .show, .stove .glow, .stove .burner { transition: none; } }
+@media (prefers-reduced-motion: reduce) {.stove .arm, .stove .child, .stove .adult, .stove .cook-arm, .stove .fore, .stove .pan, .stove .show, .stove .glow, .stove .burner { transition: none; } }
 @keyframes pop { from { transform: scale(0.2); opacity: 0; } 60% { transform: scale(1.15); opacity: 1; } }
-@keyframes flicker { to { opacity: 0.7; } }.stove .bubble-text { font-family: var(--display); font-weight: 800; font-size: 19px; fill: var(--on-color); }.stove .tag-text { font-family: var(--body); font-weight: 700; font-size: 14px; fill: var(--on-color); }.stove .ouch { font-family: var(--display); font-weight: 800; font-size: 20px; fill: var(--wrong); }.stove .picker { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px 10px; align-items: end; }
+@keyframes flicker { to { opacity: 0.7; } }
+@keyframes nag { 0% { transform: scale(0.6); opacity: 0; } 5% { transform: scale(1.06); opacity: 1; } 9% { transform: scale(1); } 38% { opacity: 1; } 46%, 100% { transform: scale(1); opacity: 0; } }
+@keyframes enter { from { transform: translateX(-260px); } }
+@keyframes cook { from { transform: rotate(80deg); } }
+@keyframes level { from { transform: rotate(-80deg); } }
+@keyframes bend { from { transform: none; } }
+@keyframes reach { 0%, 8% { transform: rotate(-80deg); } 28%, 44% { transform: rotate(30deg); } 60%, 100% { transform: rotate(-80deg); } }
+@keyframes sign { 0%, 20% { transform: scale(0.6); opacity: 0; } 26% { transform: scale(1.08); opacity: 1; } 30% { transform: scale(1); } 84% { opacity: 1; } 94%, 100% { transform: scale(1); opacity: 0; } }
+@keyframes ponder { 0%, 52% { transform: scale(0.6); opacity: 0; } 57% { transform: scale(1.08); opacity: 1; } 61% { transform: scale(1); } 76% { opacity: 1; } 84%, 100% { transform: scale(1); opacity: 0; } }.stove .ponder-text { font-family: var(--display); font-weight: 800; font-size: 20px; fill: var(--ink); }.stove .bubble-text { font-family: var(--display); font-weight: 800; font-size: 19px; fill: var(--on-color); }.stove .tag-text { font-family: var(--body); font-weight: 700; font-size: 14px; fill: var(--on-color); }.stove .ouch { font-family: var(--display); font-weight: 800; font-size: 20px; fill: var(--wrong); }.stove .picker { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px 10px; align-items: end; }
 @media (max-width: 560px) {.stove .picker { grid-template-columns: 1fr; }.stove .picker .solo { grid-column: 1 / -1; } }.stove .group { display: grid; gap: 6px; }
 .stove .picker .solo { grid-column: 1 / -1; grid-template-columns: auto auto; justify-content: start; align-items: center; gap: 10px; }
 .stove .picker .solo > span::after { content: none; }.stove .group > span { font-size: 13px; font-weight: 600; color: var(--muted); display: flex; align-items: center; gap: 8px; }.stove .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }.stove .pick { --c: var(--fg); font-weight: 700; font-size: 13.5px; color: var(--c); background: color-mix(in srgb, var(--c) 9%, var(--surface)); border: 2px solid transparent; border-radius: 12px; padding-block: 8px; padding-inline: 10px; cursor: pointer; text-align: start; }.stove .pick:hover { border-color: color-mix(in srgb, var(--c) 45%, transparent); }.stove .pick[aria-pressed="true"] { background: var(--c); color: var(--on-color); }.stove .caption { --c: var(--fg); display: grid; gap: 4px; border-inline-start: 5px solid var(--c); padding-inline-start: 14px; min-height: 126px; align-content: start; }.stove .caption h3 { font-family: var(--display); font-weight: 800; font-size: 19px; line-height: 1.15; margin: 0; color: var(--c); }.stove .caption p { margin: 0; max-width: 60ch; }.stove .caption .agent { color: var(--muted); font-size: 15px; }
@@ -196,22 +204,35 @@ main.embed { padding-block: 4px; padding-inline: 4px; max-width: none; }
 .stove { display: grid; gap: 14px; }
 .stove .caption .agent b { color: var(--fg); font-weight: 600; }
 /* Every caption sits in one cell, hidden but the current one, so the tallest sets the height and picking never moves the page. */
-.stove .caption { min-height: 0; }
-.stove .caption > div { grid-area: 1 / 1; display: grid; gap: 4px; align-content: start; }
+.stove .caption { min-height: 0; border: 0; padding: 0; }
+.stove .caption > div { grid-area: 1 / 1; align-self: start; display: grid; gap: 4px; border-inline-start: 5px solid var(--c); padding-inline-start: 14px; }
 .stove .caption .ghost { visibility: hidden; }
-/* Wide: the scene on the left, the picker and what it means on the right. */
+/* The picker reads in time order: the baseline, then help before the touch, then help after it. */
+.stove .picker { display: flex; flex-wrap: wrap; align-items: end; gap: 10px 14px; }
+.stove .picker .group { flex: 1 1 220px; }
+/* Wide: the picker across the top, then the scene and what it means side by side. */
 @media (min-width: 720px) {
-  .stove { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); grid-template-rows: auto 1fr; gap: 16px 24px; align-items: start; }
-  .stove .stage { grid-row: 1 / span 2; }
-  .stove .picker { grid-template-columns: 1fr; gap: 12px; }
+  .stove { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px 24px; align-items: start; }
+  .stove .picker { grid-column: 1 / -1; }
 }
 </style>
 </head>
 <body>
 <main class="embed"><section class="stove">
+      <div class="picker" role="group" aria-label="Kind of help">
+        <button class="pick" type="button" data-pick="none" style="--c:var(--wrong)">No help</button>
+        <div class="group"><span>Before the touch (feedforward)</span><div class="pair">
+          <button class="pick" type="button" data-pick="always" style="--c:var(--always)">Always-on</button>
+          <button class="pick" type="button" data-pick="jit" style="--c:var(--jit)">Just-in-time</button>
+        </div></div>
+        <div class="group"><span>After the touch (feedback)</span><div class="pair">
+          <button class="pick" type="button" data-pick="advisory" style="--c:var(--advisory)">Advisory</button>
+          <button class="pick" type="button" data-pick="blocking" style="--c:var(--blocking)">Blocking</button>
+        </div></div>
+      </div>
       <div class="stage" id="stove-stage">
         <svg id="stove-scene" viewBox="84 0 432 316" role="img" aria-labelledby="stove-title" data-state="none">
-          <title id="stove-title">An adult and a child, with a stove between them</title>
+          <title id="stove-title">An adult and a toddler, with a stove between them</title>
           <defs>
             
             
@@ -234,10 +255,26 @@ main.embed { padding-block: 4px; padding-inline: 4px; max-width: none; }
             <rect class="ink" x="170" y="206" width="25" height="94" rx="11"/>
             <rect class="ink" x="205" y="206" width="25" height="94" rx="11"/>
             <line class="limb" x1="172" y1="120" x2="160" y2="192"/>
-            <g transform="translate(228 120)"><g class="cook-arm"><line class="limb" x1="0" y1="0" x2="72" y2="0"/></g></g>
+            <g transform="translate(228 120)"><g class="cook-arm">
+              <line class="limb" x1="0" y1="0" x2="36" y2="0"/>
+              <g transform="translate(36 0)"><g class="fore">
+                <line class="limb" x1="0" y1="0" x2="36" y2="0"/>
+                <g transform="translate(36 0)"><g class="pan">
+                  <line x1="0" y1="0" x2="14" y2="-2" stroke="var(--ink)" stroke-width="7" stroke-linecap="round"/>
+                  <path class="ink" d="M12 -5 h40 q0 12 -10 14 h-20 q-10 -2 -10 -14 z"/>
+                </g></g>
+              </g></g>
+            </g></g>
+            <!-- Blocking: stopped mid-cook, the adult wonders why. -->
+            <g class="show s-blocking"><g class="fume" fill="var(--surface)" stroke="var(--ink)" stroke-width="2.5">
+              <circle cx="216" cy="50" r="3"/>
+              <circle cx="223" cy="40" r="4.5"/>
+              <ellipse cx="236" cy="18" rx="20" ry="15"/>
+              <text class="ponder-text" x="236" y="25" text-anchor="middle" stroke="none">?!</text>
+            </g></g>
           </g>
 
-          <!-- Child, standing at the stove -->
+          <!-- Toddler, standing at the stove -->
           <g class="child">
             <circle class="ink" cx="440" cy="178" r="16"/>
             <path class="ink" d="M422 198 Q440 192 458 198 L462 250 Q440 256 418 250 Z"/>
@@ -245,6 +282,13 @@ main.embed { padding-block: 4px; padding-inline: 4px; max-width: none; }
             <rect class="ink" x="443" y="246" width="13" height="54" rx="6"/>
             <line class="limb" x1="455" y1="206" x2="463" y2="240"/>
             <g transform="translate(425 206)"><g class="arm"><line class="limb" x1="0" y1="0" x2="-44" y2="0"/></g></g>
+            <!-- Always-on: between reminders, the toddler wonders. -->
+            <g class="show s-always"><g class="ponder" fill="var(--surface)" stroke="var(--ink)" stroke-width="2.5">
+              <circle cx="442" cy="155" r="3"/>
+              <circle cx="445" cy="145" r="4.5"/>
+              <ellipse cx="448" cy="122" rx="17" ry="15"/>
+              <text class="ponder-text" x="448" y="129" text-anchor="middle" stroke="none">?</text>
+            </g></g>
           </g>
 
           <!-- No help: the touch burns. -->
@@ -253,20 +297,20 @@ main.embed { padding-block: 4px; padding-inline: 4px; max-width: none; }
             <text class="ouch" x="410" y="122">Ouch</text>
           </g>
 
-          <!-- Always-on: a reminder every morning. -->
-          <g class="show s-always">
+          <!-- Always-on: a reminder, whatever the toddler is doing. -->
+          <g class="show s-always"><g class="nag">
             <rect x="156" y="8" width="176" height="42" rx="14" fill="var(--always)"/>
             <path d="M168 46 h22 l-38 20 z" fill="var(--always)"/>
             <text class="bubble-text" x="244" y="36" text-anchor="middle">Stoves are hot.</text>
-          </g>
+          </g></g>
 
           <!-- Just-in-time: a sign on the stove itself. -->
-          <g class="show s-jit">
+          <g class="show s-jit"><g class="sign">
             <rect x="274" y="206" width="102" height="46" rx="8" fill="var(--jit)"/>
             <path d="M290 238 l9 -17 l9 17 z" fill="none" stroke="var(--on-color)" stroke-width="2.5" stroke-linejoin="round"/>
             <text class="tag-text" x="315" y="227">Caution:</text>
             <text class="tag-text" x="315" y="244">hot</text>
-          </g>
+          </g></g>
 
           <!-- Advisory: "Hot!" at the touch, first aid at hand. -->
           <g class="show s-advisory">
@@ -279,10 +323,10 @@ main.embed { padding-block: 4px; padding-inline: 4px; max-width: none; }
             <path d="M120 270 v18 M111 279 h18" stroke="var(--on-color)" stroke-width="4" stroke-linecap="round"/>
           </g>
 
-          <!-- Blocking: the touch happens, and the stove shuts off, for anyone who touches it. -->
+          <!-- Blocking: the stove refuses every touch, the cook's included. -->
           <g class="show s-blocking">
             <defs><g id="no"><circle r="12" fill="var(--surface)" fill-opacity="0.6" stroke="var(--blocking)" stroke-width="4"/><path d="M-8.5 -8.5 L8.5 8.5" stroke="var(--blocking)" stroke-width="4" stroke-linecap="round"/></g></defs>
-            <use href="#no" x="390" y="166"/><use href="#no" x="296" y="148"/>
+            <use href="#no" x="274" y="155"/>
             <g transform="translate(325 104)">
               <path d="M0 -20 C9 -9 14 -2 12 7 C10 16 -10 16 -12 7 C-14 -2 -5 -6 0 -20 Z" fill="var(--hot)"/>
               <path d="M0 -4 C4 1 6 4 5 8 C4 12 -4 12 -5 8 C-6 4 -2 2 0 -4 Z" fill="var(--advisory)"/>
@@ -292,16 +336,6 @@ main.embed { padding-block: 4px; padding-inline: 4px; max-width: none; }
           </g>
         </svg>
       </div>
-      <div class="picker" role="group" aria-label="Kind of help">
-        <div class="group"><span>Before the touch (feedforward)</span><div class="pair">
-          <button class="pick" type="button" data-pick="always" style="--c:var(--always)">Always-on</button>
-          <button class="pick" type="button" data-pick="jit" style="--c:var(--jit)">Just-in-time</button>
-        </div></div>
-        <div class="group"><span>After the touch (feedback)</span><div class="pair">
-          <button class="pick" type="button" data-pick="advisory" style="--c:var(--advisory)">Advisory</button>
-          <button class="pick" type="button" data-pick="blocking" style="--c:var(--blocking)">Blocking</button>
-        </div></div>
-      </div>
       <div class="caption" id="stove-caption" aria-live="polite"></div>
     </section></main>
 <script>
@@ -310,11 +344,11 @@ function readTheme() { try { const t = localStorage.getItem("theme"); if (t === 
 readTheme();
 addEventListener("storage", ev => { if (ev.key === "theme") { readTheme(); if (typeof onTheme === "function") onTheme(); } });
 const HELP = {
-  none: { c: "wrong", name: "No help", stove: "The child touches the stove and gets burned.", agent: "Nothing guides or checks it. Every mistake lands as is." },
-  always: { c: "always", name: "Always-on feedforward", stove: "\"Stoves are hot,\" said every morning. The child remembers, sometimes.", agent: "Instructions loaded in every session, whether the task needs them or not." },
-  jit: { c: "jit", name: "Just-in-time feedforward", stove: "A sign on the stove: \"Caution: hot.\" It's there right when it matters.", agent: "A skill or rule that loads with the task it's about." },
+  none: { c: "wrong", name: "No help", stove: "The toddler touches the stove and gets burned.", agent: "Nothing guides or checks it. Every mistake lands as is." },
+  always: { c: "always", name: "Always-on feedforward", stove: "\"Stoves are hot,\" said whether the stove is on or not. The toddler remembers, sometimes.", agent: "Instructions loaded in every session, whether the task needs them or not." },
+  jit: { c: "jit", name: "Just-in-time feedforward", stove: "No one is watching, but a sign on the stove, \"Caution: hot,\" shows up as the toddler reaches.", agent: "A skill or rule that loads with the task it's about." },
   advisory: { c: "advisory", name: "Advisory feedback", stove: "\"Hot!\" at the touch, with first aid right there. A small burn, quickly treated.", agent: "A warning or failing test right after the edit. The agent usually fixes it." },
-  blocking: { c: "blocking", name: "Blocking feedback", stove: "The stove shuts off the moment a hand touches it. No burn, but the cook gets stopped too: a false positive.", agent: "A hook that refuses the edit, so the agent starts over. It can't tell a correct edit from a wrong one that looks the same." },
+  blocking: { c: "blocking", name: "Blocking feedback", stove: "The stove refuses every touch, the cook's included. No burn, but no cooking either: a false positive.", agent: "A hook that refuses the edit, so the agent starts over. It can't tell a correct edit from a wrong one that looks the same." },
 };
 const text = (h) => `<h3>${h.name}</h3><p>${h.stove}</p><p class="agent"><b>For the agent:</b> ${h.agent}</p>`;
 const scene = document.getElementById("stove-scene"), stage = document.getElementById("stove-stage"), caption = document.getElementById("stove-caption");
