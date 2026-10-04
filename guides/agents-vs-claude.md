@@ -1,8 +1,9 @@
 # Which guidance goes where
 
-You're reading this because a `CLAUDE.md` write was denied and you need to split
-it. `AGENTS.md` takes the body; `CLAUDE.md` becomes the pointer plus whatever
-remainder is genuinely Claude-specific.
+You're reading this because cleat denied a `CLAUDE.md` write or offered to fix
+this repo's shape, and the guidance needs splitting. `AGENTS.md` takes the
+body; `CLAUDE.md` becomes the pointer plus whatever remainder is genuinely
+Claude-specific.
 
 ## The test
 

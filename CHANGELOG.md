@@ -27,11 +27,12 @@
 
 ### Changed
 - The placement guide holds only what the agent acts on. The docs site's
-  Placement and Rubric pages show each guide as the agent reads it, and the
-  Placement page adds the background for people: how to tell whether each kind
-  of guidance is working, and further reading.
-- The docs site leads with Harness engineering and the lab, and groups the
-  guides below them.
+  Placement and Rubric pages show each guide as the agent reads it. The
+  background the guide carried moves to the Feedback loops page (how to tell
+  whether each kind of guidance is working, and how cleat applies the model to
+  itself) and the Harness engineering page (further reading).
+- The docs site leads with Feedback loops, then Harness engineering and the
+  lab, and groups the guides below them.
 
 ## 0.3.0
 

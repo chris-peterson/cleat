@@ -533,13 +533,14 @@ The placement guide shall carry the placement tree, where guidance for one
 directory goes, the audience tiers, and the reference direction, name the rubric
 as the split for the `AGENTS.md` / `CLAUDE.md` leaf, and hold only what the
 agent acts on. The docs site shall show each guide on a page that includes it
-verbatim, where the background for people is added.
+verbatim.
 
 #### `PACKAGING-09`
 The docs site shall carry a feedback loops page, written for end users, with the
-four kinds of guidance, the case for pairing a rule with a hook, and how each tool
-loads a nested instruction file, so the guide an agent reads holds only what it
-acts on. It shall link to the harness engineering page for the background rather
+four kinds of guidance, the case for pairing a rule with a hook, how to tell
+whether each kind is working, how cleat applies the model to itself, and how
+each tool loads a nested instruction file, so the guide an agent reads holds
+only what it acts on. It shall link to the harness engineering page for the background rather
 than restate it.
 
 #### `PACKAGING-10`

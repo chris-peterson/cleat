@@ -30,9 +30,9 @@ hooks/hooks.yml         source of record for the three hook registrations
 hooks/prefilter.sh      the bash prefilter fronting every registration
 scripts/cleat           the CLI: `check`, `index`, and `hook`
 scripts/tests/          bash test suite
-guides/                 the tool-agnostic vs Claude-specific rubric
+guides/                 the rubric and placement guide the deny reasons name
 SPEC.md / STATUS.md     requirements and their coverage
-docs/                   docsify site (README, _sidebar, favicon are source)
+docs/                   docsify site (the pages .gitignore allowlists are source)
 ```
 
 `.claude-plugin/plugin.json`, `hooks/hooks.json`, `plugin.yml`'s

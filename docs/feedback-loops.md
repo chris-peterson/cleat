@@ -55,6 +55,31 @@ from a skill whose own text was full of em dashes were blocked far more often
 than other prose. Guidance loaded at the moment of drafting sets the style of
 what follows it, so a skill's own text is part of the guidance it gives.
 
+## How to tell whether it's working
+
+Each kind fails differently, so each has its own measure:
+
+- **Always-on feedforward**: whether the mistake it exists to prevent still
+  happens. A paired hook's blocks give it a miss rate; without one, its effect
+  only shows when you remove it and compare (an ablation test).
+- **Just-in-time feedforward**: how often it loads where it doesn't apply. A
+  rule whose globs match too much turns into always-on feedforward at a higher
+  price. When it does fire, the agent's next action either follows it or
+  doesn't, so it can be measured directly.
+- **Feedback**: how often it fires, and how often the agent acts on it. A deny
+  that's re-issued unchanged every time is noise, and the rule behind it belongs
+  in a narrower place or nowhere.
+
+## How cleat applies it
+
+Nothing of cleat loads at launch. Its gate stops a write before it lands, and
+its nudge reports right after one. It asks where new guidance belongs at the
+write rather than earlier: a hook sees what the agent does, not what it suggests
+in chat, so the question arrives when the agent acts on a preference instead of
+when it recommends one. The session that answers pays one round trip; every
+later session that would have carried the misplaced line is the one that
+benefits.
+
 ## Nested instruction files
 
 An instruction file in a subdirectory, such as a package in a monorepo, loads

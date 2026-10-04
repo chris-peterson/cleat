@@ -163,7 +163,7 @@ CHECK-12 is retired and not counted.
 
 ### 2026-10-04 — Agent guides and their docs pages (spec-req)
 
-PACKAGING-08 amended. The placement guide holds only what the agent acts on; the docs site's Placement and Rubric pages include each guide verbatim and carry the background for people. 93/93 Covered.
+PACKAGING-08 and PACKAGING-09 amended. The placement guide holds only what the agent acts on, and the docs site's Placement and Rubric pages include each guide verbatim. The background the guide carried moves to the feedback loops page (how to tell whether each kind works, how cleat applies the model) and the harness engineering page (further reading). 93/93 Covered.
 
 ### 2026-10-02 — Harness engineering page and lab (spec-req)
 

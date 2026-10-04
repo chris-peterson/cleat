@@ -1,7 +1,7 @@
 - [Home](/)
+- [Feedback loops](/feedback-loops)
 - [Harness engineering](/harness-engineering)
   - [Lab](/lab)
-- [Feedback loops](/feedback-loops)
 - Guides
   - [Placement](/placement)
   - [Rubric](/agents-vs-claude)

@@ -79,3 +79,12 @@ forward to make the mistake happen less often.
 
 The [lab](/lab) puts these layers together: build a harness one layer at a
 time, and compare what each run rescues with what it costs.
+
+## Further reading
+
+Birgitta Böckeler's
+[Harness engineering for coding agent users](https://martinfowler.com/articles/exploring-gen-ai/harness-engineering.html)
+frames the harness as feedforward guides and feedback sensors, and the
+Thoughtworks Technology Radar's
+[Feedback sensors for coding agents](https://www.thoughtworks.com/radar/techniques/feedback-sensors-for-coding-agents)
+recommends running those sensors in the session, before a commit.

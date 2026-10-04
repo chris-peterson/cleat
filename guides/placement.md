@@ -1,8 +1,8 @@
 # Where new content goes
 
-cleat names this guide when a write adds guidance to an instruction file, when
-two documentation files carry the same content, and when a link points toward a
-narrower audience. Each piece of content has one intended reader. It belongs in
+cleat names this guide when a write adds guidance to an instruction file or a
+topic rule. Its audience tiers and link direction also explain the `restated`
+and `narrowing-ref` findings. Each piece of content has one intended reader. It belongs in
 the file that reader consults, written once and linked from everywhere else.
 
 ## The placement tree
