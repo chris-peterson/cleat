@@ -1,8 +1,9 @@
 - [Home](/)
-- [Feedback loops](/feedback-loops)
+- [Background](/background)
 - [Harness engineering](/harness-engineering)
   - [Lab](/lab)
-- Guides
+- [Feedback loops](/feedback-loops)
+- Reference
   - [Placement](/placement)
   - [Rubric](/agents-vs-claude)
-- [SPEC](/spec)
+  - [SPEC](/spec)

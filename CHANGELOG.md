@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- A Background page on the docs site for readers new to coding agents:
+  instruction files, the context window, context tiering, and hooks.
+
+### Changed
+- The docs sidebar reads in order: Background, then Harness engineering and the
+  lab, then Feedback loops. The guides and SPEC sit under Reference.
+
 ## 0.4.0
 
 ### Added

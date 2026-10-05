@@ -7,7 +7,7 @@ in-repo implementation. Status vocabulary: **Covered** · **Partial** ·
 **Evidence pointers:** file + enclosing symbol. A line number is invalidated by
 any edit above it, and the ledger is read long after that edit.
 
-**Coverage: 93/93 requirements Covered (100%)**
+**Coverage: 94/94 requirements Covered (100%)**
 
 ## CHECK — The check command
 
@@ -150,6 +150,7 @@ CHECK-12 is retired and not counted.
 | PACKAGING-08 | Covered | guides/placement.md; docs/placement.md; docs/agents-vs-claude.md; docs/_sidebar.md |
 | PACKAGING-09 | Covered | docs/feedback-loops.md; docs/_sidebar.md |
 | PACKAGING-10 | Covered | docs/harness-engineering.md; docs/_sidebar.md |
+| PACKAGING-11 | Covered | docs/background.md; docs/_sidebar.md; .gitignore |
 
 ## STATE — Session state
 
@@ -160,6 +161,10 @@ CHECK-12 is retired and not counted.
 | STATE-03 | Covered | scripts/cleat (`_prune_sessions`) |
 
 ## Audit history
+
+### 2026-10-05 — Background page and reading order (spec-req)
+
++1 ID (PACKAGING-11). A background page for readers new to coding agents comes before harness engineering, and feedback loops follows the lab; the guides and SPEC sit under Reference. 94/94 Covered.
 
 ### 2026-10-04 — Agent guides and their docs pages (spec-req)
 

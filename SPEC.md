@@ -548,6 +548,13 @@ The docs site shall carry a harness engineering page, written for end users, wit
 what a harness is, why blocking feedback can't stand alone, and what each kind of
 layer costs.
 
+#### `PACKAGING-11`
+The docs site shall carry a background page, written for end users new to coding
+agents, with what an instruction file is and which tools read `AGENTS.md` and
+`CLAUDE.md`, what loading guidance costs in the context window, the tiers
+guidance can load in, and what a hook is. The sidebar shall list it before the
+harness engineering page, and the feedback loops page after it.
+
 ### `STATE`
 Session state
 
