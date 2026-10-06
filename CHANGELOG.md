@@ -9,6 +9,7 @@
 ### Changed
 - The docs sidebar reads in order: Background, then Harness engineering and the
   lab, then Feedback loops. The guides and SPEC sit under Reference.
+- The docs home page states when Claude Code reads `AGENTS.md`.
 
 ## 0.4.0
 

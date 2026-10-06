@@ -10,11 +10,12 @@
 
 </div>
 
-Teams evaluating AI coding tools are rarely on one. `AGENTS.md` is the file about
-30 of them read; Claude Code reads `CLAUDE.md` and nothing else. Guidance kept in
-either file alone reaches half your tools. cleat holds a repo in the one shape
-that satisfies both, using hooks, so there's no command to remember, and nothing
-sitting in your context window.
+Teams evaluating AI coding tools are rarely on one. `AGENTS.md` is the file most
+of them read. Claude Code always reads `CLAUDE.md`, and reads `AGENTS.md` only
+where no `CLAUDE.md` sits at or above the working directory, and not in every
+session. Guidance kept in either file alone reaches some of your tools and misses
+others. cleat holds a repo in the one shape that satisfies both, using hooks, so
+there's no command to remember, and nothing sitting in your context window.
 
 cleat is one layer of a harness: the guidance and checks around a coding agent
 that steer its work. [Harness engineering](/harness-engineering) shows each
