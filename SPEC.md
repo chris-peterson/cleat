@@ -63,7 +63,8 @@ Ubiquitous (`The <system> shall …`), State-Driven (`While …`), Event-Driven
 - **Finding** — one code, the path it concerns, a severity, and the repair that
   clears it. The codes are `no-agents`, `dangling-ref`, `no-claude`, `no-ref`,
   `inverted`, `duplicated`, `unguided`, `shadowed`, `foreign-config`, `unlisted-rule`,
-  `dead-rule-listed`, `toc-bloat`, `bad-glob`, `restated`, and `narrowing-ref`.
+  `dead-rule-listed`, `toc-bloat`, `bad-glob`, `restated`, `narrowing-ref`, and
+  `launch-cost`.
 - **Severity** — a finding is either an **error** (the shape is broken; drives
   the exit code) or an **advisory** (reported, but a repo can legitimately sit
   this way). `unguided` and heading-only duplication are advisories: a repo may
@@ -100,6 +101,14 @@ Ubiquitous (`The <system> shall …`), State-Driven (`While …`), Event-Driven
   is bound to one directory, else a topic rule, skill, or guide.
 - **Placement guide** — the file carrying the placement tree, the audience tiers,
   and the reference direction. Like the rubric, a file named by path.
+- **Launch cost** — the UTF-8 bytes a session started in a directory loads
+  before the user types a word, counting that directory's own files: its
+  instruction files and their imports, its always-on topic rules, and the
+  listing entries of its project skills and commands. User-scope memory,
+  plugins, and the harness prompt are on top of it.
+- **Launch budget** — the launch cost past which cleat advises tiering.
+- **Tiering guide** — the file carrying the tiers guidance can load in and the
+  order to move it between them. Like the rubric, a file named by path.
 
 ## Requirements
 
@@ -172,8 +181,8 @@ or add the pointer beside a shadowed `AGENTS.md`.
 Each finding shall carry a severity. `no-agents`, `dangling-ref`, `no-ref`,
 `inverted`, `shadowed`, `foreign-config`, `unlisted-rule`, `dead-rule-listed`,
 `bad-glob`, `narrowing-ref`, and line-level `duplicated` shall be errors; `no-claude`,
-`unguided`, `toc-bloat`, `restated`, and heading-only `duplicated` shall be
-advisories.
+`unguided`, `toc-bloat`, `restated`, `launch-cost`, and heading-only `duplicated`
+shall be advisories.
 
 #### `CHECK-15`
 When `CLAUDE.md` is only the pointer shape and no `AGENTS.md` exists, the check
@@ -181,7 +190,8 @@ shall report `dangling-ref`, whose repair is to write `AGENTS.md`.
 
 #### `CHECK-16`
 If `DIR` is not a directory, or a file the check needs cannot be read, then
-`cleat check` and `cleat index` shall exit 2 and name the cause on stderr.
+`cleat check`, `cleat index`, and `cleat cost` shall exit 2 and name the cause on
+stderr.
 
 #### `CHECK-17`
 When two files in the documentation set share a run of three or more
@@ -296,6 +306,66 @@ When the nudge reports `unlisted-rule`, `dead-rule-listed`, or `toc-bloat`, it
 shall carry the rendered index as `additionalContext`, except where the rendered
 index itself exceeds the index budget, composing the index by hand being where
 it drifts from the directory.
+
+### `COST`
+What a session loads at launch
+
+#### `COST-01`
+The system shall provide `cleat cost [DIR]`, listing each piece a session started
+in `DIR` loads, with its tier and its size in UTF-8 bytes, and the launch cost
+against the launch budget. `DIR` shall default to the current directory.
+
+#### `COST-02`
+The launch pieces shall be `CLAUDE.md`, `.claude/CLAUDE.md`, and
+`CLAUDE.local.md` in `DIR`, or `AGENTS.md` where none of those sits in `DIR` or
+above it; every file their `@path` imports resolve to, within four hops; and
+every always-on topic rule.
+
+#### `COST-03`
+An import shall count only at a line start or after whitespace, outside code
+spans and fenced blocks, and only where its target file exists.
+
+#### `COST-04`
+The system shall measure each piece as Claude Code loads it: an instruction file
+without its block-level HTML comments, a topic rule without its frontmatter.
+
+#### `COST-05`
+The system shall list an entry for each project skill under `.claude/skills/`
+and each command under `.claude/commands/`, sized as `- <name>: <description>`
+with the description cut at 1,536 characters and the first non-empty body line
+standing in for a missing one. A skill shall shadow a command of the same name.
+
+#### `COST-06`
+Where a project skill carries `paths:` or `disable-model-invocation: true`, or a
+topic rule carries `paths:`, the system shall list it as on demand and leave it
+out of the launch cost.
+
+#### `COST-07`
+The launch budget shall be 16,384 bytes unless `git config cleat.launchBudget
+<bytes>` sets another, and `--budget` shall override both. If the configured
+value is not a byte count, then `cleat cost` and `cleat check` shall exit 2
+naming it.
+
+#### `COST-08`
+`cleat cost` shall exit 1 when the launch cost exceeds the budget and 0
+otherwise, so it can gate CI.
+
+#### `COST-09`
+Where `--json` is passed, `cleat cost` shall emit the budget, the launch cost,
+and each piece as JSON on stdout.
+
+#### `COST-10`
+When the launch cost exceeds the budget, the check shall report `launch-cost` as
+an advisory on the largest launch piece, naming the tiering guide by path.
+
+### `DESIGN`
+Design tenets
+
+#### `DESIGN-01`
+cleat shall keep its own share of session context as small as the job allows:
+a hook wherever one can reach the moment, a guide named by path for anything
+long, and a listing entry only for help a user asks for in conversation, which
+no hook can see.
 
 ### `HOOK`
 Hook dispatch
@@ -507,9 +577,12 @@ Packaging and layout
 #### `PACKAGING-02`
 The plugin shall declare suite group `record` and activations `[agent]`.
 
-#### `PACKAGING-03`
-The plugin shall register no commands and ship no skills, keeping nothing
-resident in session context.
+#### ~~`PACKAGING-03`~~
+~~The plugin shall register no commands and ship no skills, keeping nothing
+resident in session context.~~
+
+_Retired 2026-10-20: superseded by DESIGN-01, which states the reason rather than
+an inventory. The ID is not reused._
 
 #### `PACKAGING-04`
 `scripts/cleat` shall run on python3 with the standard library only.
@@ -554,6 +627,12 @@ agents, with what an instruction file is and which tools read `AGENTS.md` and
 `CLAUDE.md`, what loading guidance costs in the context window, the tiers
 guidance can load in, and what a hook is. The sidebar shall list it before the
 harness engineering page, and the feedback loops page after it.
+
+#### `PACKAGING-12`
+The tiering guide shall carry the tiers guidance can load in, the moves between
+them in order, the risk of hiding a skill another file invokes, and how to probe
+the loader. The `launch-cost` repair and the tiering skill shall name it by path,
+and the docs site shall show it on a page that includes it verbatim.
 
 ### `STATE`
 Session state

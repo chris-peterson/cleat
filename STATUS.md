@@ -7,7 +7,7 @@ in-repo implementation. Status vocabulary: **Covered** · **Partial** ·
 **Evidence pointers:** file + enclosing symbol. A line number is invalidated by
 any edit above it, and the ledger is read long after that edit.
 
-**Coverage: 94/94 requirements Covered (100%)**
+**Coverage: 105/105 requirements Covered (100%)**
 
 ## CHECK — The check command
 
@@ -27,9 +27,9 @@ CHECK-12 is retired and not counted.
 | CHECK-10 | Covered | scripts/cleat (`_foreign_findings`) |
 | CHECK-11 | Covered | scripts/cleat (`_duplication_findings`, `_classify`) |
 | CHECK-13 | Covered | scripts/cleat (`Finding`, `render`); the `restated` and `narrowing-ref` repairs in `_restated_findings`, `_narrowing_findings` |
-| CHECK-14 | Covered | scripts/cleat (`Finding`); the finding constructors in `findings_for`, `_rules_findings`, `_restated_findings`, `_narrowing_findings` |
+| CHECK-14 | Covered | scripts/cleat (`Finding`); the finding constructors in `findings_for`, `_rules_findings`, `_restated_findings`, `_narrowing_findings`, `_launch_findings` |
 | CHECK-15 | Covered | scripts/cleat (`findings_for`, `_pointer_only`) — the `dangling-ref` constructor |
-| CHECK-16 | Covered | scripts/cleat (`cmd_check`, `cmd_index`) |
+| CHECK-16 | Covered | scripts/cleat (`cmd_check`, `cmd_index`, `cmd_cost`) |
 | CHECK-17 | Covered | scripts/cleat (`_restated_findings`, `_content_lines`, `_runs`, `_markdown_files`, `_generated`); scripts/tests/check.test.sh |
 | CHECK-18 | Covered | scripts/cleat (`_narrowing_findings`, `_link_targets`, `_resolve_link`, `_tier`); scripts/tests/check.test.sh |
 | CHECK-19 | Covered | scripts/cleat (`findings_for`, `_shadowing`, `_shadowed_finding`); scripts/tests/check.test.sh |
@@ -62,6 +62,27 @@ CHECK-12 is retired and not counted.
 | INDEX-04 | Covered | scripts/tests/rules.test.sh — the round-trip and over-budget cases |
 | INDEX-05 | Covered | scripts/cleat — the import block, stdlib only |
 | INDEX-06 | Covered | scripts/cleat (`_nudge`, `INDEX_CODES`) |
+
+## COST — What a session loads at launch
+
+| ID      | Status  | Location |
+|---------|---------|----------|
+| COST-01 | Covered | scripts/cleat (`cmd_cost`, `launch_items`, `render_cost`, `main`); scripts/tests/cost.test.sh |
+| COST-02 | Covered | scripts/cleat (`_instruction_items`, `_rule_items`) — `IMPORT_MAX_HOPS`; scripts/tests/cost.test.sh |
+| COST-03 | Covered | scripts/cleat (`_imports`, `IMPORT`); scripts/tests/cost.test.sh |
+| COST-04 | Covered | scripts/cleat (`_as_loaded`, `_frontmatter`, `_rule_items`); scripts/tests/cost.test.sh |
+| COST-05 | Covered | scripts/cleat (`_listing_items`, `_listing_entry`) — `LISTING_MAX_DESC_CHARS`; scripts/tests/cost.test.sh |
+| COST-06 | Covered | scripts/cleat (`_listing_items`, `_rule_items`, `launch_total`); scripts/tests/cost.test.sh |
+| COST-07 | Covered | scripts/cleat (`launch_budget`, `cmd_cost`) — `LAUNCH_MAX_BYTES`; scripts/tests/cost.test.sh |
+| COST-08 | Covered | scripts/cleat (`cmd_cost`); scripts/tests/cost.test.sh |
+| COST-09 | Covered | scripts/cleat (`cmd_cost`) — the `--json` branch |
+| COST-10 | Covered | scripts/cleat (`_launch_findings`, `TIERING_GUIDE`); scripts/tests/cost.test.sh |
+
+## DESIGN — Design tenets
+
+| ID        | Status  | Location |
+|-----------|---------|----------|
+| DESIGN-01 | Covered | hooks/hooks.yml; skills/context-tiering/SKILL.md, the one listing entry; guides/ named by path from scripts/cleat (`RUBRIC`, `PLACEMENT_GUIDE`, `TIERING_GUIDE`) |
 
 ## HOOK — Hook dispatch
 
@@ -138,11 +159,12 @@ CHECK-12 is retired and not counted.
 
 ## PACKAGING — Packaging and layout
 
+PACKAGING-03 is retired and not counted.
+
 | ID     | Status  | Location |
 |--------|---------|----------|
 | PACKAGING-01 | Covered | plugin.yml; hooks/hooks.yml; justfile; .gitignore |
 | PACKAGING-02 | Covered | plugin.yml (`suite`) |
-| PACKAGING-03 | Covered | plugin.yml — no `cmds:`; no `skills/` or `commands/` directory |
 | PACKAGING-04 | Covered | scripts/cleat — the import block, stdlib only |
 | PACKAGING-05 | Covered | guides/agents-vs-claude.md; scripts/cleat (`RUBRIC`, `_deny_reason`, `_bootstrap`) |
 | PACKAGING-06 | Covered | AGENTS.md; CLAUDE.md; `just self-check` |
@@ -151,6 +173,7 @@ CHECK-12 is retired and not counted.
 | PACKAGING-09 | Covered | docs/feedback-loops.md; docs/_sidebar.md |
 | PACKAGING-10 | Covered | docs/harness-engineering.md; docs/_sidebar.md |
 | PACKAGING-11 | Covered | docs/background.md; docs/_sidebar.md; .gitignore |
+| PACKAGING-12 | Covered | guides/tiering.md; docs/tiering.md; docs/_sidebar.md; scripts/cleat (`_launch_findings`); skills/context-tiering/SKILL.md |
 
 ## STATE — Session state
 
@@ -161,6 +184,10 @@ CHECK-12 is retired and not counted.
 | STATE-03 | Covered | scripts/cleat (`_prune_sessions`) |
 
 ## Audit history
+
+### 2026-10-20 — Launch cost and context tiering (spec-req)
+
++12 IDs (COST-01–10, DESIGN-01, PACKAGING-12); CHECK-14 and CHECK-16 amended; PACKAGING-03 retired in favor of DESIGN-01. `cleat cost` and the `launch-cost` advisory land with the context-tiering skill and the tiering guide, toward issue #9. 105/105 Covered.
 
 ### 2026-10-05 — Background page and reading order (spec-req)
 

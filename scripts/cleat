@@ -2,6 +2,8 @@
 """cleat — hold a repo's agent instructions in one AGENTS.md, with CLAUDE.md a pointer.
 
     cleat check [DIR] [--json]   report DIR's findings; exit 1 on any error finding
+    cleat index [DIR]            print the rules index AGENTS.md should carry
+    cleat cost [DIR] [--json]    report what DIR loads at launch; exit 1 past budget
     cleat hook                   read a hook payload on stdin, decide, emit
 
 python3 standard library only. This runs from a hook, where an import error is a
@@ -15,6 +17,7 @@ form and names guides/agents-vs-claude.md for the long one.
 from __future__ import annotations
 
 import argparse
+import collections
 import hashlib
 import json
 import os
@@ -74,6 +77,20 @@ SESSION_TTL_SECONDS = 7 * 24 * 60 * 60
 
 RUBRIC = pathlib.Path(__file__).resolve().parent.parent / "guides" / "agents-vs-claude.md"
 PLACEMENT_GUIDE = pathlib.Path(__file__).resolve().parent.parent / "guides" / "placement.md"
+TIERING_GUIDE = pathlib.Path(__file__).resolve().parent.parent / "guides" / "tiering.md"
+
+# What a session pays before the user types a word, in UTF-8 bytes. A repo sets
+# its own with `git config cleat.launchBudget <bytes>`.
+LAUNCH_MAX_BYTES = 16384
+# Claude Code follows an import chain this many hops past the file that starts
+# it: https://code.claude.com/docs/en/memory#import-additional-files
+IMPORT_MAX_HOPS = 4
+# The skill listing cuts a description off past this many characters.
+LISTING_MAX_DESC_CHARS = 1536
+# `@path` where Claude Code reads one: at a line start or after whitespace, with
+# a backslash before each space. A quoted path, or an address like a@b, is not one.
+IMPORT = re.compile(r"(?:^|(?<=\s))@((?:\\ |\S)+)")
+LAUNCH, LISTING, ON_DEMAND = "launch", "listing", "on demand"
 
 # The documentation set: the files compared for copied content. Everything under
 # DOCS_DIR is written for end users; the basenames below are read by anyone, or
@@ -544,6 +561,211 @@ def _rules_findings(root, agents_text):
     return out
 
 
+# ---- launch cost ------------------------------------------------------------
+
+Item = collections.namedtuple("Item", "tier path size note")
+
+
+def _frontmatter(text):
+    """(fields, body): text's top-level frontmatter keys as strings, and what
+    follows the frontmatter. A block scalar or a list is folded onto one line,
+    which keeps its byte count and shows the key was set."""
+    if not text.startswith("---\n"):
+        return {}, text
+    end = text.find("\n---", 4)
+    if end < 0:
+        return {}, text
+    fields, key = {}, None
+    for line in text[4:end].splitlines():
+        match = re.match(r"^([A-Za-z_][\w-]*):\s*(.*)$", line)
+        if match:
+            key, value = match.group(1), match.group(2).strip()
+            fields[key] = "" if value in (">", ">-", "|", "|-") else value.strip("\"'")
+        elif key and line.strip():
+            fields[key] = (fields[key] + " " + line.strip()).strip()
+    newline = text.find("\n", end + 4)
+    return fields, text[newline + 1:] if newline >= 0 else ""
+
+
+def _as_loaded(text):
+    """An instruction file as Claude Code loads it: block-level HTML comments
+    outside fenced code are dropped."""
+    out, fenced, comment = [], False, False
+    for line in text.splitlines(keepends=True):
+        stripped = line.strip()
+        if comment:
+            comment = "-->" not in stripped
+            continue
+        if stripped.startswith("```"):
+            fenced = not fenced
+        elif not fenced and stripped.startswith("<!--"):
+            comment = "-->" not in stripped
+            continue
+        out.append(line)
+    return "".join(out)
+
+
+def _imports(path, text):
+    """The existing files text imports, resolved against path's directory. An
+    import names nothing inside a code span or a fenced block."""
+    out = []
+    fenced = False
+    for line in text.splitlines():
+        if line.strip().startswith("```"):
+            fenced = not fenced
+            continue
+        if fenced:
+            continue
+        for match in IMPORT.finditer(INLINE_CODE.sub("", line)):
+            target = pathlib.Path(os.path.expanduser(match.group(1).replace("\\ ", " ")))
+            if not target.is_absolute():
+                target = path.parent / target
+            if target.is_file():
+                out.append(target)
+    return out
+
+
+def _shown(path, root):
+    return _relative_to(path, _resolved(root)) or str(path)
+
+
+def _instruction_items(root):
+    """The instruction files a session started in root loads at launch, and every
+    file they import, each once. AGENTS.md is read directly only where no
+    CLAUDE.md-family file sits here or above."""
+    starts = [root / name for name in CLAUDE_FAMILY if (root / name).is_file()]
+    if not starts and (root / AGENTS).is_file() and _shadowing(root) is None:
+        starts = [root / AGENTS]
+    items, seen = [], set()
+    pending = [(path, 0, None) for path in starts]
+    while pending:
+        path, hops, parent = pending.pop(0)
+        if _resolved(path) in seen:
+            continue
+        seen.add(_resolved(path))
+        text = _as_loaded(_read(path))
+        note = "imported by {}".format(_shown(parent, root)) if parent else ""
+        items.append(Item(LAUNCH, _shown(path, root), len(text.encode("utf-8")), note))
+        if hops < IMPORT_MAX_HOPS:
+            pending.extend((target, hops + 1, path) for target in _imports(path, text))
+    return items
+
+
+def _rule_items(root):
+    """Every topic rule: always-on ones load at launch, without their
+    frontmatter; the rest load when a matching file is touched."""
+    base = root / RULES_DIR
+    if not base.is_dir():
+        return []
+    items = []
+    for path in sorted(base.rglob("*.md")):
+        text = _read(path)
+        rel = "{}/{}".format(RULES_DIR, path.relative_to(base).as_posix())
+        _fields, body = _frontmatter(text)
+        size = len(body.encode("utf-8"))
+        globs = _rule_globs(text)
+        if globs is None:
+            items.append(Item(LAUNCH, rel, size, "always-on rule"))
+        else:
+            items.append(Item(ON_DEMAND, rel, size, "paths: " + ", ".join(globs)))
+    return items
+
+
+def _listing_entry(name, fields, body):
+    description = " ".join(v for v in (fields.get("description"),
+                                       fields.get("when_to_use")) if v)
+    if not description:
+        description = next((line.strip() for line in body.splitlines() if line.strip()), "")
+    return "- {}: {}".format(name, description[:LISTING_MAX_DESC_CHARS])
+
+
+def _listing_items(root):
+    """A listing entry per project skill and command. `paths:` and
+    `disable-model-invocation: true` each keep a skill's description out of the
+    listing until it is needed. A skill shadows a command of the same name."""
+    found = {}
+    commands = root / ".claude" / "commands"
+    if commands.is_dir():
+        for path in sorted(commands.rglob("*.md")):
+            name = path.relative_to(commands).with_suffix("").as_posix().replace("/", ":")
+            found[name] = path
+    skills = root / ".claude" / "skills"
+    if skills.is_dir():
+        for path in sorted(skills.glob("*/SKILL.md")):
+            fields, _body = _frontmatter(_read(path))
+            found[fields.get("name") or path.parent.name] = path
+    items = []
+    for name in sorted(found):
+        path = found[name]
+        text = _read(path)
+        fields, body = _frontmatter(text)
+        rel = _shown(path, root)
+        size = len(body.encode("utf-8"))
+        globs = _rule_globs(text) if path.name == "SKILL.md" else None
+        if fields.get("disable-model-invocation") == "true":
+            items.append(Item(ON_DEMAND, rel, size, "/{}, typed only".format(name)))
+        elif globs:
+            items.append(Item(ON_DEMAND, rel, size, "/{}, paths: {}".format(
+                name, ", ".join(globs))))
+        else:
+            entry = _listing_entry(name, fields, body)
+            items.append(Item(LISTING, rel, len(entry.encode("utf-8")) + 1, "/" + name))
+    return items
+
+
+def launch_items(root):
+    """What a session started in root loads, by tier. Scoped to root: user-scope
+    memory, plugins, and the harness's own prompt are on top of this."""
+    root = pathlib.Path(root)
+    return _instruction_items(root) + _rule_items(root) + _listing_items(root)
+
+
+def launch_total(items):
+    return sum(item.size for item in items if item.tier != ON_DEMAND)
+
+
+def launch_budget(root):
+    if _repo_root(root) is None:
+        return LAUNCH_MAX_BYTES
+    raw = _git(root, "config", "--get", "cleat.launchBudget", unset_ok=True).strip()
+    if not raw:
+        return LAUNCH_MAX_BYTES
+    if not raw.isdigit():
+        raise RuntimeError("cleat.launchBudget is {!r}, not a byte count".format(raw))
+    return int(raw)
+
+
+def _launch_findings(root):
+    items = launch_items(root)
+    total = launch_total(items)
+    budget = launch_budget(root)
+    if total <= budget:
+        return []
+    largest = max((item for item in items if item.tier != ON_DEMAND),
+                  key=lambda item: item.size)
+    return [Finding(
+        "launch-cost", ADVISORY, largest.path,
+        "a session here loads {} bytes of instructions at launch, over the "
+        "{}-byte budget; the largest piece is {} at {} bytes".format(
+            total, budget, largest.path, largest.size),
+        "move what not every session needs to a narrower tier: `cleat cost` "
+        "lists each piece, and {} says where each one goes".format(TIERING_GUIDE),
+    )]
+
+
+def render_cost(items, total, budget):
+    lines = []
+    if items:
+        width = max(len(item.path) for item in items) + 2
+        for item in items:
+            lines.append("{:<10}{:>8}  {}{}".format(
+                item.tier, "{:,}".format(item.size), item.path.ljust(width),
+                item.note).rstrip())
+        lines.append("")
+    lines.append("at launch: {:,} bytes of a {:,}-byte budget".format(total, budget))
+    return "\n".join(lines)
+
+
 # ---- the documentation set --------------------------------------------------
 
 def _git(root, *args, stdin=None, unset_ok=False):
@@ -867,6 +1089,7 @@ def findings_for(root):
     # above comes first, so rules findings would only restate it once per rule.
     if has_agents:
         out.extend(_rules_findings(root, agents_text))
+    out.extend(_launch_findings(root))
     out.extend(_foreign_findings(root))
     rels = _markdown_files(root)
     out.extend(_nested_findings(root, rels))
@@ -1421,6 +1644,28 @@ def cmd_index(args):
     return 0
 
 
+def cmd_cost(args):
+    directory = pathlib.Path(args.directory)
+    if not directory.is_dir():
+        sys.stderr.write("cleat: not a directory: {}\n".format(directory))
+        return 2
+    try:
+        items = launch_items(directory)
+        budget = args.budget if args.budget is not None else launch_budget(directory)
+    except RuntimeError as exc:
+        sys.stderr.write("cleat: {}\n".format(exc))
+        return 2
+    total = launch_total(items)
+    if args.json:
+        json.dump({"directory": str(directory), "budget": budget, "total": total,
+                   "items": [item._asdict() for item in items]},
+                  sys.stdout, indent=2)
+        sys.stdout.write("\n")
+    else:
+        print(render_cost(items, total, budget))
+    return 1 if total > budget else 0
+
+
 def cmd_hook(_args):
     """Always exits 0. A hook's exit code is a channel Claude Code reads for
     something else, so a failure here is reported as a systemMessage the user
@@ -1467,6 +1712,13 @@ def main(argv=None):
         "index", help="print the rules index AGENTS.md should carry")
     index.add_argument("directory", nargs="?", default=".")
     index.set_defaults(func=cmd_index)
+
+    cost = sub.add_parser(
+        "cost", help="report what a session loads at launch, against a budget")
+    cost.add_argument("directory", nargs="?", default=".")
+    cost.add_argument("--budget", type=int, help="bytes; overrides cleat.launchBudget")
+    cost.add_argument("--json", action="store_true", help="emit the items as JSON")
+    cost.set_defaults(func=cmd_cost)
 
     hook = sub.add_parser("hook", help="read a hook payload on stdin and decide")
     hook.set_defaults(func=cmd_hook)
