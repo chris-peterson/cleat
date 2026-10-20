@@ -41,9 +41,15 @@ printf '%s' '{
 
 ## Watching the hooks fire
 
-The hooks produce no terminal output of their own. Launch with `--debug` and
-look for the `[DEBUG] Hook PreToolUse` / `Hook PostToolUse` lines:
+The hooks produce no terminal output of their own. Launch with `--debug`:
 
 ```bash
 claude --debug
+```
+
+Each hook run logs one line naming the event, the prefilter command, the
+plugin, its exit status, and how long it took:
+
+```text
+[DEBUG] Hooks: PostToolUse:Read [bash ".../cleat/<version>/hooks/prefilter.sh" read] (plugin cleat@<marketplace>) finished with status 0 (135ms)
 ```
