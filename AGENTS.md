@@ -42,10 +42,9 @@ docs/                   docsify site (the pages .gitignore allowlists are source
 Never hand-edit a generated file; edit its source and let the projection follow.
 
 The projection job in `.github/workflows/project.yml` is that writer: it runs
-`shipyard generate` on every push and commits the result to the branch, so a
-committed artifact matches its source at all times and the diff a reviewer
-approves is what lands. `just generate` runs the same projectors locally when
-you want to see the result before pushing.
+`shipyard generate` on each pull request and each push to `main`, and commits
+the result to the branch, so the diff a reviewer approves is what lands. Until
+a branch has a PR, `just generate` runs the same projectors locally.
 
 Releases are dispatched, not tagged by hand: run the **Release** workflow with a
 bump level, and shipyard derives the version from `plugin.yml`, retitles
