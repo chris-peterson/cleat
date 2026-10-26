@@ -202,7 +202,9 @@ every page starts from, not a copy, and two files both under `docs/` are the
 site's own structure; neither is reported. Where the two files sit in different
 tiers, the
 repair shall keep the copy in the wider tier and link to or include it from the
-narrower; where they share a tier, the repair shall name both paths and leave
+narrower. Where the narrower is a `README.md` outside `docs/`, which the forge
+renders and which cannot include a file, the repair shall instead cut it to what
+a repo reader needs and link to the wider copy for the rest. Where they share a tier, the repair shall name both paths and leave
 the choice to the reader.
 
 #### `CHECK-18`
@@ -478,6 +480,17 @@ root, so `restated` and `narrowing-ref` surface in the turn that caused them.
 The nudge shall report a given finding at most once while it persists. A
 finding that clears is forgotten, so its return later in the session is
 reported afresh.
+
+#### `NUDGE-08`
+When the nudge reports `restated`, it shall say what to do with the finding in
+this change. Where the write that set off the nudge was to either of the two
+files, it shall direct the agent to fix it in the same change; where the write
+was to neither, it shall direct the agent to name it to the user rather than
+fix it.
+
+#### `NUDGE-09`
+The nudge shall state that `AGENTS.md` is canonical only when a finding it
+reports involves `AGENTS.md` or `CLAUDE.md`.
 
 ### `PLACEMENT`
 Where new guidance goes

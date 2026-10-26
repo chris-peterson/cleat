@@ -7,7 +7,7 @@ in-repo implementation. Status vocabulary: **Covered** · **Partial** ·
 **Evidence pointers:** file + enclosing symbol. A line number is invalidated by
 any edit above it, and the ledger is read long after that edit.
 
-**Coverage: 105/105 requirements Covered (100%)**
+**Coverage: 107/107 requirements Covered (100%)**
 
 ## CHECK — The check command
 
@@ -30,7 +30,7 @@ CHECK-12 is retired and not counted.
 | CHECK-14 | Covered | scripts/cleat (`Finding`); the finding constructors in `findings_for`, `_rules_findings`, `_restated_findings`, `_narrowing_findings`, `_launch_findings` |
 | CHECK-15 | Covered | scripts/cleat (`findings_for`, `_pointer_only`) — the `dangling-ref` constructor |
 | CHECK-16 | Covered | scripts/cleat (`cmd_check`, `cmd_index`, `cmd_cost`) |
-| CHECK-17 | Covered | scripts/cleat (`_restated_findings`, `_content_lines`, `_runs`, `_markdown_files`, `_generated`); scripts/tests/check.test.sh |
+| CHECK-17 | Covered | scripts/cleat (`_restated_findings`, `_content_lines`, `_runs`, `_markdown_files`, `_generated`); scripts/tests/check.test.sh, scripts/tests/nudge.test.sh |
 | CHECK-18 | Covered | scripts/cleat (`_narrowing_findings`, `_link_targets`, `_resolve_link`, `_tier`); scripts/tests/check.test.sh |
 | CHECK-19 | Covered | scripts/cleat (`findings_for`, `_shadowing`, `_shadowed_finding`); scripts/tests/check.test.sh |
 | CHECK-20 | Covered | scripts/cleat (`_nested_findings`); scripts/tests/check.test.sh |
@@ -123,6 +123,8 @@ CHECK-12 is retired and not counted.
 | NUDGE-05 | Covered | scripts/cleat (`post_tool_use`, `_rules_owner`) |
 | NUDGE-06 | Covered | scripts/cleat (`post_tool_use`, `_in_doc_set`, `_relative_to`); scripts/tests/nudge.test.sh |
 | NUDGE-07 | Covered | scripts/cleat (`_nudge`, `_finding_key`); scripts/tests/nudge.test.sh |
+| NUDGE-08 | Covered | scripts/cleat (`_restated_directive`, `_nudge`, `render`, `post_tool_use`); scripts/tests/nudge.test.sh |
+| NUDGE-09 | Covered | scripts/cleat (`_nudge`); scripts/tests/nudge.test.sh |
 
 ## PLACEMENT — Where new guidance goes
 
@@ -184,6 +186,10 @@ PACKAGING-03 is retired and not counted.
 | STATE-03 | Covered | scripts/cleat (`_prune_sessions`) |
 
 ## Audit history
+
+### 2026-10-26 — What to do with a restated finding (spec-req)
+
++2 IDs (NUDGE-08, NUDGE-09); CHECK-17 amended. Issue #13. 107/107 Covered.
 
 ### 2026-10-20 — Launch cost and context tiering (spec-req)
 

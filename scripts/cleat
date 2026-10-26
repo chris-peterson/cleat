@@ -96,7 +96,8 @@ LAUNCH, LISTING, ON_DEMAND = "launch", "listing", "on demand"
 # DOCS_DIR is written for end users; the basenames below are read by anyone, or
 # anything, changing the repo.
 DOCS_DIR = "docs"
-DOC_BASENAMES = ("README.md", "CONTRIBUTING.md", AGENTS, CLAUDE, "SKILL.md")
+README = "README.md"
+DOC_BASENAMES = (README, "CONTRIBUTING.md", AGENTS, CLAUDE, "SKILL.md")
 # One shared line is a pitch or a title; a run is a copied procedure.
 RUN_MIN_LINES = 3
 # A run in more files than this is a template every page starts from — a
@@ -126,14 +127,16 @@ CLAUDE_FAMILY = (CLAUDE, ".claude/CLAUDE.md", "CLAUDE.local.md")
 # ---- findings ---------------------------------------------------------------
 
 class Finding:
-    __slots__ = ("code", "severity", "path", "message", "repair")
+    __slots__ = ("code", "severity", "path", "message", "repair", "other")
 
-    def __init__(self, code, severity, path, message, repair):
+    def __init__(self, code, severity, path, message, repair, other=None):
         self.code = code
         self.severity = severity
         self.path = path
         self.message = message
         self.repair = repair
+        # The second file of a pairwise finding, which holds the copy to keep.
+        self.other = other
 
     def as_dict(self):
         return {
@@ -901,11 +904,17 @@ def _restated_findings(texts):
         if _tier(narrow) == _tier(wide):
             repair = ("keep one copy, in whichever of {} and {} its reader "
                       "consults, and link to it from the other".format(narrow, wide))
+        elif pathlib.PurePosixPath(narrow).name == README and _tier(narrow) == REPO_TIER:
+            # The forge renders a README outside docs/, and it can't include a file.
+            repair = ("keep the copy in {} ({}); cut {} to what a repo reader "
+                      "needs (the pitch, the install line, the development "
+                      "pointer) and link to {} for the rest".format(
+                          wide, TIER_NAMES[_tier(wide)], narrow, wide))
         else:
             repair = ("keep the copy in {} ({}) and link to or include it from {} "
                       "({})".format(wide, TIER_NAMES[_tier(wide)],
                                     narrow, TIER_NAMES[_tier(narrow)]))
-        out.append(Finding("restated", ADVISORY, narrow, message, repair))
+        out.append(Finding("restated", ADVISORY, narrow, message, repair, wide))
     return out
 
 
@@ -1101,9 +1110,12 @@ def has_errors(findings):
     return any(f.severity == ERROR for f in findings)
 
 
-def render(findings):
+def render(findings, directives=None):
+    """directives maps a finding to what to do with it now, shown under its
+    repair; the nudge has the edit to judge that by, and the check does not."""
     if not findings:
         return ""
+    directives = directives or {}
     # Wide enough that the longest code still has a gap after it.
     width = max(len(f.code) for f in findings) + 2
     lines = []
@@ -1111,6 +1123,8 @@ def render(findings):
         suffix = " (advisory)" if f.severity == ADVISORY else ""
         lines.append("{}{}{}".format(f.code.ljust(width), f.message, suffix))
         lines.append("{}-> {}".format(" " * width, f.repair))
+        if f in directives:
+            lines.append("{}=> {}".format(" " * width, directives[f]))
     return "\n".join(lines)
 
 
@@ -1447,9 +1461,22 @@ def _finding_key(finding):
     return _key(finding.code, finding.severity, finding.path, finding.repair)
 
 
-def _nudge(session_id, directory):
+def _restated_directive(finding, written):
+    """What to do with a restated finding, judged by whether the edit that set
+    off the nudge touched either copy: fixing a copy the agent just wrote belongs
+    in the same change, while fixing one it walked past widens a change nobody
+    asked to widen."""
+    if written in (finding.path, finding.other):
+        return ("your edit touched {}, so fix this in the same change, as the "
+                "repair above says".format(written))
+    return ("your edit touched neither file, so leave it out of this change and "
+            "name it to the user in your wrap-up")
+
+
+def _nudge(session_id, directory, written):
     """Reports each finding once while it persists. A finding that clears is
-    forgotten, so the same finding coming back later is reported afresh."""
+    forgotten, so the same finding coming back later is reported afresh.
+    written is the file whose edit set off the nudge."""
     name = _key(_resolved(directory))
     current = findings_for(directory)
     reported = set((_marked(session_id, "nudged", name) or "").split())
@@ -1461,12 +1488,17 @@ def _nudge(session_id, directory):
     if not findings:
         return None
 
-    body = (
-        "cleat — {} still has an agent-instruction shape worth fixing:\n\n{}\n\n"
-        "{} is canonical: when the two files disagree or overlap, the body stays "
-        "in {} and {} keeps only the ref plus genuinely Claude-specific "
-        "guidance.".format(directory, render(findings), AGENTS, AGENTS, CLAUDE)
-    )
+    written_rel = _relative_to(written, _resolved(directory))
+    directives = {f: _restated_directive(f, written_rel)
+                  for f in findings if f.code == "restated"}
+    body = "cleat — {} still has an agent-instruction shape worth fixing:\n\n{}".format(
+        directory, render(findings, directives))
+    if any(pathlib.PurePosixPath(rel).name in (AGENTS, CLAUDE)
+           for f in findings for rel in (f.path, f.other) if rel):
+        body += (
+            "\n\n{} is canonical: when the two files disagree or overlap, the body "
+            "stays in {} and {} keeps only the ref plus genuinely Claude-specific "
+            "guidance.".format(AGENTS, AGENTS, CLAUDE))
     # Composing the index by hand is where it drifts from the directory, so an
     # index finding hands over the rows rather than describing them. Rows over
     # budget would not clear toc-bloat, so they are not worth the context.
@@ -1590,17 +1622,17 @@ def post_tool_use(payload):
         if _under_user_claude(path):
             return None
         if path.name in (AGENTS, CLAUDE):
-            return _nudge(session_id, path.parent)
+            return _nudge(session_id, path.parent, path)
         # A new topic rule is unindexed by construction, so the write that
         # creates it is the moment the index can still be fixed in the same turn.
         owner = _rules_owner(path)
         if owner is not None:
-            return _nudge(session_id, owner)
+            return _nudge(session_id, owner, path)
         # Copies and wrong-way links are made by writing the documentation, so
         # the write that makes one is when it can be undone in the same turn.
         repo = _repo_root(path.parent)
         if repo is not None and _in_doc_set(_relative_to(path, repo)):
-            return _nudge(session_id, repo)
+            return _nudge(session_id, repo, path)
         return None
     if tool == "Read":
         return _bootstrap(session_id, path)
