@@ -30,6 +30,15 @@
 - The nudge's "`AGENTS.md` is canonical" note appears only under findings that
   involve `AGENTS.md` or `CLAUDE.md`.
 
+### Fixed
+- The lab's controls work from the moment it loads: add a layer while the
+  baseline plays, and changing the harness during any run starts it over with
+  the new harness.
+- The lab works on a phone: the run's progress and the next step stay in view
+  under the title bar, and tapping a disc shows its tooltip.
+- The README's debugging section shows the hook line Claude Code 2.1.296 and
+  later logs.
+
 ## 0.4.0
 
 ### Added

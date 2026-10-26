@@ -160,7 +160,6 @@ canvas { display: block; width: 100%; height: auto; border-radius: 14px; scroll-
 .costs small { font-size: 13px; color: var(--muted); }
 .costs .you b { color: var(--wrong-ink); }
 .costs b em { font-family: var(--body); font-style: normal; font-size: 14px; font-weight: 700; color: var(--muted); margin-inline-start: 6px; }
-.slot:disabled { cursor: default; }
 
 /* Learn more: a sheet that slides in from the right. */
 .sheet { overflow-y: auto; overscroll-behavior: contain; margin: 0 0 0 auto; width: min(540px, 100vw); height: 100dvh; max-height: none; max-width: none; border: 0; padding: 0; background: var(--surface); color: var(--fg); }
@@ -277,16 +276,18 @@ function renderControls() {
         <div class="eff"><span>${dialName(p.id)}</span><output id="o-${p.id}">${state.eff[p.id]}%</output></div>
         <input type="range" min="0" max="${MAX_EFF[p.id]}" step="1" value="${state.eff[p.id]}" data-eff="${p.id}" style="--p:${100 * state.eff[p.id] / MAX_EFF[p.id]}%" aria-label="${p.name} ${dialName(p.id)}">
       </div>`
-    : `<button class="slot" type="button" data-row="${p.id}" data-add="${p.id}" style="--c:var(${baseline ? `--${p.id}` : "--muted"})"${baseline ? "" : " disabled"}>+ ${p.name}</button>`;
-  $("controls").innerHTML = `<div class="launch" data-row="base"><b>Your harness</b><span>${baseline ? "Add a layer, then run the edits again." : "Running the baseline first."}</span></div>` + phase(PHASES[0]) + phase(PHASES[1]) + `<div class="edit-line" data-row="edit"></div>` + phase(PHASES[2]) + phase(PHASES[3]);
+    : `<button class="slot" type="button" data-row="${p.id}" data-add="${p.id}" style="--c:var(--${p.id})">+ ${p.name}</button>`;
+  $("controls").innerHTML = `<div class="launch" data-row="base"><b>Your harness</b><span>Add a layer any time; a run in progress starts over with it.</span></div>` + phase(PHASES[0]) + phase(PHASES[1]) + `<div class="edit-line" data-row="edit"></div>` + phase(PHASES[2]) + phase(PHASES[3]);
 }
 const added = [];
 function setLayer(id, on) {
+  const mid = midRun();
+  if (!baseline) settleBaseline();
   state.on[id] = on;
   added.splice(added.indexOf(id) >>> 0, 1); if (on) added.push(id);
   renderControls();
   layoutBoard();
-  changed(`${byId[id].name.toLowerCase()} ${on ? "added" : "removed"}`, id);
+  changed(`${byId[id].name.toLowerCase()} ${on ? "added" : "removed"}`, id, mid);
 }
 $("controls").addEventListener("input", ev => {
   const t = ev.target;
@@ -307,7 +308,24 @@ function summary() {
   const sum = (f) => done.reduce((t, d) => t + f(d), 0);
   return { n, human: sum(d => d.wrong ? 1 : 0), rescued: sum(d => d.rescued ? 1 : 0), min: sum(d => d.cost.min), tok: sum(d => d.cost.tok), you: sum(d => d.cost.you), build: buildMin() };
 }
-function changed(msg, id) { coachMsg = msg; coachLayer = id; reset(); }
+// A change during a run starts it over with the new harness once the change settles: a slider sends a burst of inputs.
+const RESTART_MS = 250;
+let restartTimer = 0;
+const midRun = () => running || restartTimer !== 0;
+function changed(msg, id, mid = midRun()) {
+  coachMsg = msg; coachLayer = id; reset();
+  if (!mid) return;
+  restartTimer = setTimeout(() => { restartTimer = 0; drop(EDITS); }, RESTART_MS);
+  paint(); renderCoach(false);
+}
+// Every run is measured against the baseline, so a change that comes before the baseline finishes lands the rest
+// of it at once.
+function settleBaseline() {
+  if (!running) { reset(); drop(EDITS, true); return; }
+  for (const d of falling) { Object.assign(d.pts[d.pts.length - 1], nextSlot(d.bin)); land(d); }
+  falling = []; flashes = [];
+  finish();
+}
 const pct = (a, b) => b ? Math.round(100 * a / b) : 0;
 const nextLayer = () => GROWTH.find(g => !state.on[g.id]);
 const glyph = (up) => up ? "▲" : "▼";
@@ -316,10 +334,11 @@ const progress = () => `${landed.length} of ${EDITS} edits sorted`;
 function renderCoach(fresh) {
   const s = summary(), next = nextLayer(), el = $("coach"), tk = $("ticker");
   let big = "", head, now, tone = "var(--fg)";
-  if (!s.n || falling.length) {
+  const busy = falling.length || restartTimer;
+  if (!s.n || busy) {
     head = !baseline ? "Running the baseline: 100 edits with no harness. Half start out wrong."
-      : falling.length ? "100 edits on the way…" : "Run the edits again to compare with the baseline.";
-    now = falling.length ? `<span id="progress">${progress()}</span>` : `<span>${baseline ? "Harness changed" : head}</span>`;
+      : busy ? "100 edits on the way…" : "Run the edits again to compare with the baseline.";
+    now = busy ? `<span id="progress">${progress()}</span>` : `<span>${baseline ? "Harness changed" : head}</span>`;
   } else {
     const rate = pct(s.human, s.n), was = pct(baseline.human, baseline.n);
     let short;
@@ -334,7 +353,7 @@ function renderCoach(fresh) {
     head = !next ? "All four layers are on. Move a slider, or remove a layer to see if it carries its weight (an ablation test)."
       : harnessEmpty() ? `That's the baseline. ${next.ask}` : next.ask;
   }
-  const suggest = next && s.n && !falling.length, rerun = baseline && !s.n && !falling.length;
+  const suggest = next && s.n && !busy, rerun = baseline && !s.n && !busy;
   const cta = suggest ? `<button class="add" type="button" data-add="${next.id}">${next.add}</button>`
     : rerun ? `<button class="add run" type="button" data-run>Run the 100 edits</button>` : "";
   for (const box of [el, tk]) {
@@ -464,14 +483,14 @@ function timing(e, pts) {
   }
   return { segs, total: segs.reduce((t, g) => t + g.move + g.hold, 0) };
 }
-function drop(n) {
+function drop(n, instant = reduced) {
   for (let i = 0; i < n; i++) {
     const e = simulate(i), p = pathFor(e);
     const disc = { e, ...p, ...timing(e, p.pts), time: -i * Math.min(0.07, 3 / n), fired: new Set() };
-    if (reduced) land(disc); else falling.push(disc);
+    if (instant) land(disc); else falling.push(disc);
   }
   running = true;
-  if (reduced) finish(); else { renderCoach(false); if (!raf) raf = requestAnimationFrame(tick); }
+  if (instant) finish(); else { renderCoach(false); if (!raf) raf = requestAnimationFrame(tick); }
 }
 function land(d) {
   landed.push({ bin: d.bin, wrong: d.e.endWrong, rescued: d.e.startWrong && !d.e.endWrong, taints: d.e.taints, cost: d.e.cost, e: d.e, pts: d.pts });
@@ -560,7 +579,7 @@ function paint() {
     ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.strokeStyle = cssVar("--surface"); ctx.lineWidth = 2.5; ctx.stroke();
   };
   ctx.textAlign = "center";
-  if (falling.length) disc(hx, 9);
+  if (falling.length || restartTimer) disc(hx, 9);
   else {
     const label = "Run the 100 edits";
     ctx.font = font(800, atLeast(17, 14), '"Bricolage Grotesque", "Avenir Next", sans-serif');
@@ -649,7 +668,7 @@ function paint() {
     <div class="you"><b>${s.n ? fmtMin(s.you) : "–"}${vs("you")}</b><span>your time</span><small>15 min each time</small></div>
     <div><b>${harnessEmpty() ? "–" : fmtMin(buildMin())}</b><span>building the harness</span><small>your time, once</small></div>`;
 }
-function reset() { hovered = null; tip.hidden = true; falling = []; landed = []; flashes = []; running = false; rand = mulberry32(3 + Math.floor(Math.random() * 1000)); paint(); renderCoach(false); }
+function reset() { clearTimeout(restartTimer); restartTimer = 0; hovered = null; tip.hidden = true; falling = []; landed = []; flashes = []; running = false; rand = mulberry32(3 + Math.floor(Math.random() * 1000)); paint(); renderCoach(false); }
 const EDITS = 100;
 function letGo() { reset(); drop(EDITS); }
 $("aim").addEventListener("click", letGo);
@@ -733,7 +752,7 @@ showTheme();
 renderControls();
 layoutBoard();
 reset();
-document.fonts.ready.then(letGo);
+document.fonts.ready.then(() => { if (!baseline) letGo(); });
 </script>
 </body>
 </html>
