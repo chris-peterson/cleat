@@ -21,6 +21,14 @@
 - The docs sidebar reads in order: Background, then Harness engineering and the
   lab, then Feedback loops. The guides and SPEC sit under Reference.
 - The docs home page states when Claude Code reads `AGENTS.md`.
+- After an edit, a `restated` finding tells the agent what to do with it: fix
+  it in the same change when the edit touched one of the two copies, or name
+  it to you in the wrap-up when it didn't.
+- For a `README.md` outside `docs/`, the `restated` repair is to cut it to the
+  pitch, the install line, and the development pointer, and link to the docs
+  page for the rest. A forge can't include one file in another.
+- The nudge's "`AGENTS.md` is canonical" note appears only under findings that
+  involve `AGENTS.md` or `CLAUDE.md`.
 
 ## 0.4.0
 
