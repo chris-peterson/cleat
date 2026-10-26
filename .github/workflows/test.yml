@@ -1,0 +1,31 @@
+name: Test
+
+# One OS: cleat's surface is a single bash prefilter and a stdlib python3 CLI.
+# The suites run directly rather than through `just test`, so the runner needs
+# nothing installed beyond bash, python3, jq, and git.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      # Every suite runs even after one fails, so a single run reports them all.
+      - name: Run the test suites
+        run: |
+          status=0
+          for t in scripts/tests/*.test.sh; do
+            echo "::group::$t"
+            bash "$t" || status=1
+            echo "::endgroup::"
+          done
+          exit "$status"
