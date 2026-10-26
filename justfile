@@ -10,7 +10,7 @@ default:
     @echo ""
     @just --list --unsorted --list-heading '' --list-prefix '    '
     @echo ""
-    @echo "  Generated files are written by CI on push; edit the source, not the output."
+    @echo "  Generated files are written by CI on PRs and main; edit the source, not the output."
     @echo ""
 
 # run the shell script test suite

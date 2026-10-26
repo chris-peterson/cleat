@@ -28,9 +28,10 @@ just self-check        # cleat's findings for this repo — it must hold its own
 plugin.yml              source of record for metadata and marketplace copy
 hooks/hooks.yml         source of record for the three hook registrations
 hooks/prefilter.sh      the bash prefilter fronting every registration
-scripts/cleat           the CLI: `check`, `index`, and `hook`
+scripts/cleat           the CLI: `check`, `index`, `cost`, and `hook`
 scripts/tests/          bash test suite
-guides/                 the rubric and placement guide the deny reasons name
+skills/                 skills, for the help no hook can reach
+guides/                 the long-form guidance the findings and skills name by path
 SPEC.md / STATUS.md     requirements and their coverage
 docs/                   docsify site (the pages .gitignore allowlists are source)
 ```
@@ -41,10 +42,9 @@ docs/                   docsify site (the pages .gitignore allowlists are source
 Never hand-edit a generated file; edit its source and let the projection follow.
 
 The projection job in `.github/workflows/project.yml` is that writer: it runs
-`shipyard generate` on every push and commits the result to the branch, so a
-committed artifact matches its source at all times and the diff a reviewer
-approves is what lands. `just generate` runs the same projectors locally when
-you want to see the result before pushing.
+`shipyard generate` on each pull request and each push to `main`, and commits
+the result to the branch, so the diff a reviewer approves is what lands. Until
+a branch has a PR, `just generate` runs the same projectors locally.
 
 Releases are dispatched, not tagged by hand: run the **Release** workflow with a
 bump level, and shipyard derives the version from `plugin.yml`, retitles
@@ -54,6 +54,11 @@ what picks the level.
 
 ## Conventions
 
+- **cleat spends as little of a session's context as it can** (`DESIGN-01`). A
+  hook costs nothing until it fires, so it's the default. A skill's listing
+  entry is paid in every session, so add one only for help a user asks for in
+  conversation, where no tool event fires. Anything long goes in `guides/`,
+  named by path from the finding or skill that needs it.
 - **`scripts/cleat` is python3, standard library only.** No third-party imports,
   no virtualenv. It runs from a hook, where a missing dependency is a silent
   failure.

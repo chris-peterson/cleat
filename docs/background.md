@@ -49,6 +49,11 @@ Context tiering is placing each piece of guidance in the narrowest tier that
 still reaches the agent when it's needed. A testing convention that matters
 only in `*.test.ts` files costs nothing in a session that never opens one.
 
+The tiers chain. A rule that loads for one kind of file can point to a guide
+the agent reads only when it needs the detail, so guidance grows into a tree
+that opens as the work goes deeper. The [Tiering guide](/tiering) walks through
+one.
+
 ## Hooks
 
 A hook is a command Claude Code runs at a fixed point in a session, such as
@@ -56,9 +61,8 @@ just before or just after a tool call. It runs outside the model, so it takes
 no room in the context window until it fires. When it fires, it can stop the
 action, or add a message the agent reads before its next step.
 
-Hooks are how cleat works: it has no commands to run and loads nothing at
-launch. It checks each write to an instruction file, and reports what's off in
-the same turn.
+Hooks are how cleat works, so it loads almost nothing at launch. It checks each
+write to an instruction file, and reports what's off in the same turn.
 
 ## Next
 

@@ -43,14 +43,16 @@ marketplace:
 # → marketplace SPA; keys mirror the SPA's PLUGINS object.
 suite:
   group: record
-  # Three hooks are the whole plugin — no commands, no skills, no SessionStart
-  # output. Nothing resident in session context, and nothing to remember to run.
+  # SPEC.md DESIGN-01: hooks wherever one can reach the moment, and a listing
+  # entry only for help a user asks for in conversation.
   activations: [agent]
   gloss: cleat your instructions once, for any agent.
   pitch: "Trying Cursor or Codex alongside Claude? Write your project's instructions once, in the file every agent reads."
   what: "Teams evaluating AI coding agents are rarely on one. AGENTS.md is the file they read; Claude Code always loads CLAUDE.md and reads AGENTS.md only under conditions your CI and your teammates will not all meet, so guidance kept in either one alone reaches your agents unevenly. cleat holds a repo in the one shape that satisfies both: the body of the guidance in AGENTS.md, with CLAUDE.md a pointer that imports it. Writing a full CLAUDE.md into a repo with no AGENTS.md gets stopped and split in two; a near-miss shape gets reported so it's repaired in the same turn; a repo carrying no agent guidance at all gets an offer to start one."
   # >>> shipyard:describe — generated from source by `shipyard gen-describe`; do not edit >>>
   describe:
+    skills:
+      context-tiering: This skill should be used when the user asks to "reduce startup context", "trim CLAUDE.md", "tier these rules", or "why is my context so big".
     hooks:
       hooks: 'Hook wiring: PreToolUse→prefilter (Write|Edit); PostToolUse→prefilter (Write|Edit, Read).'
       prefilter: PreToolUse / PostToolUse — Runs the cleat CLI only for a payload naming an agent instruction file.

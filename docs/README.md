@@ -50,13 +50,14 @@ next, and `CLAUDE.md` has a use beyond pointing.
 
 ## What it does
 
-Three hooks, no commands:
+Hooks do the work, plus a skill for the one question no hook can see coming:
 
 | When | What happens |
 |---|---|
 | You write a substantive `CLAUDE.md` into a repo with no `AGENTS.md` | The write is stopped, with the reason and the instruction to split it in two. The content isn't lost: the model still holds it, so it re-issues rather than regenerates. |
 | A write leaves `AGENTS.md`/`CLAUDE.md` in a near-miss shape | The finding and its repair come back in the same turn: add the missing ref, write the `AGENTS.md` a pointer imports, flip an inversion, drop content duplicated from `AGENTS.md`. |
 | An agent reads an `AGENTS.md` that `CLAUDE.md` doesn't import, a nested `AGENTS.md` with no pointer beside it, the `README.md` of a repo with no agent guidance, or a rival tool's config | You get one offer to fix it. Once per session per directory. |
+| You ask why your context is so big, or to trim what your instructions cost | The `context-tiering` skill measures what a session loads at launch and moves each piece to the cheapest place that still reaches the agent. See the [Tiering guide](/tiering). |
 
 ### When `CLAUDE.md` really is all Claude-specific
 
@@ -86,8 +87,9 @@ to an `AGENTS.md` that doesn't exist, a missing ref, an inversion, a nested
 duplicated across both files, a rival tool's config sitting alongside, a topic
 rule glob cleat can't evaluate) exit non-zero, so CI can gate on them.
 **Advisories** (a repo with no agent guidance at all, an `AGENTS.md` with no
-`CLAUDE.md` pointer, or a heading like `## Commands` legitimately present in
-both files) are reported and leave the check green.
+`CLAUDE.md` pointer, a heading like `## Commands` legitimately present in both
+files, or more loaded at launch than the budget allows) are reported and leave
+the check green.
 
 ## Why "cleat"
 

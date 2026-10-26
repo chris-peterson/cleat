@@ -5,6 +5,17 @@
 ### Added
 - A Background page on the docs site for readers new to coding agents:
   instruction files, the context window, context tiering, and hooks.
+- `cleat cost` lists what a session in a directory loads at launch (instruction
+  files and their `@` imports, always-on rules, project skill and command
+  listing entries), each with its tier and size, and the total against a
+  16 KiB budget. It exits 1 past the budget, so CI can gate on it. Set your
+  own budget with `git config cleat.launchBudget <bytes>`.
+- `cleat check` reports `launch-cost`, an advisory, when that total is past the
+  budget, naming the largest piece.
+- A `context-tiering` skill: ask why your context is so big, or to trim what
+  your instructions cost, and it measures, asks what's in scope, and moves each
+  piece to the cheapest tier that still reaches the agent. The steps are in a
+  new Tiering guide, also on the docs site.
 
 ### Changed
 - The docs sidebar reads in order: Background, then Harness engineering and the

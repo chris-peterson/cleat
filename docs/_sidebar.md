@@ -6,4 +6,5 @@
 - Reference
   - [Placement](/placement)
   - [Rubric](/agents-vs-claude)
+  - [Tiering](/tiering)
   - [SPEC](/spec)

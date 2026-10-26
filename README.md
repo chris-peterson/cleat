@@ -7,8 +7,8 @@
 ![GitHub Release](https://img.shields.io/github/v/release/chris-peterson/cleat?sort=semver&display_name=release&logo=github&label=latest)
 
 Keep a repo's instructions in one `AGENTS.md` that every agent reads, with
-`CLAUDE.md` reduced to a pointer at it. cleat is hooks only: no slash commands,
-no skills, nothing resident in session context.
+`CLAUDE.md` reduced to a pointer at it. cleat works through hooks and spends as
+little of a session's context as it can.
 
 📖 **[Read the docs →](https://chris-peterson.github.io/cleat/)**
 
@@ -26,6 +26,12 @@ Report a directory's findings:
 ```bash
 scripts/cleat check ../some-repo
 scripts/cleat check ../some-repo --json
+```
+
+Report what a session there loads at launch, against the budget:
+
+```bash
+scripts/cleat cost ../some-repo
 ```
 
 Feed it a hook payload the way Claude Code would:
