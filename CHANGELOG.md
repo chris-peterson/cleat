@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.0
 
 ### Added
 - A Background page on the docs site for readers new to coding agents:
