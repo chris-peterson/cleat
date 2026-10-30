@@ -7,7 +7,6 @@ docs/*
 !docs/_sidebar.md
 !docs/agents-vs-claude.md
 !docs/background.md
-!docs/favicon.svg
 !docs/feedback-loops.md
 !docs/harness-engineering.md
 !docs/lab/

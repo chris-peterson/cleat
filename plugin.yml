@@ -7,6 +7,7 @@ version: 0.5.0
 description: "Keep a repo's instructions in one AGENTS.md that every agent reads, with CLAUDE.md reduced to a pointer at it."
 author: chris-peterson
 repository: https://github.com/chris-peterson/cleat
+icon: .claude-plugin/icon.svg
 keywords: [agents-md, claude-md, conventions, hooks, claude-code]
 license: MIT
 
