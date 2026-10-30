@@ -15,5 +15,6 @@
     "claude-code"
   ],
   "homepage": "https://chris-peterson.github.io/cleat/#/",
+  "icon": ".claude-plugin/icon.svg",
   "documentationUrl": "https://chris-peterson.github.io/cleat/#/"
 }
