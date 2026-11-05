@@ -19,7 +19,8 @@ are in [SPEC.md](./SPEC.md), their coverage in [STATUS.md](./STATUS.md).
 ## Exercising it without a session
 
 The CLI is the whole implementation; the hooks are three registrations pointing
-at it. Both halves run standalone.
+at it. Both halves run standalone. `just demo` walks the CLI on this repo, and
+bare `just` lists the other demos.
 
 Report a directory's findings:
 
@@ -32,6 +33,28 @@ Report what a session there loads at launch, against the budget:
 
 ```bash
 scripts/cleat cost ../some-repo
+```
+
+Browse everything a session there can load (the repo, user scope, and enabled
+plugins), with what each path costs. With no flag it opens in the terminal:
+
+```bash
+scripts/cleat graph ../some-repo
+scripts/cleat graph ../some-repo --plugin anchor --json
+scripts/cleat graph ../some-repo --html       # opens a temporary page in your browser
+```
+
+The page is a radar: every file as far out as the context it takes to reach.
+Type a term an agent might be after and see which loaded files speak to it,
+where following their references leads, and which of those references leave
+the machine; `p` does the same in the terminal.
+
+Append a snapshot of those numbers to the metrics history, to see how they move
+between runs:
+
+```bash
+scripts/cleat metrics ../some-repo
+scripts/cleat metrics ../some-repo --history /path/to/metrics.yml
 ```
 
 Feed it a hook payload the way Claude Code would:

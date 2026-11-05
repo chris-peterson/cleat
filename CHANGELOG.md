@@ -1,5 +1,116 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- `cleat graph` walks everything a session can load (the repo, your user
+  scope with the skills claude.ai syncs into it and agents in folders of their
+  own, and every enabled plugin) and follows each reference a file states:
+  a listing entry to its skill body, a body to the guides it reads, the
+  scripts it runs, and the skills it names. Each node carries its size, its
+  reach cost (what a session has paid before it opens), and its closure cost
+  (everything it pulls in), so the expensive branches stand out. Costs show as
+  estimated tokens: what's spent to reach a file, what it costs, what opening
+  it one level further adds, and everything below it. It opens a
+  two-pane browser in the terminal, rolled up by kind of artifact and colored
+  by cost; `--html` opens the graph as a page in your browser, and `--json`
+  prints the data. `--plugin`, `--marketplace`, `--scope`, and `--tier` narrow
+  any of them.
+- `cleat graph` opens with insights on what stands out: the biggest share of
+  launch, the heaviest skill, the guide the most skills share, duplicate files,
+  skills naming a typed-only skill, and SessionStart hooks it can't size. Each
+  shows how it was computed, and Show narrows the view to the files involved.
+- Every file in `cleat graph` says when it loads (at launch, for files matching
+  its globs, never, only when typed, on a hook event, or when a reference to it
+  is followed), and every reference says where it is: the file, line, and text
+  that opens the next file.
+- `cleat graph --html` is one radar: launch at the center, each file as far
+  out as the context it takes to reach, colored by what it pulls in, with a
+  halo on each file past the ideal for its tier. A meter under it runs out to
+  a 1M context window, with a line where a 200k window ends, filled by what
+  loads at start; ask about a term and it fills
+  on, hop by hop, with what that prompt opens, while the radar lights those
+  files. Drag the meter to see what a session has opened by any point. The
+  panel beside it says what to look at first: what launch is made of and the
+  fixes that save the most, or the heaviest files a prompt reaches. Filters,
+  insights, and the scorecard wait in a drawer, and each file's particulars
+  behind More. A `?` walks through what each mark means with examples from
+  your own setup; clicking a plugin's wedge shows its numbers and
+  double-clicking drills into it. Esc, the mouse's back button, and the
+  browser's back step back one view at a time. The page
+  loads nothing from the network, so it renders offline, and comes in a day
+  and a night theme (Alucard and Dracula), following your system until you
+  pick: cost runs slate to purple to pink, orange marks a file past its
+  ideal, and red is kept for a remote site, in the terminal browser too.
+- Every `cleat graph` view reports the same three numbers: what launch costs,
+  what the deepest path costs, and what every file would cost.
+- Ask the radar about what an agent would be after. Type a term, say
+  `release`, and the loaded files that mention it light up; following their
+  references lights what an agent wanting more would reach, hop by hop, with
+  what reading it all costs. Files that mention the term but that nothing
+  lit leads to are islands, past a horizon, and each names the line that
+  would connect it. Each remote site a lit line names sits
+  at the rim, one per host, because a trip off the machine is slower, less
+  certain, and needs a network: context an agent needs belongs beside the
+  file that names it. In the terminal browser, `p` takes the same probe and rolls
+  the left pane up by distance, each hop with what reading it costs;
+  `--probe TERM` carries it in the JSON, and with no term gives everything by
+  distance. `--json` carries each file's web addresses.
+- `cleat graph` finds orphans: files beside your guidance, in a skill's folder
+  or one a skill or rule links into, that nothing links to, so no session
+  reads them. Each comes with where to name it (the line already about the
+  same thing, or the skill that names only its folder), or the advice to
+  delete it. The radar draws them past the horizon as hollow squares and lists
+  them by owner; the terminal browser lists them under Orphans; `--json`
+  carries them.
+- The `context-tiering` skill maps what calls what with `cleat graph`.
+- `examples/graph-hotspots.py` reads `cleat graph --json` and prints the
+  heaviest branches, the files several roots share, and what each plugin
+  costs: a starting point for your own tooling.
+- `cleat graph` scores what a session can load against the ideal for each
+  tier: listing entries of about 100 tokens, skill bodies under 5,000 tokens
+  and 500 lines, references linked straight from the body, a table of contents
+  atop any reference over 100 lines (Anthropic's published skill budgets), and
+  launch within cleat's launch budget. The page's new "vs ideal" view shows a
+  scorecard per plugin and scope and a list of fixes, what every session pays
+  first; the terminal browser lists the same fixes under "vs ideal", and
+  `--json` carries both.
+- `cleat metrics` records the graph's numbers over time. Each run appends a
+  snapshot to `~/.local/state/cleat/metrics.yml` (or `--history PATH`) and
+  prints it: the totals, the context per load tier and per hop from a root,
+  the depth curve (how much context is within reach on a budget of 1k, 2k, 4k
+  tokens and so on), the budgets at which half and 90% of it is within reach,
+  the largest single file, and each owner's totals with a plugin's version and
+  a digest that changes when any of its files does. Run it from your own
+  machine: the numbers come mostly from your user scope and plugins.
+- Files in `cleat graph` open from where they're shown. In the terminal
+  browser, cmd+click a file's name (or whatever opens a link in your terminal)
+  to open it; the details strip shows the selected file's path, with its folder
+  linked too. The page's details panel links the file and its folder the same
+  way.
+- Following a web address now counts toward what a prompt spends. Each
+  address a lit line names is counted once, after the local files, at an
+  estimate of what WebFetch hands back (about 2k tokens), and the meter marks
+  that stretch as estimated. `cleat graph --measure-remote` fetches each
+  address, measures its text, and keeps the result for 30 days in
+  `~/.cache/cleat/remote.json`, so later runs use it without the network.
+  Selecting a site says what reading its pages raw would cost, and which
+  addresses could not be fetched.
+- The terminal browser opens compact: a meter of what loads at start, marked
+  where the 200k and 1M windows end, and a cost bar and one number per row. `d` shows every cost
+  column and the full details strip. Esc or backspace steps back: out of the
+  right pane, then to the view before the last probe, filter, or regrouping.
+- The terminal browser takes the mouse: click a row to pick it, click it again
+  to expand it, click the pane title to switch the grouping, scroll either
+  pane with the wheel, and use the mouse's back button to step back.
+- Double-click a file on the radar to see only what it pulls in. A key says
+  what each mark means, including the dashed files, which load only on a
+  trigger.
+- Select an owner in the scorecard (or "What to change" on a plugin's wedge)
+  for a plan of what to change there: a step per kind of fix, largest
+  savings first, with the files each one touches, and a starter prompt to copy
+  into a coding agent session in that owner's repository.
+
 ## 0.5.0
 
 ### Added
