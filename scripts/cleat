@@ -4,6 +4,7 @@
     cleat check [DIR] [--json]   report DIR's findings; exit 1 on any error finding
     cleat index [DIR]            print the rules index AGENTS.md should carry
     cleat cost [DIR] [--json]    report what DIR loads at launch; exit 1 past budget
+    cleat graph [DIR] [--json | --html [PATH]]   browse what a session can load
     cleat hook                   read a hook payload on stdin, decide, emit
 
 python3 standard library only. This runs from a hook, where an import error is a
@@ -1698,6 +1699,11 @@ def cmd_cost(args):
     return 1 if total > budget else 0
 
 
+def cmd_graph(args):
+    import cleat_graph
+    return cleat_graph.run(sys.modules[__name__], args)
+
+
 def cmd_hook(_args):
     """Always exits 0. A hook's exit code is a channel Claude Code reads for
     something else, so a failure here is reported as a systemMessage the user
@@ -1751,6 +1757,18 @@ def main(argv=None):
     cost.add_argument("--budget", type=int, help="bytes; overrides cleat.launchBudget")
     cost.add_argument("--json", action="store_true", help="emit the items as JSON")
     cost.set_defaults(func=cmd_cost)
+
+    graph = sub.add_parser(
+        "graph", help="browse what a session can load, and what each path costs")
+    graph.add_argument("directory", nargs="?", default=".")
+    graph.add_argument("--json", action="store_true", help="emit the graph as JSON")
+    graph.add_argument("--html", metavar="PATH", nargs="?", const="",
+                       help="write the graph as an HTML page to PATH; with no PATH, "
+                            "to a temporary file that opens in your browser")
+    for field in ("marketplace", "plugin", "scope", "tier"):
+        graph.add_argument("--" + field, action="append", metavar=field.upper(),
+                           help="show only nodes with this {} (repeatable)".format(field))
+    graph.set_defaults(func=cmd_graph)
 
     hook = sub.add_parser("hook", help="read a hook payload on stdin and decide")
     hook.set_defaults(func=cmd_hook)

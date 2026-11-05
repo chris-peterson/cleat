@@ -7,7 +7,7 @@ in-repo implementation. Status vocabulary: **Covered** · **Partial** ·
 **Evidence pointers:** file + enclosing symbol. A line number is invalidated by
 any edit above it, and the ledger is read long after that edit.
 
-**Coverage: 107/120 requirements Covered (89%)**
+**Coverage: 125/125 requirements Covered (100%)**
 
 ## CHECK — The check command
 
@@ -82,19 +82,24 @@ CHECK-12 is retired and not counted.
 
 | ID       | Status  | Location |
 |----------|---------|----------|
-| GRAPH-01 | Missing | — |
-| GRAPH-02 | Missing | — |
-| GRAPH-03 | Missing | — |
-| GRAPH-04 | Missing | — |
-| GRAPH-05 | Missing | — |
-| GRAPH-06 | Missing | — |
-| GRAPH-07 | Missing | — |
-| GRAPH-08 | Missing | — |
-| GRAPH-09 | Missing | — |
-| GRAPH-10 | Missing | — |
-| GRAPH-11 | Missing | — |
-| GRAPH-12 | Missing | — |
-| GRAPH-13 | Missing | — |
+| GRAPH-01 | Covered | scripts/cleat (`cmd_graph`, `main`); scripts/cleat_graph.py (`run`); scripts/tests/graph.test.sh |
+| GRAPH-02 | Covered | scripts/cleat_graph.py (`Walker.walk`, `enabled_plugins`, `settings_files`, `config_dir`); scripts/tests/graph.test.sh |
+| GRAPH-03 | Covered | scripts/cleat_graph.py (`Walker.file_node`, `Walker.invocable`, `Scope.attrs`); scripts/tests/graph.test.sh |
+| GRAPH-04 | Covered | scripts/cleat_graph.py (`Walker.scan`, `Walker.resolve`, `Walker.hooks`) — `PATH_REF`, `SLASH_NAME`, `QUALIFIED_NAME`; scripts/tests/graph.test.sh |
+| GRAPH-05 | Covered | scripts/cleat_graph.py (`Walker.instructions`); scripts/tests/graph.test.sh |
+| GRAPH-06 | Covered | scripts/cleat_graph.py (`compute_costs`); scripts/tests/graph.test.sh |
+| GRAPH-07 | Covered | scripts/cleat_graph.py (`compute_costs`, `totals`); scripts/tests/graph.test.sh |
+| GRAPH-08 | Covered | scripts/cleat_graph.py (`filtered`, `matches`, `parse_filter`); scripts/cleat (`main`); scripts/tests/graph.test.sh |
+| GRAPH-09 | Covered | scripts/cleat_graph.py (`Browser`, `rollup`, `group_stats`, `left_rows`, `tree_rows`, `heat_level`); scripts/tests/graph.test.sh, under a pty |
+| GRAPH-10 | Covered | scripts/cleat_graph.py (`render_html`, `write_page`); scripts/cleat_graph.html; scripts/tests/graph.test.sh |
+| GRAPH-11 | Covered | scripts/cleat_graph.py (`as_json`, `run`); scripts/tests/graph.test.sh |
+| GRAPH-12 | Covered | scripts/cleat_graph.py (`run`); scripts/tests/graph.test.sh |
+| GRAPH-13 | Covered | scripts/cleat_graph.py (`_json_file`, `enabled_plugins`, `run`); scripts/tests/graph.test.sh |
+| GRAPH-14 | Covered | scripts/cleat_graph.py (`BYTES_PER_TOKEN`, `tokens`, `write_page`); scripts/cleat_graph.html (`tok`); scripts/tests/graph.test.sh |
+| GRAPH-15 | Covered | scripts/cleat_graph.py (`insights`, `_insight`, `Browser.refresh_rows`); scripts/cleat_graph.html (the Insights card, `focusSet`); scripts/tests/graph.test.sh |
+| GRAPH-16 | Covered | scripts/cleat_graph.py (`Walker.ref`, `Walker.retired`, the `when` and `trigger` fields, `Graph.refs`, `Browser.details`, `tag`); scripts/cleat_graph.html (Loads, Opened by); scripts/tests/graph.test.sh |
+| GRAPH-17 | Covered | scripts/cleat_graph.html (`drawUniverse`, `lightTo`, `setMode`, `chooseOwner`, `ownerPanel`, `drill`, `expand`, `tourSteps`) |
+| GRAPH-18 | Covered | scripts/cleat_graph.py (`depth_cost`, `totals`, `owners`, `group_stats`, `Browser.draw`, `write_page`); scripts/cleat_graph.html (`totals`, `ownerPanel`); scripts/tests/graph.test.sh |
 
 ## DESIGN — Design tenets
 
@@ -207,7 +212,7 @@ PACKAGING-03 is retired and not counted.
 
 ### 2026-11-05 — The context graph (spec-req)
 
-+13 IDs (GRAPH-01–13) and five concepts (context graph, load tier, reach cost, closure cost, unmeasured). `cleat graph` walks the repo, user scope, and enabled plugins for the deferred loads `cleat cost` leaves out, and browses them in the terminal, as an HTML page, or as JSON. 107/120 Covered.
++18 IDs (GRAPH-01–18) and seven concepts (context graph, load tier, root, reach cost, next cost, closure cost, unmeasured). `cleat graph` walks the repo, user scope, and enabled plugins for the deferred loads `cleat cost` leaves out, and browses them in the terminal, as an HTML page, or as JSON, with costs in estimated tokens insights on what stands out, the condition and reference behind each load, and a universe view of context spent by depth or breadth. 125/125 Covered.
 
 ### 2026-10-26 — What to do with a restated finding (spec-req)
 

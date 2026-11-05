@@ -1,0 +1,1037 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Context Graph</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500&display=swap">
+<style>
+/* An observatory for one repo's context. The sky panel is the one loud thing:
+   launch at its center, files placed by how much context reaching them takes,
+   glowing by how much they pull in. Everything around it is quiet paper.
+   Layout: findings and filters on the left, the sky (or graph) in the middle,
+   the selected file's costs on the right. */
+:root {
+  --bg: #edeff2;
+  --surface: #fbfcfd;
+  --ink: #161a22;
+  --ink-2: #4c5466;
+  --ink-3: #7b8396;
+  --rule: #d9dde5;
+  --accent: #4e44c9;
+  --heat-0: #c3c9d0; --heat-1: #e2cf6e; --heat-2: #eeb143; --heat-3: #ea8a34; --heat-4: #dc5a2b; --heat-5: #c12d1e;
+  --edge: #b9c0cc;
+  --hi: #161a22;
+  /* The sky is deep space in either theme, so its stars use one ramp. */
+  --sky: #070a12;
+  --sky-glow: #16203a;
+  --sky-ink: #dce1ee;
+  --sky-dim: #6f7993;
+  --sky-ring: #1d2640;
+  --sky-ray: #2c375a;
+  --star-0: #56607a; --star-1: #cfae45; --star-2: #eaa53c; --star-3: #f37d2f; --star-4: #f5532d; --star-5: #ff3b30;
+  --font-ui: "Schibsted Grotesk", "Segoe UI", system-ui, sans-serif;
+  --font-data: "Spline Sans Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #090c13; --surface: #0f131d; --ink: #e7eaf2; --ink-2: #a6aec0; --ink-3: #737c91;
+    --rule: #1f2636; --accent: #9c93ff; --edge: #2e3648; --hi: #e7eaf2;
+    --heat-0: #4b535d; --heat-1: #8c7a30; --heat-2: #b3872c; --heat-3: #cd6c26; --heat-4: #dc4f27; --heat-5: #ef3b2c;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #090c13; --surface: #0f131d; --ink: #e7eaf2; --ink-2: #a6aec0; --ink-3: #737c91;
+  --rule: #1f2636; --accent: #9c93ff; --edge: #2e3648; --hi: #e7eaf2;
+  --heat-0: #4b535d; --heat-1: #8c7a30; --heat-2: #b3872c; --heat-3: #cd6c26; --heat-4: #dc4f27; --heat-5: #ef3b2c;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg); color: var(--ink); font: 14px/1.5 var(--font-ui);
+  display: grid; grid-template-rows: auto 1fr;
+  padding-left: max(20px, env(safe-area-inset-left, 0px));
+  padding-right: max(20px, env(safe-area-inset-right, 0px));
+  padding-block: 18px;
+  gap: 18px;
+}
+/* Tabular figures only on bare integers: this face makes its period and colon
+   tabular too, which gaps "27.0k" and any sentence holding a number. */
+.count, .heat-labels { font-variant-numeric: tabular-nums; }
+
+/* Header: the repo's name, what the page is, and the three numbers that matter. */
+header { display: flex; flex-wrap: wrap; align-items: end; gap: 12px 32px; }
+.masthead { display: grid; gap: 2px; min-width: 0; }
+h1 { font-size: 28px; line-height: 1.1; font-weight: 700; letter-spacing: -0.025em; margin: 0; }
+.lede { margin: 0; color: var(--ink-2); font-size: 14px; max-width: 62ch; }
+.source { font: 12px var(--font-data); color: var(--ink-3); overflow-wrap: anywhere; }
+.totals { display: flex; flex-wrap: wrap; gap: 8px 28px; margin: 0 0 0 auto; }
+.totals div { display: grid; gap: 0; }
+.totals dd { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.15; order: 0; }
+.totals dt { font-size: 12px; color: var(--ink-3); order: 1; }
+
+main { display: grid; grid-template-columns: 272px minmax(0, 1fr) 312px; gap: 18px; min-height: 0; }
+aside, #details { min-width: 0; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; gap: 22px; padding-right: 4px; }
+section h2 { font-size: 13px; font-weight: 600; color: var(--ink); margin: 0 0 8px; letter-spacing: -0.005em; }
+
+input[type=search], select {
+  width: 100%; font: 13px var(--font-ui); color: var(--ink); background: var(--surface);
+  border: 1px solid var(--rule); border-radius: 8px; padding: 8px 10px;
+}
+select[multiple] { min-height: 84px; padding: 4px; }
+input:focus-visible, select:focus-visible, button:focus-visible, .root:focus-visible, .refs li:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+button {
+  font: 500 13px var(--font-ui); color: var(--ink); background: transparent;
+  border: 1px solid var(--rule); border-radius: 999px; padding: 4px 12px; cursor: pointer;
+}
+button:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Insights read as a short list of findings, each with its proof underneath. */
+#insights { display: grid; }
+.insight { display: grid; gap: 3px; padding-block: 10px; border-top: 1px solid var(--rule); }
+.insight:first-child { border-top: 0; padding-top: 0; }
+.insight strong { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+.insight p { margin: 0; font-size: 13px; color: var(--ink-2); }
+.insight .row2 { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; justify-content: space-between; }
+.insight code { font: 12px var(--font-ui); color: var(--ink-3); overflow-wrap: anywhere; }
+.insight button { padding: 2px 10px; font-size: 12px; }
+
+.roots { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; max-height: 38vh; overflow: auto; }
+.root {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 5px 8px;
+  border-radius: 6px; cursor: pointer; font-size: 13px;
+}
+.root:hover, .root[aria-current=true] { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.root span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.root span:last-child { color: var(--ink-2); }
+
+.heat { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 3px; }
+.heat span { height: 8px; border-radius: 999px; }
+.heat-labels { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 3px; font-size: 11px; color: var(--ink-3); margin-top: 4px; }
+.legend-note { font-size: 12px; color: var(--ink-3); margin: 8px 0 0; }
+.tiers { display: grid; gap: 2px; }
+.tiers label { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 2px 0; font-size: 13px; }
+.tiers input { accent-color: var(--accent); }
+.count { margin-left: auto; font-size: 12px; color: var(--ink-3); }
+
+/* The stage holds both views; the sky is the page's one dark, deep surface. */
+.canvas { display: grid; grid-template-rows: auto 1fr; gap: 10px; min-width: 0; min-height: 0; }
+.viewbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.views { display: inline-flex; padding: 3px; gap: 2px; background: var(--surface); border: 1px solid var(--rule); border-radius: 999px; }
+.views button { border: 0; padding: 4px 14px; }
+.views button[aria-selected="true"] { background: var(--ink); color: var(--surface); }
+.crumb { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 13px; color: var(--ink-2); min-height: 30px; }
+.crumb strong { color: var(--ink); font-weight: 600; overflow-wrap: anywhere; }
+.stage { position: relative; min-height: 420px; }
+#cy, #universe { position: absolute; inset: 0; border-radius: 14px; overflow: hidden; }
+#cy { background: var(--surface); border: 1px solid var(--rule); }
+#universe {
+  display: grid; grid-template-rows: minmax(0, 1fr) auto;
+  background: radial-gradient(circle at 50% 46%, var(--sky-glow) 0%, var(--sky) 62%);
+  color: var(--sky-ink);
+}
+#sky { width: 100%; height: 100%; display: block; }
+#sky .ring { fill: none; stroke: var(--sky-ring); }
+#sky .ring-label { font: 10px var(--font-ui); fill: var(--sky-dim); letter-spacing: 0.02em; }
+#sky .core { fill: var(--sky-ink); opacity: 0.08; }
+#sky .core-label { font: 600 11px var(--font-ui); fill: var(--sky-dim); }
+#sky .owner { font: 600 12px var(--font-ui); fill: var(--sky-dim); }
+#sky .ray { stroke: var(--sky-ray); stroke-width: 0.7; }
+#sky .ray.on { stroke: var(--sky-ink); stroke-width: 1.6; }
+#sky .star { stroke: var(--sky); stroke-width: 0.6; cursor: pointer; transition: opacity 160ms ease-out; }
+#sky .star.hot { filter: url(#glow); }
+#sky .star.gated { stroke: var(--sky-dim); stroke-dasharray: 2 2; stroke-width: 1.2; }
+#sky .star.unsized { fill: none !important; stroke: var(--star-0); stroke-dasharray: 2 2; }
+#sky .star.dark, #sky .ray.dark { opacity: 0.07; }
+#sky .star.picked { stroke: var(--sky-ink); stroke-width: 2.4; stroke-dasharray: none; }
+#sky .name { font: 500 11px var(--font-ui); fill: var(--sky-ink); paint-order: stroke; stroke: var(--sky); stroke-width: 3px; pointer-events: none; }
+.budget {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 10px 16px 12px;
+  font-size: 13px; color: var(--sky-dim);
+  background: linear-gradient(to top, rgb(7 10 18 / 0.85), rgb(7 10 18 / 0));
+}
+.budget label { color: var(--sky-ink); font-weight: 500; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.budget .modes { background: rgb(13 18 32 / 0.7); border-color: var(--sky-ray); }
+.budget .modes button { color: var(--sky-dim); border: 0; }
+.budget .modes button[aria-checked="true"] { background: var(--sky-ink); color: var(--sky); }
+#sky .wedge { fill: transparent; cursor: pointer; }
+#sky .wedge:hover { fill: rgb(220 225 238 / 0.04); }
+#sky .wedge.chosen { fill: rgb(220 225 238 / 0.07); }
+#sky .owner { cursor: pointer; }
+#sky .owner.chosen { fill: var(--sky-ink); }
+#sky .star.muted, #sky .ray.muted, #sky .name.muted { opacity: 0.1; }
+.owner-files { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
+.owner-files li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; font-size: 13px; cursor: pointer; }
+.owner-files li:hover span:first-child { color: var(--accent); }
+.owner-files span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.owner-files span:last-child { color: var(--ink-2); }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.budget input { flex: 1 1 180px; min-width: 0; accent-color: var(--star-4); }
+.budget output { color: var(--sky-ink); }
+.budget button { color: var(--sky-ink); border-color: var(--sky-ray); }
+.budget button:hover { color: var(--star-2); border-color: var(--star-2); }
+.tip {
+  position: absolute; pointer-events: none; max-width: 300px;
+  background: rgb(13 18 32 / 0.94); border: 1px solid var(--sky-ray); border-radius: 10px;
+  padding: 8px 10px; font-size: 12px; color: var(--sky-dim); backdrop-filter: blur(6px);
+}
+.tip strong { display: block; color: var(--sky-ink); font-weight: 600; font-size: 13px; overflow-wrap: anywhere; margin-bottom: 2px; }
+
+/* The walkthrough: one part of the sky at a time, with the rest dimmed. */
+.help {
+  position: absolute; top: 12px; right: 12px; width: 30px; height: 30px; padding: 0;
+  font-weight: 700; color: var(--sky-ink); border-color: var(--sky-ray); background: rgb(13 18 32 / 0.7);
+}
+.help:hover { color: var(--star-2); border-color: var(--star-2); }
+.tour {
+  position: absolute; top: 12px; left: 12px; width: min(340px, calc(100% - 24px));
+  background: rgb(13 18 32 / 0.95); border: 1px solid var(--sky-ray); border-radius: 12px;
+  padding: 14px 16px; color: var(--sky-dim); backdrop-filter: blur(8px);
+}
+.tour h3 { margin: 2px 0 6px; font-size: 17px; font-weight: 700; letter-spacing: -0.015em; color: var(--sky-ink); }
+.tour p { margin: 0; font-size: 13px; line-height: 1.55; }
+.tour .tour-count { font-size: 12px; color: var(--sky-dim); }
+.tour-nav { display: flex; gap: 8px; margin-top: 12px; }
+.tour-nav button { color: var(--sky-ink); border-color: var(--sky-ray); }
+.tour-nav button:hover { color: var(--star-2); border-color: var(--star-2); }
+.tour-nav .quiet { margin-left: auto; border-color: transparent; color: var(--sky-dim); }
+#sky.touring .ring, #sky.touring .ring-label, #sky.touring .owner, #sky.touring .star,
+#sky.touring .ray, #sky.touring .name, #sky.touring .core, #sky.touring .core-label {
+  opacity: 0.1; transition: opacity 350ms ease-out;
+}
+#sky.touring .tour-on { opacity: 1 !important; }
+#sky.touring .core.tour-on { opacity: 0.35 !important; }
+#sky .tour-pulse { animation: pulse 1.4s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes pulse { 50% { transform: scale(1.7); } }
+.budget.tour-on { box-shadow: inset 0 0 0 1px var(--star-2); }
+
+/* The selected file: what it costs, when it loads, and the lines that open it. */
+#details .empty { color: var(--ink-3); }
+.title { font-size: 17px; font-weight: 700; letter-spacing: -0.015em; overflow-wrap: anywhere; margin: 0; line-height: 1.25; }
+.note { font-size: 13px; color: var(--ink-3); margin: 2px 0 0; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0; }
+.kv dt { color: var(--ink-3); font-size: 13px; }
+.kv dd { margin: 0; font-size: 13px; overflow-wrap: anywhere; }
+.kv dd.path-value { font: 12px var(--font-data); }
+.path { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; font: 12px var(--font-data); }
+.path li { overflow-wrap: anywhere; }
+.path .via { color: var(--ink-3); }
+.edges { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
+.edges li { display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; gap: 8px; font-size: 13px; cursor: pointer; }
+.edges li:hover .n { color: var(--accent); }
+.edges .k { color: var(--ink-3); }
+.edges .n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.edges .v { color: var(--ink-2); }
+.refs { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.refs li { display: grid; gap: 3px; cursor: pointer; padding-left: 10px; border-left: 2px solid var(--rule); }
+.refs li:hover { border-left-color: var(--accent); }
+.refs .at { font-size: 12px; color: var(--ink-3); overflow-wrap: anywhere; }
+.refs code { font: 12px/1.5 var(--font-data); color: var(--ink-2); overflow-wrap: anywhere; }
+
+@media (max-width: 1100px) {
+  main { grid-template-columns: 240px minmax(0, 1fr); }
+  #details { grid-column: 1 / -1; }
+}
+@media (max-width: 760px) {
+  body { height: auto; }
+  main { grid-template-columns: minmax(0, 1fr); }
+  .stage { min-height: 70vh; }
+  .totals { margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="masthead">
+    <h1 id="repo">Context graph</h1>
+    <p class="lede">What a session here can load, and how much context reaching each file takes.</p>
+    <span class="source" id="source"></span>
+  </div>
+  <dl class="totals" id="totals"></dl>
+</header>
+<main>
+  <aside>
+    <section>
+      <h2><label for="search">Find</label></h2>
+      <input type="search" id="search" placeholder="skill, guide, or file name">
+    </section>
+    <section id="insights-card">
+      <h2>Insights</h2>
+      <div id="insights"></div>
+    </section>
+    <section>
+      <h2>Costliest roots</h2>
+      <ul class="roots" id="roots"></ul>
+    </section>
+    <section>
+      <h2>Everything below a node, ~tokens</h2>
+      <div class="heat" id="heat"></div>
+      <div class="heat-labels" id="heat-labels"></div>
+      <p class="legend-note">Estimated at ~2.8 bytes per token. Node size is the file itself. A hollow node runs a script or hook, so its cost is unknown.</p>
+    </section>
+    <section>
+      <h2>Load tier</h2>
+      <div class="tiers" id="tiers"></div>
+    </section>
+    <section>
+      <h2><label for="scope">Scope</label></h2>
+      <select id="scope" multiple></select>
+    </section>
+    <section>
+      <h2><label for="marketplace">Marketplace</label></h2>
+      <select id="marketplace" multiple></select>
+    </section>
+    <section>
+      <h2><label for="plugin">Plugin</label></h2>
+      <select id="plugin" multiple></select>
+    </section>
+  </aside>
+  <div class="canvas">
+    <div class="viewbar">
+      <div class="views" role="tablist" aria-label="View">
+        <button id="view-universe" role="tab" aria-selected="true">Universe</button>
+        <button id="view-graph" role="tab" aria-selected="false">Graph</button>
+      </div>
+      <div class="crumb" id="crumb"></div>
+    </div>
+    <div class="stage">
+      <div id="cy" role="img" aria-label="Graph of what a session can load" hidden></div>
+      <div id="universe">
+        <svg id="sky" role="img" aria-label="What a session can load, by how much context it takes to reach"></svg>
+        <div class="budget">
+          <button id="play">Expand</button>
+          <div class="views modes" role="radiogroup" aria-label="What the budget measures">
+            <button id="mode-depth" role="radio" aria-checked="true">Down one path</button>
+            <button id="mode-breadth" role="radio" aria-checked="false">Everything</button>
+          </div>
+          <label for="budget" class="sr">Budget</label>
+          <input type="range" id="budget" min="0" step="100">
+          <output id="budget-out" for="budget"></output>
+        </div>
+        <div class="tip" id="tip" hidden></div>
+        <button class="help" id="help" aria-label="How to read this view" title="How to read this view">?</button>
+        <div class="tour" id="tour" role="dialog" aria-labelledby="tour-title" aria-live="polite" hidden>
+          <p class="tour-count" id="tour-count"></p>
+          <h3 id="tour-title"></h3>
+          <p id="tour-text"></p>
+          <div class="tour-nav">
+            <button id="tour-back">Back</button>
+            <button id="tour-next">Next</button>
+            <button id="tour-close" class="quiet">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="details"><p class="empty">Select a node to see what reaching it costs and what it pulls in. Double-click a node to show only what it pulls in.</p></div>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.30.2/cytoscape.min.js"></script>
+<script>
+const DATA = /*GRAPH*/null;
+
+const TIERS = [
+  { id: "launch", label: "Launch" },
+  { id: "on invoke", label: "On invoke" },
+  { id: "on read", label: "On read" },
+  { id: "on path match", label: "On path match" },
+  { id: "on run", label: "On run (unmeasured)" },
+  { id: "on event", label: "On event (unmeasured)" },
+];
+// The terminal browser's thresholds, so a hotspot reads the same in both.
+const HEAT_TOKENS = [1000, 4000, 10000, 30000, 70000];
+const heatLevel = bytes => HEAT_TOKENS.filter(limit => (bytes || 0) / DATA.bytesPerToken >= limit).length;
+const TIER = Object.fromEntries(TIERS.map(t => [t.id, t]));
+const nodes = new Map(DATA.nodes.map(n => [n.id, n]));
+const out = new Map(), inc = new Map();
+for (const e of DATA.edges) {
+  (out.get(e.source) || out.set(e.source, []).get(e.source)).push(e);
+  (inc.get(e.target) || inc.set(e.target, []).get(e.target)).push(e);
+}
+const $ = id => document.getElementById(id);
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+// A byte count as an estimated token count: 640, 4.4k, 1.2M.
+function tok(bytes) {
+  if (bytes === null || bytes === undefined) return "—";
+  const n = bytes / DATA.bytesPerToken;
+  if (n < 1000) return n.toFixed(0);
+  if (n < 1e6) return (n / 1000).toFixed(1) + "k";
+  return (n / 1e6).toFixed(1) + "M";
+}
+function nodeSize(n) { return n.measured ? 14 + Math.sqrt(n.size) / 3.2 : 14; }
+
+$("source").textContent = DATA.directory;
+$("repo").textContent = DATA.directory.split("/").filter(Boolean).pop() || "Context graph";
+document.title = `${$("repo").textContent} context`;
+
+const tierCounts = {};
+for (const n of DATA.nodes) tierCounts[n.tier] = (tierCounts[n.tier] || 0) + 1;
+$("tiers").innerHTML = TIERS.map(t => `
+  <label><input type="checkbox" id="tier-${t.id.replace(/ /g, "-")}" value="${t.id}" checked>
+  ${t.label}<span class="count">${tierCounts[t.id] || 0}</span></label>`).join("");
+
+$("heat").innerHTML = HEAT_TOKENS.concat([null]).map((_, i) => `<span style="background: var(--heat-${i})"></span>`).join("");
+$("heat-labels").innerHTML = ["0", ...HEAT_TOKENS.map(n => n / 1000 + "k")].map(s => `<span>${s}</span>`).join("");
+
+function fillSelect(id, values) {
+  $(id).innerHTML = values.map(v => `<option value="${v}">${v}</option>`).join("");
+  $(id).size = Math.min(6, Math.max(3, values.length));
+}
+const uniq = key => [...new Set(DATA.nodes.map(n => n[key]).filter(Boolean))].sort();
+fillSelect("scope", uniq("scope"));
+fillSelect("marketplace", uniq("marketplace"));
+fillSelect("plugin", uniq("plugin"));
+
+const cy = cytoscape({
+  container: $("cy"),
+  elements: [
+    ...DATA.nodes.map(n => ({ data: { id: n.id, label: n.label, w: nodeSize(n) } })),
+    ...DATA.edges.map((e, i) => ({ data: { id: "e" + i, source: e.source, target: e.target, kind: e.kind } })),
+  ],
+  minZoom: 0.05,
+});
+
+function paint() {
+  cy.style([
+    { selector: "node", style: {
+      "width": "data(w)", "height": "data(w)", "border-width": 2,
+      "label": "", "font-family": css("--font-ui"), "font-size": 11, "color": css("--ink"),
+      "text-valign": "bottom", "text-margin-y": 3, "text-outline-width": 2, "text-outline-color": css("--surface"),
+    }},
+    ...[0, 1, 2, 3, 4, 5].map(i => ({ selector: `node[heat = ${i}]`, style: {
+      "background-color": css(`--heat-${i}`), "border-color": css("--surface"),
+    }})),
+    { selector: "node[measured = 0]", style: {
+      "background-opacity": 0, "border-color": css("--heat-0"), "border-style": "dashed",
+    }},
+    { selector: "node.labeled, node:selected, node.hl", style: { "label": "data(label)" } },
+    { selector: "node:selected", style: { "border-color": css("--hi"), "border-width": 3 } },
+    { selector: "edge", style: {
+      "width": 1.2, "line-color": css("--edge"), "target-arrow-color": css("--edge"),
+      "target-arrow-shape": "triangle", "arrow-scale": 0.7, "curve-style": "bezier", "opacity": 0.8,
+    }},
+    { selector: 'edge[kind = "invoke"]', style: { "line-style": "dashed" } },
+    { selector: 'edge[kind = "run"]', style: { "line-style": "dotted" } },
+    { selector: "edge.hl", style: { "line-color": css("--hi"), "target-arrow-color": css("--hi"), "width": 2, "opacity": 1 } },
+    { selector: ".faded", style: { "opacity": 0.12 } },
+  ]);
+}
+cy.nodes().forEach(el => {
+  const n = nodes.get(el.id());
+  el.data({ tier: n.tier, heat: heatLevel(n.closure), measured: n.measured ? 1 : 0 });
+});
+paint();
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", paint);
+new MutationObserver(paint).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+let focus = null;
+let view = "universe";
+// An insight's Show: a fixed set of nodes and the label the breadcrumb gives it.
+let focusSet = null;
+
+function selected(id) { return [...$(id).selectedOptions].map(o => o.value); }
+function visibleIds() {
+  const tiers = new Set([...document.querySelectorAll("#tiers input:checked")].map(i => i.value));
+  const want = { scope: selected("scope"), marketplace: selected("marketplace"), plugin: selected("plugin") };
+  const q = $("search").value.trim().toLowerCase();
+  const keep = new Set();
+  for (const n of DATA.nodes) {
+    if (!tiers.has(n.tier)) continue;
+    if (Object.entries(want).some(([k, v]) => v.length && !v.includes(n[k]))) continue;
+    if (q && !(n.label + " " + (n.plugin || "")).toLowerCase().includes(q)) continue;
+    keep.add(n.id);
+  }
+  if (focus) {
+    const pulled = pulls(focus);
+    for (const id of [...keep]) if (!pulled.has(id)) keep.delete(id);
+  }
+  if (focusSet) {
+    for (const id of [...keep]) if (!focusSet.ids.has(id)) keep.delete(id);
+  }
+  if (U.drill) {
+    for (const id of [...keep]) if (ownerOf(nodes.get(id)) !== U.drill) keep.delete(id);
+  }
+  return keep;
+}
+
+// What a node pulls in: its reads and runs, and an entry's body. A body's
+// invoke edges hand off to another root, so they stop the walk, as the CLI's
+// closure cost does.
+function pulls(id) {
+  const seen = new Set([id]), stack = [id];
+  while (stack.length) {
+    const cur = stack.pop();
+    for (const e of out.get(cur) || []) {
+      if (e.kind === "invoke" && nodes.get(cur).kind !== "entry") continue;
+      if (!seen.has(e.target)) { seen.add(e.target); stack.push(e.target); }
+    }
+  }
+  return seen;
+}
+
+function render() {
+  const keep = visibleIds();
+  cy.batch(() => {
+    cy.elements().removeClass("labeled");
+    cy.nodes().forEach(n => n.style("display", keep.has(n.id()) ? "element" : "none"));
+    cy.edges().forEach(e => e.style("display", keep.has(e.source().id()) && keep.has(e.target().id()) ? "element" : "none"));
+  });
+  const shown = DATA.nodes.filter(n => keep.has(n.id));
+  shown.sort((a, b) => b.closure - a.closure).slice(0, 12).forEach(n => cy.getElementById(n.id).addClass("labeled"));
+  totals(shown);
+  roots(shown);
+  crumb(shown.length);
+  if (view === "universe") { drawUniverse(keep); return; }
+  const visible = cy.elements(":visible");
+  const layout = focus
+    ? { name: "breadthfirst", directed: true, roots: [focus], spacingFactor: 1.1, animate: false }
+    : focusSet && visible.nodes().length < 40
+    ? { name: "breadthfirst", directed: true, roots: visible.nodes().filter(n => nodes.get(n.id()).root), spacingFactor: 1.2, animate: false }
+    : { name: "cose", animate: false, nodeRepulsion: () => 9000, idealEdgeLength: () => 60, numIter: 1200, randomize: true };
+  visible.layout(layout).run();
+  cy.fit(visible, 30);
+}
+
+function totals(shown) {
+  const t = {
+    "At launch": shown.filter(n => n.tier === "launch").reduce((s, n) => s + n.size, 0),
+    "Reachable": shown.reduce((s, n) => s + n.size, 0),
+    "Deepest": Math.max(0, ...shown.map(n => (n.reach || 0) + n.size)),
+  };
+  const unmeasured = shown.filter(n => !n.measured).length;
+  $("totals").innerHTML = [
+    ["~tokens at launch", tok(t["At launch"])],
+    ["~tokens down the deepest path", tok(t["Deepest"])],
+    ["~tokens if every file opened", tok(t["Reachable"])],
+    ["files", shown.length],
+    ["unmeasured", unmeasured],
+  ].map(([k, v]) => `<div><dd>${v}</dd><dt>${k}</dt></div>`).join("");
+}
+
+function roots(shown) {
+  const list = shown.filter(n => n.root).sort((a, b) => b.closure - a.closure).slice(0, 30);
+  $("roots").innerHTML = list.map(n => `<li class="root" tabindex="0" data-id="${encodeURIComponent(n.id)}"
+    ${focus === n.id ? 'aria-current="true"' : ""}><span title="${n.label}">${n.label}</span><span>${tok(n.closure)}</span></li>`).join("");
+}
+
+function crumb(count) {
+  if (U.drill) {
+    $("crumb").innerHTML = `<span>Inside</span><strong>${escapeHtml(U.drill)}</strong><span>${count} files</span><button id="all">Back to everything</button>`;
+    $("all").onclick = () => { U.drill = null; U.budget = null; render(); };
+    return;
+  }
+  if (!focus && !focusSet) { $("crumb").innerHTML = `<span>${count} files. Select a file for its costs, or a wedge for its owner.</span>`; return; }
+  const what = focusSet ? `<strong>${escapeHtml(focusSet.label)}</strong>` : `<span>Pulled in by</span><strong>${escapeHtml(nodes.get(focus).label)}</strong>`;
+  $("crumb").innerHTML = `${what}<button id="all">Show all</button>`;
+  $("all").onclick = () => { focus = null; focusSet = null; render(); };
+}
+
+$("insights").innerHTML = DATA.insights.length
+  ? DATA.insights.map((x, i) => `<div class="insight"><strong>${escapeHtml(x.title)}</strong><p>${escapeHtml(x.text)}</p>
+      <div class="row2"><code>${escapeHtml(x.query)}</code><button data-insight="${i}">Show</button></div></div>`).join("")
+  : "<p class=\"legend-note\">Nothing stands out under these filters.</p>";
+$("insights").addEventListener("click", ev => {
+  const b = ev.target.closest("[data-insight]");
+  if (!b) return;
+  const f = DATA.insights[Number(b.dataset.insight)].focus;
+  if (f.type === "node") { focus = f.id; focusSet = null; render(); select(f.id); }
+  else { focus = null; focusSet = { ids: new Set(f.ids), label: f.label }; render(); select(f.ids[0]); }
+});
+
+function chain(id) {
+  const path = [];
+  for (let cur = id; cur; cur = nodes.get(cur).via) {
+    path.unshift(cur);
+    if (path.length > 40) break;
+  }
+  return path;
+}
+
+function select(id) {
+  const n = nodes.get(id);
+  cy.elements().removeClass("hl faded");
+  const el = cy.getElementById(id);
+  cy.$(":selected").unselect();
+  el.select();
+  const path = chain(id);
+  for (let i = 0; i + 1 < path.length; i++) {
+    cy.edges().filter(e => e.source().id() === path[i] && e.target().id() === path[i + 1]).addClass("hl");
+    cy.getElementById(path[i]).addClass("hl");
+  }
+  const t = TIER[n.tier];
+  const where = n.scope === "plugin" ? `${n.plugin}@${n.marketplace || ""}` : n.scope;
+  const edges = (out.get(id) || []).map(e => nodes.get(e.target)).filter(Boolean)
+    .map((m, i) => ({ m, kind: out.get(id)[i].kind }))
+    .sort((a, b) => b.m.closure - a.m.closure);
+  $("details").innerHTML = `
+    <section>
+      <p class="title">${n.label}</p>
+      <p class="note">${t.label}, ${n.kind}, ${where}</p>
+    </section>
+    <section>
+      <dl class="kv">
+        ${n.when ? `<dt>Loads</dt><dd class="when">${escapeHtml(n.when)}</dd>` : ""}
+        <dt>Spent to get here</dt><dd>~${tok(n.reach)}</dd>
+        <dt>This node</dt><dd>${n.measured ? "~" + tok(n.size) : "unmeasured"}</dd>
+        <dt>Opening it adds</dt><dd>${(out.get(id) || []).length ? "~" + tok(n.next) : "nothing"}</dd>
+        <dt>Everything below</dt><dd>~${tok(n.closure)}${n.closureUnmeasured ? ` + ${n.closureUnmeasured} unmeasured` : ""}</dd>
+        <dt>Pointed to by</dt><dd>${(inc.get(id) || []).length}</dd>
+        ${n.note ? `<dt>Note</dt><dd>${escapeHtml(n.note)}</dd>` : ""}
+        <dt>File</dt><dd class="path-value">${escapeHtml(n.path)}</dd>
+      </dl>
+    </section>
+    ${(inc.get(id) || []).some(e => e.text) ? `<section><h2>Opened by</h2><ul class="refs">${(inc.get(id) || []).filter(e => e.text).map(e =>
+      `<li data-id="${encodeURIComponent(e.source)}"><span class="at">${e.kind === "run" ? "Runs" : e.kind === "invoke" ? "Invoked" : "Read"} from ${escapeHtml(e.file)}, line ${e.line || "?"}</span><code>${escapeHtml(e.text)}</code></li>`).join("")}</ul></section>` : ""}
+    ${path.length > 1 ? `<section><h2>Cheapest path here</h2><ol class="path">${path.map((p, i) =>
+      `<li class="${i < path.length - 1 ? "via" : ""}">${"  ".repeat(i)}${escapeHtml(nodes.get(p).label)} <span class="via">~${tok(nodes.get(p).size)}</span></li>`).join("")}</ol></section>` : ""}
+    ${edges.length ? `<section><h2>Opens</h2><ul class="edges">${edges.map(({ m, kind }) =>
+      `<li data-id="${encodeURIComponent(m.id)}"><span class="k">${kind}</span><span class="n" title="${escapeHtml(m.label)}">${escapeHtml(m.label)}</span><span class="v">${m.measured ? "~" + tok(m.closure) : "?"}</span></li>`).join("")}</ul></section>` : ""}
+    <section><button id="focus-node">Show what this pulls in</button></section>`;
+  $("focus-node").onclick = () => { focus = id; focusSet = null; render(); select(id); };
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+
+cy.on("tap", "node", ev => select(ev.target.id()));
+cy.on("dbltap", "node", ev => { focus = ev.target.id(); focusSet = null; render(); select(focus); });
+cy.on("tap", ev => { if (ev.target === cy) { cy.elements().removeClass("hl"); } });
+$("details").addEventListener("click", ev => {
+  const li = ev.target.closest("li[data-id]");
+  if (li) select(decodeURIComponent(li.dataset.id));
+});
+$("roots").addEventListener("click", ev => {
+  const li = ev.target.closest("li[data-id]");
+  if (li) { focus = decodeURIComponent(li.dataset.id); focusSet = null; render(); select(focus); }
+});
+$("roots").addEventListener("keydown", ev => {
+  if (ev.key === "Enter") ev.target.click();
+});
+let pending;
+for (const id of ["search"]) $(id).addEventListener("input", () => { clearTimeout(pending); pending = setTimeout(render, 200); });
+for (const id of ["scope", "marketplace", "plugin"]) $(id).addEventListener("change", render);
+$("tiers").addEventListener("change", render);
+
+// ---- the universe: launch at the center, context spent as distance ----------
+//
+// Radius is reach cost: how much a session has spent by the time a file opens.
+// Angle is the owner (this repo, user scope, a plugin), and inside it each file
+// sits in its parent's wedge, so a branch fans out the way a session expands
+// into it. The budget slider lights what a session can open within that spend.
+
+const SVGNS = "http://www.w3.org/2000/svg";
+const sky = $("sky");
+let stars = new Map(), rays = new Map(), parentOf = new Map(), maxSpend = 1, wedgeEls = new Map();
+const wedgeOf = n => U.drill ? n.label : ownerOf(n);
+
+const tokensOf = bytes => (bytes || 0) / DATA.bytesPerToken;
+const ownerOf = n => n.scope === "plugin" ? n.plugin : n.scope === "repo" ? "this repo" : n.scope === "user" ? "user scope" : "elsewhere";
+// Conditional roots and what grows from them: they open only on a trigger.
+const gatedRoot = n => n.root && (n.tier !== "launch" || n.trigger === "typed only" || n.trigger === "retired");
+
+function el(name, attrs, parent) {
+  const node = document.createElementNS(SVGNS, name);
+  for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+  parent.appendChild(node);
+  return node;
+}
+
+function drawUniverse(keep) {
+  const shown = DATA.nodes.filter(n => keep.has(n.id));
+  const box = sky.getBoundingClientRect();
+  const W = Math.max(box.width, 320), H = Math.max(box.height, 320);
+  sky.setAttribute("viewBox", `${-W / 2} ${-H / 2} ${W} ${H}`);
+  sky.replaceChildren();
+  stars = new Map(); rays = new Map(); parentOf = new Map();
+  if (!shown.length) return;
+
+  const R = Math.min(W, H) / 2 - 46, core = Math.max(26, R * 0.12);
+  const kids = new Map(), tops = [];
+  for (const n of shown) {
+    const p = n.via && keep.has(n.via) && !n.root ? n.via : null;
+    if (p) { parentOf.set(n.id, p); (kids.get(p) || kids.set(p, []).get(p)).push(n.id); }
+    else tops.push(n.id);
+  }
+  const weight = new Map();
+  const weigh = id => {
+    if (weight.has(id)) return weight.get(id);
+    weight.set(id, 1);
+    const w = 1 + (kids.get(id) || []).reduce((s, c) => s + weigh(c), 0);
+    weight.set(id, w);
+    return w;
+  };
+  tops.forEach(weigh);
+
+  const spendOf = n => tokensOf((n.reach || 0) + n.size);
+  maxSpend = Math.max(1, ...shown.map(spendOf));
+  // Breadth: open files nearest first, and count every one read so far.
+  U.order = shown.slice().sort((x, y) => spendOf(x) - spendOf(y) || y.closure - x.closure);
+  U.cumulative = new Map();
+  let running = 0;
+  for (const n of U.order) { running += tokensOf(n.size); U.cumulative.set(n.id, running); }
+  U.everything = running;
+  const maxReach = Math.max(1, ...shown.map(n => tokensOf(n.reach)));
+  const radius = n => n.root ? (gatedRoot(n) ? core : core * 0.55)
+    : core + (R - core) * Math.sqrt(tokensOf(n.reach) / maxReach);
+
+  const defs = el("defs", {}, sky);
+  const glow = el("filter", { id: "glow", x: "-100%", y: "-100%", width: "300%", height: "300%" }, defs);
+  el("feGaussianBlur", { stdDeviation: "3", result: "blur" }, glow);
+  const merge = el("feMerge", {}, glow);
+  el("feMergeNode", { in: "blur" }, merge);
+  el("feMergeNode", { in: "SourceGraphic" }, merge);
+  el("circle", { class: "core", r: core }, sky);
+  const coreLabel = el("text", { class: "core-label", y: core + 14, "text-anchor": "middle" }, sky);
+  coreLabel.textContent = "launch";
+
+  // Context rings at round token counts.
+  for (const mark of [1000, 5000, 10000, 25000, 50000, 100000, 200000]) {
+    if (mark > maxReach) break;
+    const r = core + (R - core) * Math.sqrt(mark / maxReach);
+    el("circle", { class: "ring", r }, sky);
+    const label = el("text", { class: "ring-label", x: 4, y: -r - 3 }, sky);
+    label.textContent = `${mark / 1000}k tokens`;
+  }
+
+  // Wedges by owner, in proportion to what each holds; the repo and user scope
+  // first. Drilled into one owner, each of its roots gets the wedge instead.
+  const wedgeLayer = el("g", {}, sky);
+  wedgeEls = new Map();
+  const owners = new Map();
+  for (const id of tops) {
+    const o = wedgeOf(nodes.get(id));
+    (owners.get(o) || owners.set(o, []).get(o)).push(id);
+  }
+  const order = [...owners.keys()].sort((a, b) =>
+    (b === "this repo") - (a === "this repo") || (b === "user scope") - (a === "user scope")
+    || owners.get(b).reduce((s, id) => s + weight.get(id), 0) - owners.get(a).reduce((s, id) => s + weight.get(id), 0));
+  const total = order.reduce((s, o) => s + Math.max(owners.get(o).reduce((t, id) => t + weight.get(id), 0), 6), 0);
+  const angle = new Map();
+  const place = (id, a0, a1) => {
+    angle.set(id, (a0 + a1) / 2);
+    const children = (kids.get(id) || []).slice().sort((a, b) => nodes.get(b).closure - nodes.get(a).closure);
+    const sum = children.reduce((s, c) => s + weight.get(c), 0);
+    let a = a0;
+    for (const c of children) { const span = (a1 - a0) * weight.get(c) / sum; place(c, a, a + span); a += span; }
+  };
+  let a = -Math.PI / 2;
+  for (const o of order) {
+    const ids = owners.get(o).sort((x, y) => nodes.get(y).closure - nodes.get(x).closure);
+    const w = ids.reduce((s, id) => s + weight.get(id), 0);
+    const span = 2 * Math.PI * Math.max(w, 6) / total;
+    let b = a;
+    for (const id of ids) { const s = span * weight.get(id) / w; place(id, b, b + s); b += s; }
+    // An annulus sector under the wedge, so the whole slice answers a click.
+    if (!U.drill) {
+      const arc = (r, th) => `${Math.cos(th) * r} ${Math.sin(th) * r}`;
+      const large = span > Math.PI ? 1 : 0;
+      const wedge = el("path", { class: "wedge", d: `M ${arc(core, a)} L ${arc(R + 30, a)} A ${R + 30} ${R + 30} 0 ${large} 1 ${arc(R + 30, a + span)} L ${arc(core, a + span)} A ${core} ${core} 0 ${large} 0 ${arc(core, a)} Z` }, wedgeLayer);
+      wedge.dataset.owner = o;
+      wedgeEls.set(o, wedge);
+    }
+    if (span > 0.12) {
+      const mid = a + span / 2, x = Math.cos(mid) * (R + 18), y = Math.sin(mid) * (R + 18);
+      const label = el("text", { class: "owner", x, y: y + 4, "text-anchor": Math.abs(x) < 20 ? "middle" : x > 0 ? "start" : "end" }, sky);
+      label.textContent = o.length > 28 ? o.slice(0, 27) + "…" : o;
+      if (!U.drill) { label.dataset.owner = o; wedgeEls.set(o + "\u0000label", label); }
+    }
+    a += span;
+  }
+
+  const pos = new Map();
+  for (const n of shown) {
+    const r = radius(n), th = angle.get(n.id);
+    pos.set(n.id, [Math.cos(th) * r, Math.sin(th) * r]);
+  }
+  const rayLayer = el("g", {}, sky), starLayer = el("g", {}, sky), nameLayer = el("g", {}, sky);
+  for (const [id, p] of parentOf) {
+    const [x1, y1] = pos.get(p), [x2, y2] = pos.get(id);
+    rays.set(id, el("line", { class: "ray", x1, y1, x2, y2 }, rayLayer));
+  }
+  const gated = new Set();
+  for (const n of shown) {
+    let cur = n.id;
+    while (parentOf.has(cur)) cur = parentOf.get(cur);
+    if (gatedRoot(nodes.get(cur))) gated.add(n.id);
+  }
+  // Name the heaviest files, skipping any whose label would land on one
+  // already placed, so the crowded center stays readable.
+  const named = new Set(), boxes = [];
+  for (const n of shown.slice().sort((x, y) => y.closure - x.closure)) {
+    if (named.size >= 8) break;
+    const [x, y] = pos.get(n.id), w = Math.min(n.label.length, 32) * 6 + 8;
+    const box = [x, y - 12, x + w, y + 6];
+    if (boxes.some(b => box[0] < b[2] && b[0] < box[2] && box[1] < b[3] && b[1] < box[3])) continue;
+    boxes.push(box);
+    named.add(n.id);
+  }
+  for (const n of shown.slice().sort((x, y) => y.size - x.size)) {
+    const [x, y] = pos.get(n.id);
+    const size = n.measured ? 2 + Math.sqrt(tokensOf(n.size)) / 9 : 2.5;
+    const cls = ["star", gated.has(n.id) ? "gated" : "", n.measured ? "" : "unsized"].join(" ").trim();
+    const level = heatLevel(n.closure);
+    const star = el("circle", { class: cls + (level >= 3 ? " hot" : ""), cx: x, cy: y, r: Math.min(size, 16), style: `fill: var(--star-${level})` }, starLayer);
+    star.dataset.id = n.id;
+    stars.set(n.id, star);
+    if (named.has(n.id)) {
+      const name = el("text", { class: "name", x: x + size + 3, y: y + 3 }, nameLayer);
+      name.textContent = n.label.length > 32 ? "…" + n.label.slice(-31) : n.label;
+    }
+  }
+
+  const slider = $("budget");
+  slider.max = Math.ceil((U.mode === "breadth" ? U.everything : maxSpend) / 100) * 100;
+  const first = U.budget === null;
+  if (first || U.budget > +slider.max) U.budget = +slider.max;
+  slider.value = U.budget;
+  lightTo(U.budget);
+  if (U.picked && stars.has(U.picked)) pick(U.picked);
+  if (U.owner && !U.drill) chooseOwner(U.owner, false);
+  if (first && !matchMedia("(prefers-reduced-motion: reduce)").matches) expand(2400);
+  if (tour.step >= 0) showStep(tour.step);
+}
+
+const U = { budget: null, picked: null, playing: 0, mode: "depth", owner: null, drill: null };
+
+// Light what a session can open within this much context; dim the rest. Only
+// classes change, so dragging the slider never rebuilds the sky.
+function lightTo(budget) {
+  U.budget = budget;
+  const breadth = U.mode === "breadth";
+  let open = 0;
+  for (const [id, star] of stars) {
+    const n = nodes.get(id);
+    const lit = breadth ? U.cumulative.get(id) <= budget : tokensOf((n.reach || 0) + n.size) <= budget;
+    star.classList.toggle("dark", !lit);
+    rays.get(id)?.classList.toggle("dark", !lit);
+    if (lit) open += 1;
+  }
+  const full = budget >= +$("budget").max;
+  const amount = `~${tok(budget * DATA.bytesPerToken)} tokens`;
+  $("budget-out").textContent = breadth
+    ? (full ? `all ${stars.size} files read: ${amount}` : `${amount} reads the nearest ${open} of ${stars.size} files`)
+    : (full ? `${open} of ${stars.size} files: the deepest path takes ${amount}` : `${amount} down one path reaches ${open} of ${stars.size} files`);
+}
+
+function setMode(mode) {
+  U.mode = mode;
+  $("mode-depth").setAttribute("aria-checked", mode === "depth");
+  $("mode-breadth").setAttribute("aria-checked", mode === "breadth");
+  const slider = $("budget");
+  slider.max = Math.ceil((mode === "breadth" ? U.everything : maxSpend) / 100) * 100;
+  slider.value = slider.max;
+  lightTo(+slider.max);
+}
+$("mode-depth").addEventListener("click", () => setMode("depth"));
+$("mode-breadth").addEventListener("click", () => setMode("breadth"));
+
+function pick(id) {
+  for (const s of sky.querySelectorAll(".picked")) s.classList.remove("picked");
+  for (const r of sky.querySelectorAll(".ray.on")) r.classList.remove("on");
+  U.picked = id;
+  stars.get(id)?.classList.add("picked");
+  for (let cur = id; parentOf.has(cur); cur = parentOf.get(cur)) rays.get(cur)?.classList.add("on");
+}
+
+$("budget").addEventListener("input", ev => { cancelAnimationFrame(U.playing); U.playing = 0; $("play").textContent = "Expand"; lightTo(+ev.target.value); });
+// Spend context from nothing up to everything reachable, so the files light in
+// the order a session could reach them.
+function expand(length) {
+  cancelAnimationFrame(U.playing);
+  const end = +$("budget").max, start = performance.now();
+  $("play").textContent = "Pause";
+  const step = now => {
+    const f = Math.min(1, (now - start) / length);
+    const b = Math.round(end * f * f);
+    $("budget").value = b;
+    lightTo(b);
+    if (f < 1) U.playing = requestAnimationFrame(step);
+    else { U.playing = 0; $("play").textContent = "Expand"; }
+  };
+  U.playing = requestAnimationFrame(step);
+}
+$("play").addEventListener("click", () => {
+  if (U.playing) { cancelAnimationFrame(U.playing); U.playing = 0; $("play").textContent = "Expand"; return; }
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) { const end = +$("budget").max; $("budget").value = end; lightTo(end); return; }
+  expand(6000);
+});
+
+sky.addEventListener("click", ev => {
+  const owner = ev.target.dataset?.owner;
+  if (owner) { chooseOwner(U.owner === owner ? null : owner, true); return; }
+  const id = ev.target.dataset?.id;
+  if (!id) return;
+  pick(id);
+  select(id);
+});
+
+// Highlight one owner's wedge and show its totals; drilling in redraws the sky
+// with that owner alone, its roots as the wedges.
+function chooseOwner(owner, show) {
+  U.owner = owner;
+  for (const [key, node] of wedgeEls) node.classList.toggle("chosen", !!owner && key.split("\u0000")[0] === owner);
+  for (const [id, star] of stars) {
+    const muted = !!owner && ownerOf(nodes.get(id)) !== owner;
+    star.classList.toggle("muted", muted);
+    rays.get(id)?.classList.toggle("muted", muted);
+  }
+  if (show && owner) ownerPanel(owner);
+}
+
+function ownerPanel(owner) {
+  const mine = [...stars.keys()].map(id => nodes.get(id)).filter(n => ownerOf(n) === owner);
+  const launch = mine.filter(n => n.tier === "launch").reduce((s, n) => s + n.size, 0);
+  const everything = mine.reduce((s, n) => s + n.size, 0);
+  const deepest = Math.max(0, ...mine.map(n => (n.reach || 0) + n.size));
+  const heavy = mine.filter(n => n.measured && !n.root).sort((a, b) => b.closure - a.closure).slice(0, 8);
+  $("details").innerHTML = `
+    <section>
+      <p class="title">${escapeHtml(owner)}</p>
+      <p class="note">${mine.length} files</p>
+    </section>
+    <section>
+      <dl class="kv">
+        <dt>At launch</dt><dd>~${tok(launch)}</dd>
+        <dt>Deepest path</dt><dd>~${tok(deepest)}</dd>
+        <dt>Every file</dt><dd>~${tok(everything)}</dd>
+      </dl>
+    </section>
+    <section class="actions">
+      <button id="drill-in">Drill in</button>
+      <button id="owner-clear">Clear</button>
+    </section>
+    ${heavy.length ? `<section><h2>Heaviest files</h2><ul class="owner-files">${heavy.map(n =>
+      `<li data-id="${encodeURIComponent(n.id)}"><span title="${escapeHtml(n.label)}">${escapeHtml(n.label)}</span><span>~${tok(n.closure)}</span></li>`).join("")}</ul></section>` : ""}`;
+  $("drill-in").onclick = () => drill(owner);
+  $("owner-clear").onclick = () => { chooseOwner(null, false); $("details").innerHTML = '<p class="empty">Select a file or a wedge.</p>'; };
+}
+
+function drill(owner) {
+  U.drill = owner;
+  U.owner = null;
+  U.budget = null;
+  render();
+}
+sky.addEventListener("pointermove", ev => {
+  const id = ev.target.dataset?.id, tip = $("tip");
+  if (!id) { tip.hidden = true; return; }
+  const n = nodes.get(id), host = $("universe").getBoundingClientRect();
+  tip.innerHTML = `<strong>${escapeHtml(n.label)}</strong>${escapeHtml(ownerOf(n))} · spent ~${tok(n.reach)} · this ~${n.measured ? tok(n.size) : "?"} · all ~${tok(n.closure)}<br>${escapeHtml(n.when || "")}`;
+  tip.hidden = false;
+  tip.style.left = Math.min(ev.clientX - host.left + 12, host.width - 290) + "px";
+  tip.style.top = Math.max(ev.clientY - host.top - 10, 4) + "px";
+});
+sky.addEventListener("pointerleave", () => { $("tip").hidden = true; });
+
+// ---- the walkthrough --------------------------------------------------------
+//
+// Each step lights one kind of mark and says what it encodes, using this
+// setup's own numbers; the last one spends the budget so the expansion is seen.
+
+const tour = { step: -1 };
+
+function tourSteps() {
+  const shown = [...stars.keys()].map(id => nodes.get(id));
+  const launch = shown.filter(n => n.tier === "launch").reduce((s, n) => s + n.size, 0);
+  const everything = shown.reduce((s, n) => s + n.size, 0);
+  // The example file sits out in the sky, so the path back to launch is long
+  // enough to see; the heaviest file overall often sits right beside launch.
+  const files = shown.filter(n => !n.root && n.measured);
+  const far = Math.max(0, ...files.map(n => n.reach || 0)) * 0.35;
+  const byWeight = (a, b) => b.closure - a.closure;
+  const hottest = files.filter(n => (n.reach || 0) >= far).sort(byWeight)[0] || files.sort(byWeight)[0];
+  const deepest = maxSpend * DATA.bytesPerToken;
+  const all = sel => [...sky.querySelectorAll(sel)];
+  return [
+    { title: "Launch is the center",
+      text: `Every session starts here, with the instruction files, always-on rules, and the skill listing: ~${tok(launch)} tokens on this setup, before you type a word.`,
+      on: () => all(".core, .core-label") },
+    { title: "Distance is context spent",
+      text: "Each ring marks tokens a session has already read on its way out. A file sits as far from launch as the cheapest path to it costs: the further out, the more a session reads before it can open that file.",
+      on: () => all(".ring, .ring-label, .core") },
+    { title: "Each wedge is an owner",
+      text: "This repo, your user scope, and each plugin get a slice of the sky, sized by how many files they hold. A file stays inside its parent's slice, so a skill's guides fan out behind it. Click a slice to see its totals, and Drill in to see that owner alone.",
+      on: () => all(".owner") },
+    { title: "Each dot is a file",
+      text: hottest
+        ? `Its size is the file's own cost; its color is everything it pulls in, from gray to red. The pulsing one, ${hottest.label}, costs ~${tok(hottest.size)} tokens and pulls in ~${tok(hottest.closure)}.`
+        : "Its size is the file's own cost; its color is everything it pulls in, from gray to red.",
+      on: () => hottest ? [stars.get(hottest.id)] : [], pulse: hottest && hottest.id },
+    { title: "Lines show how to get there",
+      text: "The bright line traces the cheapest path from launch to this file: each step is a reference in the file before it. Click any dot to trace its own path and see its costs on the right.",
+      on: () => hottest ? (pick(hottest.id), [stars.get(hottest.id), ...all(".ray.on")]) : [] },
+    { title: "Dashed dots wait for a trigger",
+      text: "These open only when something else happens first: a file matching a rule's globs is touched, a hook fires, or you type a skill's name. Until then they cost nothing.",
+      on: () => all(".star.gated") },
+    { title: "Spend a budget",
+      text: `Down one path, the slider lights what a session reaches spending that much along a single route; the deepest takes ~${tok(deepest)}. Everything opens files nearest first until the budget runs out; reading all of them costs ~${tok(everything)}. A session walks one path at a time, so the first is what it pays; the second is everything it could.`,
+      on: () => [$("budget")], run: () => expand(4500) },
+  ];
+}
+
+function showStep(i) {
+  const steps = tourSteps();
+  tour.step = Math.max(0, Math.min(i, steps.length - 1));
+  const step = steps[tour.step];
+  for (const node of document.querySelectorAll(".tour-on, .tour-pulse")) node.classList.remove("tour-on", "tour-pulse");
+  sky.classList.add("touring");
+  for (const node of step.on()) node?.classList.add("tour-on");
+  if (step.pulse) stars.get(step.pulse)?.classList.add("tour-pulse");
+  $("budget").closest(".budget").classList.toggle("tour-on", !!step.run);
+  if (step.run) step.run(); else { cancelAnimationFrame(U.playing); U.playing = 0; $("play").textContent = "Expand"; $("budget").value = $("budget").max; lightTo(+$("budget").max); }
+  $("tour-count").textContent = `${tour.step + 1} of ${steps.length}`;
+  $("tour-title").textContent = step.title;
+  $("tour-text").textContent = step.text;
+  $("tour-back").disabled = tour.step === 0;
+  $("tour-next").textContent = tour.step === steps.length - 1 ? "Done" : "Next";
+  $("tour").hidden = false;
+}
+
+function endTour() {
+  tour.step = -1;
+  sky.classList.remove("touring");
+  for (const node of document.querySelectorAll(".tour-on, .tour-pulse")) node.classList.remove("tour-on", "tour-pulse");
+  $("tour").hidden = true;
+  $("help").focus();
+}
+
+$("help").addEventListener("click", () => showStep(0));
+$("tour-back").addEventListener("click", () => showStep(tour.step - 1));
+$("tour-next").addEventListener("click", () => tour.step === tourSteps().length - 1 ? endTour() : showStep(tour.step + 1));
+$("tour-close").addEventListener("click", endTour);
+addEventListener("keydown", ev => {
+  if (tour.step < 0) return;
+  if (ev.key === "Escape") endTour();
+  else if (ev.key === "ArrowRight") $("tour-next").click();
+  else if (ev.key === "ArrowLeft" && tour.step > 0) showStep(tour.step - 1);
+});
+
+function setView(next) {
+  view = next;
+  $("view-universe").setAttribute("aria-selected", next === "universe");
+  $("view-graph").setAttribute("aria-selected", next === "graph");
+  $("universe").hidden = next !== "universe";
+  $("cy").hidden = next !== "graph";
+  cy.resize();
+  render();
+}
+$("view-universe").addEventListener("click", () => setView("universe"));
+$("view-graph").addEventListener("click", () => setView("graph"));
+let resizing;
+addEventListener("resize", () => { clearTimeout(resizing); resizing = setTimeout(() => view === "universe" && render(), 150); });
+
+render();
+</script>
+</body>
+</html>

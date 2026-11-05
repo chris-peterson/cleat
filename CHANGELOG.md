@@ -1,5 +1,40 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- `cleat graph` walks everything a session can load (the repo, your user
+  scope, and every enabled plugin) and follows each reference a file states:
+  a listing entry to its skill body, a body to the guides it reads, the
+  scripts it runs, and the skills it names. Each node carries its size, its
+  reach cost (what a session has paid before it opens), and its closure cost
+  (everything it pulls in), so the expensive branches stand out. Costs show as
+  estimated tokens: what's spent to reach a file, what it costs, what opening
+  it one level further adds, and everything below it. It opens a
+  two-pane browser in the terminal, rolled up by kind of artifact and colored
+  by cost; `--html` opens the graph as a page in your browser, and `--json`
+  prints the data. `--plugin`, `--marketplace`, `--scope`, and `--tier` narrow
+  any of them.
+- `cleat graph` opens with insights on what stands out: the biggest share of
+  launch, the heaviest skill, the guide the most skills share, duplicate files,
+  skills naming a typed-only skill, and SessionStart hooks it can't size. Each
+  shows how it was computed, and Show narrows the view to the files involved.
+- Every file in `cleat graph` says when it loads (at launch, for files matching
+  its globs, never, only when typed, on a hook event, or when a reference to it
+  is followed), and every reference says where it is: the file, line, and text
+  that opens the next file.
+- `cleat graph --html` opens on a universe view: launch at the center, each
+  file as far out as the context it takes to reach. A budget lights what a
+  session can open down one path or across every file, a `?` walks through
+  what each mark means, and clicking a plugin's wedge shows its numbers or
+  drills into it.
+- Every `cleat graph` view reports the same three numbers: what launch costs,
+  what the deepest path costs, and what every file would cost.
+- The `context-tiering` skill maps what calls what with `cleat graph`.
+- `examples/graph-hotspots.py` reads `cleat graph --json` and prints the
+  heaviest branches, the files several roots share, and what each plugin
+  costs: a starting point for your own tooling.
+
 ## 0.5.0
 
 ### Added

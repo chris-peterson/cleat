@@ -114,13 +114,21 @@ Ubiquitous (`The <system> shall …`), State-Driven (`While …`), Event-Driven
   edge for each reference that opens one node from another. `cleat cost`
   measures its launch nodes; the graph carries the rest of the tree.
 - **Load tier** — when a node reaches the agent: *launch*, *on invoke*, *on path
-  match*, *on read* (a guide or reference another node points to), or *on event*
-  (a hook's output).
+  match*, *on read* (a guide or reference another node points to), *on run* (a
+  script's output), or *on event* (a hook's output).
+- **Root** — a node the harness opens itself rather than another node pointing
+  to it: a launch file, a listing entry, a path-scoped rule, or a hook
+  registration.
 - **Reach cost** — what a session has paid before a node opens: the sizes along
-  the cheapest path to it from a launch node, the node itself excluded.
-- **Closure cost** — a node's size plus the size of every node reachable from
-  it, each counted once. The branch a split, filter, or decomposition would
-  remove.
+  the cheapest path to it from a root, the node itself excluded.
+- **Next cost** — what opening a node one level adds: the sizes of the direct
+  children it pulls in, each once. A skill it invokes counts at its own root,
+  as in the closure cost.
+- **Closure cost** — a node's size plus the size of every node it pulls in,
+  each counted once: what it reads and runs, and a listing entry's own body. A
+  skill that a body invokes counts at its own root, so a popular skill's cost
+  isn't charged to everything that names it. The closure is the branch a split,
+  filter, or decomposition would remove.
 - **Unmeasured** — a node whose size depends on running something, such as a
   script's output or a hook's.
 
@@ -398,17 +406,17 @@ The graph shall hold an edge for each reference a file states that resolves to
 a node in the graph: *invoke* from a listing entry to the body it loads, and
 from a body to a skill or command it names as `/name` or `plugin:name`; *read*
 for a `${CLAUDE_PLUGIN_ROOT}/` path, a relative markdown link, or a relative
-path; *run* for a path to a script; and *event* from a plugin to each hook its
-hooks file registers.
+path; and *run* for a path to a script. Each hook a plugin's hooks file or a
+settings file registers shall be a root of load tier *on event*.
 
 #### `GRAPH-05`
 An `@path` import shall fold into the importing node's size rather than form an
 edge, Claude Code loading it with that file.
 
 #### `GRAPH-06`
-Each node shall carry its reach cost and its closure cost, visiting each node
-once per computation, so a reference cycle neither stalls the walk nor inflates
-a total.
+Each node shall carry its reach cost, its next cost, and its closure cost,
+visiting each node once per computation, so a reference cycle neither stalls the
+walk nor inflates a total.
 
 #### `GRAPH-07`
 Where a node is unmeasured, the system shall count it as zero bytes, and each
@@ -423,24 +431,34 @@ filter changes what is shown, not what a node costs.
 #### `GRAPH-09`
 Where neither `--json` nor `--html` is passed, `cleat graph` shall open a
 two-pane terminal browser in the manner of
-[`dive`](https://github.com/wagoodman/dive). The left pane lists the roots (each
-launch node and each listing entry) with its size and closure cost, grouped by
-scope and plugin. The right pane shows the tree reachable from the selected
-root, each row giving its size and shaded by its closure cost as a heatmap,
-expandable along its edges, and sortable by size, reach cost, or closure cost;
-a node already above a row on its path is shown but not expanded. A footer
-gives the launch cost, the total reachable, and the unmeasured count under the
-current filter, and the `GRAPH-08` filters apply from within.
+[`dive`](https://github.com/wagoodman/dive), with no prompt before it. The left
+pane rolls the roots up by artifact type (instructions, rules, skills and
+commands and agents, plugins with a group per plugin, and hooks), each group
+collapsed and giving its launch cost and the union of its members' closures;
+a key switches the rollup to a group per scope or plugin. The right pane shows
+the tree reachable from a selected root, or the heaviest files a selected group
+pulls in. Rows give spent, this (size), +next (next cost), and all (closure
+cost), sortable by each. Spent is the sizes of the rows above it on the path
+shown, or the reach cost for a row with none above it. A node already above a row on its path is
+shown but not expanded. Enter and space toggle a row open or closed. Every row
+is colored by its closure cost against fixed thresholds, so a hotspot reads the
+same in either pane and on the `GRAPH-10` page. A
+footer gives the launch cost, the total reachable, and the unmeasured count
+under the current filter, and the `GRAPH-08` filters apply from within.
 
 #### `GRAPH-10`
-Where `--html PATH` is passed, `cleat graph` shall write one HTML file to `PATH`
-holding the graph inline, with nodes sized by their size and colored by load
-tier, a search box, the `GRAPH-08` filters as page controls, and a details panel
-giving a node's size, reach cost, closure cost, and the path that reaches it.
+Where `--html` is passed, `cleat graph` shall write one HTML file holding the
+graph inline, with nodes sized by their size and colored by closure cost on the
+`GRAPH-09` thresholds, a search box, the `GRAPH-08` filters as page controls, and
+a details panel giving a node's reach cost, size, next cost, closure cost, and
+the path that reaches it. Given a
+`PATH`, it shall write the page there; given none, it shall write it to a new
+temporary file and open that in the default browser.
 
 #### `GRAPH-11`
 Where `--json` is passed, `cleat graph` shall emit the nodes, edges, and costs
-as JSON on stdout.
+as JSON on stdout, the costs in bytes alongside the bytes-per-token ratio the
+other views convert with.
 
 #### `GRAPH-12`
 If neither `--json` nor `--html` is passed and stdin or stdout is not a
@@ -450,6 +468,56 @@ terminal, then `cleat graph` shall exit 2 naming the two flags.
 If a settings file or `installed_plugins.json` does not parse, or an enabled
 plugin's install path is missing, then `cleat graph` shall exit 2 and name the
 cause on stderr.
+
+#### `GRAPH-14`
+The terminal browser, the page, and the summary `--html` prints shall show each
+cost as an estimated token count, at 2.8 UTF-8 bytes per token, marked as an
+estimate. The ratio is the one Claude Code's `/context` gives instruction files,
+which measure 2.5 to 2.9 bytes per token there.
+
+#### `GRAPH-15`
+The system shall compute insights over the nodes the current filter shows, each
+a finding with its numbers, the query that produced it, and the nodes it
+concerns, and only where the data holds one: the artifact type with the largest
+share of the launch cost; the listing entry with the largest closure; the file
+the most roots pull in, weighted by its size; the largest file; the file with
+the largest reach cost; files byte-identical to another; skill, command, and
+agent bodies naming a typed-only skill outside its own files; and the
+SessionStart hooks, whose output cleat cannot size. The terminal browser shall
+list them first, the page shall show them with a control that narrows the
+canvas to their nodes, and `--json` shall carry them.
+
+#### `GRAPH-16`
+Each node shall say when it loads: at launch; when a file matching its globs is
+read, written, or edited; never, where its globs match no file under `DIR`; only
+when typed; when invoked; on its hook event and matcher; or when a reference to
+it is followed or run. Each edge a file states shall carry where it is stated:
+the file, the line number in that file on disk, and the line's text, cut to a
+window around the reference when long. The terminal browser shall show both for
+the selected row, mark a conditional root with its trigger, and the page shall
+show the condition and every line that opens the node.
+
+#### `GRAPH-17`
+The `--html` page shall open on a universe view of the same nodes: launch at the
+center, each node's distance from it set by its reach cost, its angle by its
+owner (this repo, user scope, or a plugin) and its parent's wedge, its size by
+its own size, and its color by the `GRAPH-09` thresholds, with nodes that grow
+from a conditional root drawn dashed. A budget control shall light the nodes a
+session can open within that much context and dim the rest, measured either
+down one path (to the deepest path) or across every file, nearest first (to the
+total of every file), and a control shall expand the budget from zero to its
+maximum. Selecting an owner's wedge shall highlight it and give that owner's
+totals; drilling in shall redraw the universe with that owner alone, its roots
+as the wedges. A control shall walk through what each mark encodes, one at a
+time, using the graph's own numbers. The `GRAPH-10` graph shall stay available
+as a second view.
+
+#### `GRAPH-18`
+Every view shall report the same three totals under the current filter: the
+launch cost; the deepest path, the largest reach cost plus size of any node; and
+every file, the sum of all sizes. `--json` shall carry them overall and per
+owner, the terminal browser's footer and each row of its left pane shall carry
+them, and the summary `--html` prints shall name them.
 
 ### `DESIGN`
 Design tenets

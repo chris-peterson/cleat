@@ -8,10 +8,29 @@ default:
     @echo ""
     @echo "  cleat: one canonical AGENTS.md, with CLAUDE.md as a pointer to it"
     @echo ""
+    @echo "  New here?   just demo     what a session here can load, and where it's heaviest"
+    @echo "              just docs     the docs site"
+    @echo ""
     @just --list --unsorted --list-heading '' --list-prefix '    '
     @echo ""
     @echo "  Generated files are written by CI on PRs and main; edit the source, not the output."
     @echo ""
+
+# Each demo runs against this repo by default; pass another directory to look there.
+# the context graph in the terminal: what a session can load, hotspots colored
+[group('start here')]
+demo dir=".":
+    scripts/cleat graph {{quote(dir)}}
+
+# the context graph as an interactive page in your browser
+[group('start here')]
+demo-html dir=".":
+    scripts/cleat graph {{quote(dir)}} --html
+
+# the graph's JSON through an example tool: heaviest branches, shared hubs, cost by owner
+[group('start here')]
+demo-json dir="." *filters:
+    scripts/cleat graph {{quote(dir)}} --json {{filters}} | python3 examples/graph-hotspots.py
 
 # run the shell script test suite
 [group('work on cleat')]
@@ -26,7 +45,7 @@ self-check:
     scripts/cleat check .
 
 # preview the docsify docs site locally, the lab included
-[group('work on cleat')]
+[group('start here')]
 docs:
     {{shipyard}} build-docs
     docsify serve docs --open
