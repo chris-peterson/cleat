@@ -7,7 +7,7 @@ in-repo implementation. Status vocabulary: **Covered** · **Partial** ·
 **Evidence pointers:** file + enclosing symbol. A line number is invalidated by
 any edit above it, and the ledger is read long after that edit.
 
-**Coverage: 107/107 requirements Covered (100%)**
+**Coverage: 107/120 requirements Covered (89%)**
 
 ## CHECK — The check command
 
@@ -77,6 +77,24 @@ CHECK-12 is retired and not counted.
 | COST-08 | Covered | scripts/cleat (`cmd_cost`); scripts/tests/cost.test.sh |
 | COST-09 | Covered | scripts/cleat (`cmd_cost`) — the `--json` branch |
 | COST-10 | Covered | scripts/cleat (`_launch_findings`, `TIERING_GUIDE`); scripts/tests/cost.test.sh |
+
+## GRAPH — The context graph
+
+| ID       | Status  | Location |
+|----------|---------|----------|
+| GRAPH-01 | Missing | — |
+| GRAPH-02 | Missing | — |
+| GRAPH-03 | Missing | — |
+| GRAPH-04 | Missing | — |
+| GRAPH-05 | Missing | — |
+| GRAPH-06 | Missing | — |
+| GRAPH-07 | Missing | — |
+| GRAPH-08 | Missing | — |
+| GRAPH-09 | Missing | — |
+| GRAPH-10 | Missing | — |
+| GRAPH-11 | Missing | — |
+| GRAPH-12 | Missing | — |
+| GRAPH-13 | Missing | — |
 
 ## DESIGN — Design tenets
 
@@ -186,6 +204,10 @@ PACKAGING-03 is retired and not counted.
 | STATE-03 | Covered | scripts/cleat (`_prune_sessions`) |
 
 ## Audit history
+
+### 2026-11-05 — The context graph (spec-req)
+
++13 IDs (GRAPH-01–13) and five concepts (context graph, load tier, reach cost, closure cost, unmeasured). `cleat graph` walks the repo, user scope, and enabled plugins for the deferred loads `cleat cost` leaves out, and browses them in the terminal, as an HTML page, or as JSON. 107/120 Covered.
 
 ### 2026-10-26 — What to do with a restated finding (spec-req)
 

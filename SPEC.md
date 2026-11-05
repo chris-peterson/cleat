@@ -109,6 +109,20 @@ Ubiquitous (`The <system> shall …`), State-Driven (`While …`), Event-Driven
 - **Launch budget** — the launch cost past which cleat advises tiering.
 - **Tiering guide** — the file carrying the tiers guidance can load in and the
   order to move it between them. Like the rubric, a file named by path.
+- **Context graph** — every file and listing entry a session started in a
+  directory can load, across the repo, user scope, and enabled plugins, with an
+  edge for each reference that opens one node from another. `cleat cost`
+  measures its launch nodes; the graph carries the rest of the tree.
+- **Load tier** — when a node reaches the agent: *launch*, *on invoke*, *on path
+  match*, *on read* (a guide or reference another node points to), or *on event*
+  (a hook's output).
+- **Reach cost** — what a session has paid before a node opens: the sizes along
+  the cheapest path to it from a launch node, the node itself excluded.
+- **Closure cost** — a node's size plus the size of every node reachable from
+  it, each counted once. The branch a split, filter, or decomposition would
+  remove.
+- **Unmeasured** — a node whose size depends on running something, such as a
+  script's output or a hook's.
 
 ## Requirements
 
@@ -359,6 +373,83 @@ and each piece as JSON on stdout.
 #### `COST-10`
 When the launch cost exceeds the budget, the check shall report `launch-cost` as
 an advisory on the largest launch piece, naming the tiering guide by path.
+
+### `GRAPH`
+The context graph
+
+#### `GRAPH-01`
+The system shall provide `cleat graph [DIR]`, building the context graph for a
+session started in `DIR` and defaulting to the current directory.
+
+#### `GRAPH-02`
+The walk shall cover three scopes: the repo, as its `COST-02` launch pieces,
+project skills, commands, and topic rules; user scope under `$HOME/.claude`, as
+its `CLAUDE.md`, rules, skills, commands, and agents; and each plugin enabled in
+the user, project, or local settings, read from its install path in
+`installed_plugins.json`.
+
+#### `GRAPH-03`
+Each node shall carry its scope, its marketplace and plugin where it has them,
+its load tier, and its size in UTF-8 bytes, measured as `COST-04` and `COST-05`
+measure it.
+
+#### `GRAPH-04`
+The graph shall hold an edge for each reference a file states that resolves to
+a node in the graph: *invoke* from a listing entry to the body it loads, and
+from a body to a skill or command it names as `/name` or `plugin:name`; *read*
+for a `${CLAUDE_PLUGIN_ROOT}/` path, a relative markdown link, or a relative
+path; *run* for a path to a script; and *event* from a plugin to each hook its
+hooks file registers.
+
+#### `GRAPH-05`
+An `@path` import shall fold into the importing node's size rather than form an
+edge, Claude Code loading it with that file.
+
+#### `GRAPH-06`
+Each node shall carry its reach cost and its closure cost, visiting each node
+once per computation, so a reference cycle neither stalls the walk nor inflates
+a total.
+
+#### `GRAPH-07`
+Where a node is unmeasured, the system shall count it as zero bytes, and each
+total that includes one shall state how many unmeasured nodes it includes.
+
+#### `GRAPH-08`
+Where `--marketplace`, `--plugin`, `--scope`, or `--tier` is passed, each
+repeatable, the output shall hold only the matching nodes and the edges between
+them. Costs shall be computed over the whole graph before filtering, so a
+filter changes what is shown, not what a node costs.
+
+#### `GRAPH-09`
+Where neither `--json` nor `--html` is passed, `cleat graph` shall open a
+two-pane terminal browser in the manner of
+[`dive`](https://github.com/wagoodman/dive). The left pane lists the roots (each
+launch node and each listing entry) with its size and closure cost, grouped by
+scope and plugin. The right pane shows the tree reachable from the selected
+root, each row giving its size and shaded by its closure cost as a heatmap,
+expandable along its edges, and sortable by size, reach cost, or closure cost;
+a node already above a row on its path is shown but not expanded. A footer
+gives the launch cost, the total reachable, and the unmeasured count under the
+current filter, and the `GRAPH-08` filters apply from within.
+
+#### `GRAPH-10`
+Where `--html PATH` is passed, `cleat graph` shall write one HTML file to `PATH`
+holding the graph inline, with nodes sized by their size and colored by load
+tier, a search box, the `GRAPH-08` filters as page controls, and a details panel
+giving a node's size, reach cost, closure cost, and the path that reaches it.
+
+#### `GRAPH-11`
+Where `--json` is passed, `cleat graph` shall emit the nodes, edges, and costs
+as JSON on stdout.
+
+#### `GRAPH-12`
+If neither `--json` nor `--html` is passed and stdin or stdout is not a
+terminal, then `cleat graph` shall exit 2 naming the two flags.
+
+#### `GRAPH-13`
+If a settings file or `installed_plugins.json` does not parse, or an enabled
+plugin's install path is missing, then `cleat graph` shall exit 2 and name the
+cause on stderr.
 
 ### `DESIGN`
 Design tenets
