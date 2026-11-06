@@ -131,6 +131,26 @@ Ubiquitous (`The <system> shall …`), State-Driven (`While …`), Event-Driven
   filter, or decomposition would remove.
 - **Unmeasured** — a node whose size depends on running something, such as a
   script's output or a hook's.
+- **Depth cost** — a node's reach cost plus its own size: what a session holds
+  once the node is open. The deepest path is the largest depth cost.
+- **Hop count** — the references followed from a root to a node, along the path
+  its reach cost measures.
+- **Depth curve** — `C(b)`, the summed size of every node whose depth cost is at
+  most `b`: what a session can reach within a budget of `b`. It climbs from zero
+  to the every-file total at the deepest path, and a sharp rise in it is one
+  large file opened in a single step.
+- **Ideal** — the budget a node's tier should stay within, each with its
+  source: a listing entry of about 100 tokens, a skill body under 5,000 tokens
+  and 500 lines, references one level below the body, and a table of contents
+  atop any reference over 100 lines, from Anthropic's
+  [Agent Skills overview](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview)
+  and [best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices);
+  and a launch cost within the launch budget, from cleat.
+- **Excess** — how far a node's size passes its ideal, paid every session for
+  an entry or launch, and on each invocation for a body.
+- **Metrics history** — the snapshots `cleat metrics` has taken, kept on the
+  machine that took them, since the graph's numbers come mostly from user scope
+  and plugins that a CI checkout doesn't have.
 
 ## Requirements
 
@@ -518,6 +538,112 @@ launch cost; the deepest path, the largest reach cost plus size of any node; and
 every file, the sum of all sizes. `--json` shall carry them overall and per
 owner, the terminal browser's footer and each row of its left pane shall carry
 them, and the summary `--html` prints shall name them.
+
+#### `GRAPH-19`
+The system shall check the nodes the current filter shows against the ideal:
+`launch`, the launch cost of the repo and of user scope, each against the
+launch budget; `entry`, each listed entry against 100 tokens; `body`, each
+skill, command, and agent body against 5,000 tokens and 500 lines; `nested`, a
+reference file a body reaches by read edges only through another reference;
+and `toc`, a reference file over 100 lines with no table of contents in its
+first 40 lines, a table of contents being a contents heading or three list
+items linking to anchors in the file.
+
+#### `GRAPH-20`
+Each failed check shall be an improvement carrying the check, the node (for
+`launch`, the owner's largest launch piece), its owner, the actual and ideal
+values, the excess, when the excess is paid, the repair, and the ideal's
+source. A `nested` improvement shall be held by the owner of the body that
+reaches it, and name that body. Improvements shall be ranked by when the excess
+is paid, every session first, then each invocation, then each read, and within
+each by excess, then by size.
+
+#### `GRAPH-21`
+The system shall give a scorecard per owner: for each check, the nodes failing
+it out of the nodes it applies to, and the excess paid every session (the
+larger of the `launch` and the `entry` excess, an entry being part of launch)
+and on each invocation, with owners ordered by the excess paid every session, then on
+each invocation.
+
+#### `GRAPH-22`
+The `--html` page shall show the scorecard and the improvements as a "vs
+ideal" view beside the universe and graph views, with selecting an improvement
+selecting its node. The terminal browser shall list the improvements in a
+group of its left pane, as it lists insights, giving the selected one's actual
+and ideal values and its repair. `--json` shall carry both.
+
+#### `GRAPH-23`
+The terminal browser and the page shall link each file so it opens from where
+it is shown. The terminal browser shall mark each file's name in both panes as
+an OSC 8 hyperlink to the file, and show the selected file's path in the
+details strip with its folder linked to the folder and its name to the file;
+the page's details panel shall link the folder and the file the same way.
+
+#### `GRAPH-24`
+The terminal browser shall take the mouse: a left click shall pick the pane and
+row under it, a click on the row already picked shall expand or collapse it as
+enter does, a click on the grouping line shall switch the grouping as `g` does,
+and the wheel shall move the cursor in the pane under it. On quitting, it shall
+turn the terminal's mouse reporting off.
+
+#### `GRAPH-25`
+When a star in the universe view is double-clicked, the view shall show only
+what that file pulls in, as a double-click does in the graph view, with a
+control back to every file. The universe view shall show a key to its marks,
+saying that a dashed star loads only on a trigger.
+
+#### `GRAPH-26`
+When an owner is selected in the "vs ideal" view, or from the universe view's
+owner panel, the page shall show a plan for that owner: a step per failing
+check, ordered as `GRAPH-20` orders improvements, each naming the change, its
+saving, the ideal and its source, the repair, and each file it applies to; and
+a starter prompt for a coding agent carrying the same steps, where the files
+live, and how to confirm the fixes with `cleat graph`, with a control that
+copies it.
+
+### `METRICS`
+Context metrics
+
+#### `METRICS-01`
+The system shall provide `cleat metrics [DIR]`, building the context graph for
+a session started in `DIR` and defaulting to the current directory, appending
+one snapshot to the metrics history, and printing that snapshot on stdout.
+
+#### `METRICS-02`
+The metrics history shall be a YAML list with one entry per snapshot, kept at
+`$XDG_STATE_HOME/cleat/metrics.yml`, else `~/.local/state/cleat/metrics.yml`.
+Where `--history PATH` is passed, the snapshot shall be appended to `PATH`
+instead.
+
+#### `METRICS-03`
+Each snapshot shall carry the time it was taken, the resolved directory, the
+`HEAD` commit where `DIR` is in a git repo, the bytes-per-token ratio, and the
+`GRAPH-18` totals, with sizes in bytes.
+
+#### `METRICS-04`
+Each snapshot shall carry, per load tier, the node count, summed size, and
+unmeasured count.
+
+#### `METRICS-05`
+Each snapshot shall carry, per hop count, the node count, summed size, and
+unmeasured count, with a node no root reaches counted under `unreached`.
+
+#### `METRICS-06`
+Each snapshot shall carry the depth curve, sampled at a budget of 1,000 tokens
+doubling to the first budget at or past the deepest path; b50 and b90, the
+smallest depth costs at which the curve reaches half and 90% of the every-file
+total; and the largest step, the largest single node with its path and size.
+
+#### `METRICS-07`
+Each snapshot shall carry, per owner, the `GRAPH-18` totals and a digest over
+its nodes' paths and contents, and for a plugin the version and commit its
+`installed_plugins.json` record gives, so a change between snapshots traces to
+the owner that changed.
+
+#### `METRICS-08`
+If the graph cannot be built for a `GRAPH-13` cause, or the metrics history
+cannot be written, then `cleat metrics` shall exit 2, name the cause on
+stderr, and append nothing.
 
 ### `DESIGN`
 Design tenets

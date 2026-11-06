@@ -5,6 +5,7 @@
     cleat index [DIR]            print the rules index AGENTS.md should carry
     cleat cost [DIR] [--json]    report what DIR loads at launch; exit 1 past budget
     cleat graph [DIR] [--json | --html [PATH]]   browse what a session can load
+    cleat metrics [DIR] [--history PATH]         append the graph's numbers to a history
     cleat hook                   read a hook payload on stdin, decide, emit
 
 python3 standard library only. This runs from a hook, where an import error is a
@@ -1704,6 +1705,11 @@ def cmd_graph(args):
     return cleat_graph.run(sys.modules[__name__], args)
 
 
+def cmd_metrics(args):
+    import cleat_graph
+    return cleat_graph.run_metrics(sys.modules[__name__], args)
+
+
 def cmd_hook(_args):
     """Always exits 0. A hook's exit code is a channel Claude Code reads for
     something else, so a failure here is reported as a systemMessage the user
@@ -1769,6 +1775,13 @@ def main(argv=None):
         graph.add_argument("--" + field, action="append", metavar=field.upper(),
                            help="show only nodes with this {} (repeatable)".format(field))
     graph.set_defaults(func=cmd_graph)
+
+    metrics = sub.add_parser(
+        "metrics", help="append a snapshot of the context graph's numbers to the history")
+    metrics.add_argument("directory", nargs="?", default=".")
+    metrics.add_argument("--history", metavar="PATH",
+                         help="append here instead of $XDG_STATE_HOME/cleat/metrics.yml")
+    metrics.set_defaults(func=cmd_metrics)
 
     hook = sub.add_parser("hook", help="read a hook payload on stdin and decide")
     hook.set_defaults(func=cmd_hook)

@@ -28,8 +28,8 @@ just self-check        # cleat's findings for this repo — it must hold its own
 plugin.yml              source of record for metadata and marketplace copy
 hooks/hooks.yml         source of record for the three hook registrations
 hooks/prefilter.sh      the bash prefilter fronting every registration
-scripts/cleat           the CLI: `check`, `index`, `cost`, `graph`, and `hook`
-scripts/cleat_graph.*   `graph`'s walk, terminal browser, and page, loaded by that command alone
+scripts/cleat           the CLI: `check`, `index`, `cost`, `graph`, `metrics`, and `hook`
+scripts/cleat_graph.*   `graph`'s walk, terminal browser, and page, and `metrics`' snapshot, loaded by those commands alone
 scripts/tests/          bash test suite
 examples/               tools built on `cleat graph --json`, run by `just demo-json`
 skills/                 skills, for the help no hook can reach

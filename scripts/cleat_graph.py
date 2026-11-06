@@ -1,10 +1,12 @@
 """`cleat graph`: the context graph a session can load, and its costs.
 
-Imported by `scripts/cleat` for the graph command alone, so a hook never parses
-it. The helpers it shares with `cleat cost` arrive as the `cleat` module itself.
+Imported by `scripts/cleat` for the graph and metrics commands alone, so a hook
+never parses it. The helpers it shares with `cleat cost` arrive as the `cleat`
+module itself.
 """
 from __future__ import annotations
 
+import datetime
 import hashlib
 import heapq
 import json
@@ -44,6 +46,19 @@ SLASH_NAME = re.compile(r"(?<![\w./:-])/([\w-]+(?::[\w-]+)*)(?![\w/-]|\.\w)")
 QUALIFIED_NAME = re.compile(r"(?<![\w/.:-])([\w-]+(?::[\w-]+)+)(?![\w/:-]|\.\w)")
 
 
+TOC_WINDOW = 40
+TOC_HEADING = re.compile(r"#+\s*(?:table of )?contents\b", re.I)
+TOC_ITEM = re.compile(r"\s*(?:[-*+]|\d+\.)\s+\[[^\]]+\]\(#")
+
+
+def has_toc(text):
+    """A contents heading, or three list items linking to anchors in the file,
+    within its first lines: what a partial read sees."""
+    head = text.splitlines()[:TOC_WINDOW]
+    return (any(TOC_HEADING.match(line) for line in head)
+            or sum(1 for line in head if TOC_ITEM.match(line)) >= 3)
+
+
 class Graph:
     def __init__(self):
         self.nodes = {}
@@ -51,6 +66,8 @@ class Graph:
         # (source, target, kind) -> where the source names the target: the
         # file, its line, and the line's text. The first mention wins.
         self.refs = {}
+        # owner label -> the install record's version and commit, per plugin
+        self.plugins = {}
 
     def node(self, id, **attrs):
         if id not in self.nodes:
@@ -94,7 +111,8 @@ def settings_files(root, user):
 
 
 def enabled_plugins(root, user):
-    """[(key, install path)] for each plugin the merged settings enable."""
+    """[(key, install path, install record)] for each plugin the merged
+    settings enable."""
     enabled = {}
     for path, _scope in settings_files(root, user):
         enabled.update(_json_file(path).get("enabledPlugins") or {})
@@ -120,7 +138,7 @@ def enabled_plugins(root, user):
         if not path.is_dir():
             raise RuntimeError("enabled plugin {} is installed at {}, which is missing"
                                .format(key, path))
-        out.append((key, path))
+        out.append((key, path, chosen))
     return out
 
 
@@ -201,8 +219,11 @@ class Walker:
         node = self.g.node(id, label=self.label(path, scope), path=str(path), kind=kind,
                            tier=tier, size=size, measured=measured, root=root, **scope.attrs())
         if measured:
-            node["digest"] = hashlib.sha256(
-                "".join(text for _p, text in texts).encode("utf-8")).hexdigest()[:16]
+            joined = "".join(text for _p, text in texts)
+            node["digest"] = hashlib.sha256(joined.encode("utf-8")).hexdigest()[:16]
+            node["lines"] = len(joined.splitlines())
+            if path.suffix.lower() in TEXT_SUFFIXES:
+                node["toc"] = has_toc(joined)
         if texts is not None and path.suffix.lower() in TEXT_SUFFIXES | {""}:
             self.texts[id] = texts
             self.pending.append(id)
@@ -400,9 +421,11 @@ class Walker:
         h, root, user = self.h, self.root, self.user
         plugins = enabled_plugins(root, user)
         plugin_scopes = []
-        for key, base in plugins:
+        for key, base, record in plugins:
             name, _, market = key.partition("@")
             scope = Scope("plugin", base, name, market or None)
+            self.g.plugins["{}@{}".format(name, market)] = {
+                "version": record.get("version"), "commit": record.get("gitCommitSha")}
             plugin_scopes.append((base, scope))
             self.locations.append((str(base.resolve()), scope))
         repo, home = Scope("repo", root), Scope("user", user)
@@ -535,8 +558,193 @@ def owners(nodes):
 
 def build(h, root):
     g = Walker(h, pathlib.Path(root)).walk()
+    g.launch_budget = h.launch_budget(pathlib.Path(root))
+    g.tiering_guide = str(h.TIERING_GUIDE)
     compute_costs(g)
     return g
+
+
+# ---- metrics ---------------------------------------------------------------
+
+CURVE_START_TOKENS = 1_000
+
+
+def hop_counts(nodes):
+    """Each node's hop count along the path its reach cost measures, or None
+    where no root reaches it."""
+    hops = {}
+    for id in nodes:
+        chain, current = [], id
+        while current not in hops:
+            node = nodes[current]
+            if node["reach"] is None:
+                hops[current] = None
+            elif node["via"] is None:
+                hops[current] = 0
+            else:
+                chain.append(current)
+                current = node["via"]
+        for step, link in enumerate(reversed(chain), 1):
+            hops[link] = hops[current] + step
+    return hops
+
+
+def _stats(members):
+    return {"nodes": len(members), "bytes": sum(n["size"] for n in members),
+            "unmeasured": sum(1 for n in members if not n["measured"])}
+
+
+def depth_curve(nodes):
+    """C(b) at a budget doubling from CURVE_START_TOKENS to the first at or past
+    the deepest path, and b50 and b90: the smallest depth costs at which C
+    reaches half and 90% of the every-file total."""
+    points = sorted((depth_cost(n), n["size"]) for n in nodes)
+    total = sum(size for _cost, size in points)
+    deepest = points[-1][0] if points else 0
+    curve, budget, held, i = [], CURVE_START_TOKENS, 0, 0
+    while True:
+        limit = budget * BYTES_PER_TOKEN
+        while i < len(points) and points[i][0] <= limit:
+            held += points[i][1]
+            i += 1
+        curve.append({"tokens": budget, "bytes": held})
+        if limit >= deepest:
+            break
+        budget *= 2
+
+    def reaching(share):
+        held = 0
+        for cost, size in points:
+            held += size
+            if held >= share * total:
+                return cost
+        return 0
+
+    return curve, reaching(0.5), reaching(0.9)
+
+
+def owner_digest(members):
+    """Changes when any of the owner's files is added, removed, or edited."""
+    digest = hashlib.sha256()
+    for n in sorted(members, key=lambda n: n["id"]):
+        digest.update("{}\0{}\n".format(n["id"], n.get("digest") or "").encode("utf-8"))
+    return digest.hexdigest()[:16]
+
+
+def snapshot(h, root, g, taken):
+    nodes = g.nodes
+    repo = h._repo_root(root)
+    commit = h._git(repo, "rev-parse", "--verify", "--quiet", "HEAD",
+                    unset_ok=True).strip() if repo else ""
+
+    hops = hop_counts(nodes)
+    by_hops = {}
+    for count in sorted({c for c in hops.values() if c is not None}):
+        by_hops[count] = _stats([nodes[id] for id, c in hops.items() if c == count])
+    unreached = [nodes[id] for id, c in hops.items() if c is None]
+    if unreached:
+        by_hops["unreached"] = _stats(unreached)
+
+    curve, b50, b90 = depth_curve(nodes.values())
+    largest = max(nodes.values(), key=lambda n: n["size"], default=None)
+
+    members = {}
+    for n in nodes.values():
+        members.setdefault(owner_label(n), []).append(n)
+    owner_rows = []
+    for row in owners(nodes):
+        row = dict(row, digest=owner_digest(members[row["owner"]]))
+        if row["scope"] == "plugin":
+            row.update(g.plugins.get(row["owner"], {"version": None, "commit": None}))
+        owner_rows.append(row)
+
+    return {
+        "at": taken.isoformat(timespec="seconds"),
+        "directory": str(root.resolve()),
+        "commit": commit or None,
+        "bytesPerToken": BYTES_PER_TOKEN,
+        "totals": totals(nodes.values()),
+        "tiers": {tier: _stats([n for n in nodes.values() if n["tier"] == tier])
+                  for tier in TIERS},
+        "hops": by_hops,
+        "curve": curve,
+        "b50": b50,
+        "b90": b90,
+        "largestStep": {"path": largest["id"], "bytes": largest["size"]} if largest else None,
+        "owners": owner_rows,
+    }
+
+
+PLAIN_KEY = re.compile(r"[A-Za-z_][\w-]*\Z")
+
+
+def _scalar(value):
+    """A YAML scalar. A string goes out JSON-quoted, which YAML reads as a
+    double-quoted scalar, so no value needs escaping rules of its own."""
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return repr(value)
+    if isinstance(value, dict):
+        return "{}"
+    if isinstance(value, list):
+        return "[]"
+    return json.dumps(value, ensure_ascii=False)
+
+
+def yaml_lines(value, indent=0):
+    """Block-style YAML for nested dicts, lists, and scalars."""
+    pad = " " * indent
+    if isinstance(value, dict):
+        for key, item in value.items():
+            key = key if isinstance(key, int) or PLAIN_KEY.match(key) else _scalar(key)
+            if isinstance(item, (dict, list)) and item:
+                yield "{}{}:".format(pad, key)
+                yield from yaml_lines(item, indent + 2)
+            else:
+                yield "{}{}: {}".format(pad, key, _scalar(item))
+    else:
+        for item in value:
+            if isinstance(item, (dict, list)) and item:
+                lines = list(yaml_lines(item, indent + 2))
+                yield "{}- {}".format(pad, lines[0][indent + 2:])
+                yield from lines[1:]
+            else:
+                yield "{}- {}".format(pad, _scalar(item))
+
+
+def history_path(given):
+    if given:
+        return pathlib.Path(given)
+    state = os.environ.get("XDG_STATE_HOME") or pathlib.Path.home() / ".local" / "state"
+    return pathlib.Path(state) / "cleat" / "metrics.yml"
+
+
+def run_metrics(h, args):
+    directory = pathlib.Path(args.directory)
+    if not directory.is_dir():
+        sys.stderr.write("cleat: not a directory: {}\n".format(directory))
+        return 2
+    try:
+        g = build(h, directory)
+        snap = snapshot(h, directory, g, datetime.datetime.now(datetime.timezone.utc))
+    except RuntimeError as exc:
+        sys.stderr.write("cleat: {}\n".format(exc))
+        return 2
+    text = "\n".join(yaml_lines([snap])) + "\n"
+    path = history_path(args.history)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "a", encoding="utf-8") as handle:
+            handle.write(text)
+    except OSError as exc:
+        sys.stderr.write("cleat: cannot write the metrics history {}: {}\n".format(path, exc))
+        return 2
+    sys.stdout.write(text)
+    sys.stderr.write("cleat: appended to {}\n".format(path))
+    return 0
 
 
 # ---- filters ---------------------------------------------------------------
@@ -568,6 +776,7 @@ def as_json(root, g, nodes, edges, filters):
         "totals": totals(nodes.values()),
         "owners": owners(nodes),
         "insights": insights(g, nodes),
+        "ideal": vs_ideal(g, nodes),
         "nodes": public,
         "edges": [dict({"source": s, "target": t, "kind": k}, **g.refs.get((s, t, k), {}))
                   for s, t, k in edges],
@@ -703,6 +912,182 @@ def insights(g, nodes):
     return out
 
 
+# ---- vs ideal --------------------------------------------------------------
+
+SKILLS_OVERVIEW = "https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview"
+SKILLS_PRACTICES = "https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices"
+ENTRY_IDEAL_TOKENS = 100
+BODY_IDEAL_TOKENS = 5_000
+BODY_IDEAL_LINES = 500
+TOC_IDEAL_LINES = 100
+BODY_KINDS = ("skill", "command", "agent")
+SESSION, INVOCATION, EACH_READ = "every session", "each invocation", "each read"
+PAID = (SESSION, INVOCATION, EACH_READ)
+
+
+def checks(tiering_guide):
+    """Each check's ideal, when its excess is paid, where the ideal comes
+    from, and the repair."""
+    return {
+        "launch": dict(paid=SESSION, goal="launch within the launch budget",
+                       sources=["cleat: git config cleat.launchBudget, 16 KiB by default"],
+                       repair="move what only some sessions need to a later tier; {} "
+                              "orders the moves".format(tiering_guide)),
+        "entry": dict(paid=SESSION, goal="a listing entry of about {} tokens".format(ENTRY_IDEAL_TOKENS),
+                      sources=[SKILLS_OVERVIEW],
+                      repair="cut the description to what tells the model when to use it; "
+                             "the rest belongs in the body"),
+        "body": dict(paid=INVOCATION, goal="a body under {:,} tokens and {} lines".format(
+                         BODY_IDEAL_TOKENS, BODY_IDEAL_LINES),
+                     sources=[SKILLS_OVERVIEW, SKILLS_PRACTICES],
+                     repair="move the sections a run doesn't always need into reference "
+                            "files the body links to"),
+        "nested": dict(paid=EACH_READ, goal="references one level below the body",
+                       sources=[SKILLS_PRACTICES],
+                       repair="link it from the body, so a session reads it whole rather "
+                              "than previewing it"),
+        "toc": dict(paid=EACH_READ, goal="a table of contents atop a reference over {} "
+                                          "lines".format(TOC_IDEAL_LINES),
+                    sources=[SKILLS_PRACTICES],
+                    repair="add a table of contents at the top, so a partial read still "
+                           "shows what the file holds"),
+    }
+
+
+def _reads_below(g, start):
+    """{node: read hops below start}, following read edges only."""
+    reads = {}
+    for source, target, kind in g.edges:
+        if kind == "read":
+            reads.setdefault(source, []).append(target)
+    depth, frontier = {}, [start]
+    hops = 0
+    while frontier:
+        hops += 1
+        nxt = []
+        for current in frontier:
+            for target in reads.get(current, ()):
+                if target != start and target not in depth:
+                    depth[target] = hops
+                    nxt.append(target)
+        frontier = nxt
+    return depth
+
+
+def vs_ideal(g, nodes):
+    """The checks, the scorecard per owner, and the improvements ranked, over
+    the nodes shown."""
+    spec = checks(g.tiering_guide)
+    budget = g.launch_budget
+    entry_ideal = round(ENTRY_IDEAL_TOKENS * BYTES_PER_TOKEN)
+    body_ideal = round(BODY_IDEAL_TOKENS * BYTES_PER_TOKEN)
+    improvements = []
+    applies = {}
+
+    def counted(owner, check, failed):
+        row = applies.setdefault(owner, {}).setdefault(check, {"failing": 0, "of": 0})
+        row["of"] += 1
+        row["failing"] += 1 if failed else 0
+
+    def improve(check, node, owner, actual, ideal, excess, title, text, **extra):
+        improvements.append(dict(
+            check=check, id=node["id"], label=node["label"], owner=owner,
+            actual=actual, ideal=ideal, excess=excess, size=node["size"],
+            title=title, text=text, **spec[check], **extra))
+
+    members = {}
+    for n in nodes.values():
+        members.setdefault(owner_label(n), []).append(n)
+
+    for owner, group in members.items():
+        if group[0]["scope"] not in ("repo", "user"):
+            continue
+        launch = [n for n in group if n["tier"] == LAUNCH and n["size"]]
+        total = sum(n["size"] for n in launch)
+        counted(owner, "launch", total > budget)
+        if total > budget:
+            largest = max(launch, key=lambda n: n["size"])
+            improve("launch", largest, owner, {"bytes": total}, {"bytes": budget}, total - budget,
+                    "{} launch ~{} over".format(owner, tokens(total - budget)),
+                    "{} loads ~{} tokens at launch against a ~{} budget; its largest piece "
+                    "is {} at ~{}.".format(owner, tokens(total), tokens(budget),
+                                           largest["label"], tokens(largest["size"])))
+
+    for n in nodes.values():
+        owner = owner_label(n)
+        if n["kind"] == "entry" and n["size"]:
+            over = n["size"] > entry_ideal
+            counted(owner, "entry", over)
+            if over:
+                excess = n["size"] - entry_ideal
+                improve("entry", n, owner, {"bytes": n["size"]}, {"bytes": entry_ideal}, excess,
+                        "{} entry ~{}".format(n["label"], tokens(n["size"])),
+                        "The {} listing entry is ~{} tokens, against about {}: ~{} more in "
+                        "every session.".format(n["label"], tokens(n["size"]),
+                                                ENTRY_IDEAL_TOKENS, tokens(excess)))
+        elif n["kind"] in BODY_KINDS and n["measured"]:
+            lines = n.get("lines", 0)
+            over = n["size"] > body_ideal or lines > BODY_IDEAL_LINES
+            counted(owner, "body", over)
+            if over:
+                excess = max(0, n["size"] - body_ideal)
+                improve("body", n, owner, {"bytes": n["size"], "lines": lines},
+                        {"bytes": body_ideal, "lines": BODY_IDEAL_LINES}, excess,
+                        "{} body ~{}, {} lines".format(n["label"], tokens(n["size"]), lines),
+                        "{} is ~{} tokens and {} lines, against {:,} and {}.".format(
+                            n["label"], tokens(n["size"]), lines, BODY_IDEAL_TOKENS,
+                            BODY_IDEAL_LINES))
+        if n["kind"] == "file" and n["measured"] and n.get("lines", 0) > TOC_IDEAL_LINES:
+            counted(owner, "toc", not n.get("toc"))
+            if not n.get("toc"):
+                improve("toc", n, owner, {"lines": n["lines"], "toc": False},
+                        {"lines": TOC_IDEAL_LINES, "toc": True}, 0,
+                        "{} {} lines, no contents".format(n["label"], n["lines"]),
+                        "{} runs {} lines with no table of contents in its first {}.".format(
+                            n["label"], n["lines"], TOC_WINDOW))
+
+    nested = {}
+    for body in nodes.values():
+        if body["kind"] not in BODY_KINDS:
+            continue
+        owner = owner_label(body)
+        for id, hops in _reads_below(g, body["id"]).items():
+            if id not in nodes or nodes[id]["kind"] != "file":
+                continue
+            row = nested.setdefault((owner, id), {"hops": 1, "bodies": []})
+            if hops > 1:
+                row["hops"] = max(row["hops"], hops)
+                row["bodies"].append(body["label"])
+    for (owner, id), row in nested.items():
+        failed = bool(row["bodies"])
+        counted(owner, "nested", failed)
+        if failed:
+            n = nodes[id]
+            improve("nested", n, owner, {"depth": row["hops"]}, {"depth": 1}, 0,
+                    "{} {} reads below {}".format(n["label"], row["hops"], row["bodies"][0]),
+                    "{} is {} reads below {}, with no link from the body.".format(
+                        n["label"], row["hops"], ", ".join(sorted(set(row["bodies"])))),
+                    bodies=sorted(set(row["bodies"])))
+
+    improvements.sort(key=lambda x: (PAID.index(x["paid"]), -x["excess"], -x["size"], x["label"]))
+    cards = []
+    for owner, rows in applies.items():
+        mine = [x for x in improvements if x["owner"] == owner]
+        cards.append({
+            "owner": owner,
+            "checks": {check: rows[check] for check in spec if check in rows},
+            # A listing entry is part of launch, so the launch excess already
+            # holds the entries' where both fail; the larger is what's paid.
+            "excess": {"session": max([sum(x["excess"] for x in mine if x["check"] == check)
+                                       for check in ("launch", "entry")]),
+                       "invocation": sum(x["excess"] for x in mine if x["paid"] == INVOCATION)},
+            "improvements": len(mine),
+        })
+    cards.sort(key=lambda c: (-c["excess"]["session"], -c["excess"]["invocation"],
+                              -c["improvements"], c["owner"]))
+    return {"checks": spec, "owners": cards, "improvements": improvements}
+
+
 # ---- the page --------------------------------------------------------------
 
 PAGE = pathlib.Path(__file__).resolve().parent / "cleat_graph.html"
@@ -734,10 +1119,14 @@ GROUPINGS = ("type", "owner")
 # The left pane's first group, open from the start: the findings come before the
 # tree they were computed from.
 INSIGHTS = "insights"
+# The second, closed until opened: each file against the ideal for its tier.
+IDEAL = "ideal"
 
 # A hotspot is absolute, not relative to the screen, so a color means the same
 # cost in either pane and on the page.
 HEAT_TOKENS = (1_000, 4_000, 10_000, 30_000, 70_000)
+# The rows under the panes: their headings, the details strip, footer, and keys.
+DETAILS_ROWS = 10
 HEAT_GLYPHS = ("·", "▁", "▃", "▅", "▇", "█")
 HEAT_256 = (245, 142, 178, 208, 202, 196)
 
@@ -891,6 +1280,18 @@ def browse(g, base_filters):
     curses.wrapper(lambda screen: Browser(screen, g, base_filters).run())
 
 
+# The terminal reports the mouse in SGR form, ESC [ < button ; x ; y M (press)
+# or m (release); curses' own decoding loses the wheel's down turn.
+MOUSE_ON, MOUSE_OFF = "\x1b[?1000h\x1b[?1006h", "\x1b[?1006l\x1b[?1000l"
+SGR_MOUSE = re.compile(r"\[<(\d+);(\d+);(\d+)([Mm])")
+WHEEL_UP, WHEEL_DOWN = 64, 65
+
+
+def osc8(uri, text):
+    """text as a hyperlink the terminal opens on cmd+click (or ctrl+click)."""
+    return "\x1b]8;;{}\x1b\\{}\x1b]8;;\x1b\\".format(uri, text)
+
+
 class Browser:
     def __init__(self, screen, g, base_filters):
         import curses
@@ -929,6 +1330,7 @@ class Browser:
         if GROUPINGS[self.grouping] == "owner":
             self.groups.sort(key=lambda grp: -self.stats[grp.key][1])
         self.insights = insights(self.g, self.nodes)
+        self.improvements = vs_ideal(self.g, self.nodes)["improvements"]
         self.refresh_rows()
 
     def refresh_rows(self):
@@ -938,6 +1340,10 @@ class Browser:
             head.append((INSIGHTS,))
             if INSIGHTS in self.left_open:
                 head.extend(("insight", i) for i in range(len(self.insights)))
+        if self.improvements:
+            head.append((IDEAL,))
+            if IDEAL in self.left_open:
+                head.extend(("improvement", i) for i in range(len(self.improvements)))
         self.left = head + left_rows(self.groups, self.left_open, sort, self.nodes, self.stats)
         self.cursor[0] = min(self.cursor[0], max(len(self.left) - 1, 0))
         self.right = tree_rows(self.nodes, self.right_tops(), sort, self.right_open)
@@ -954,8 +1360,11 @@ class Browser:
             return []
         if row[0] == "root":
             return [row[1]]
-        if row[0] == INSIGHTS:
+        if row[0] in (INSIGHTS, IDEAL):
             return []
+        if row[0] == "improvement":
+            id = self.improvements[row[1]]["id"]
+            return [id] if id in self.nodes else []
         if row[0] == "insight":
             focus = self.insights[row[1]]["focus"]
             ids = [focus["id"]] if focus["type"] == "node" else focus["ids"]
@@ -974,6 +1383,11 @@ class Browser:
             return "Insights: what stands out in this graph; select one to see its files"
         if row[0] == "insight":
             return self.insights[row[1]]["text"]
+        if row[0] == IDEAL:
+            return ("vs ideal: each file against the budget for its tier, what every session "
+                    "pays first; select one to see it")
+        if row[0] == "improvement":
+            return self.improvements[row[1]]["text"]
         return "{}: heaviest files it pulls in".format(row[1].label.split("  ")[0])
 
     # -- drawing -------------------------------------------------------------
@@ -1008,6 +1422,36 @@ class Browser:
         except self.curses.error:
             pass
 
+    def link(self, y, x, text, path, limit, attr=0):
+        """Mark the cells at (y, x) holding text as a link to path, cut at
+        column limit. curses can't write an escape sequence into a cell, so
+        emit_links rewrites the same text over them once curses has drawn."""
+        text = text[:max(limit - x, 0)]
+        if text and path and os.path.exists(path):
+            self.links.append((y, x, text, pathlib.Path(path).as_uri(), attr))
+
+    def sgr(self, attr):
+        c = self.curses
+        codes = ["0"]
+        for bit, code in ((c.A_BOLD, "1"), (c.A_DIM, "2"), (c.A_UNDERLINE, "4"), (c.A_REVERSE, "7")):
+            if attr & bit:
+                codes.append(code)
+        pair = c.pair_number(attr & c.A_COLOR)
+        if pair:
+            fg, _bg = c.pair_content(pair)
+            if 0 <= fg < 8:
+                codes.append(str(30 + fg))
+            elif fg >= 8:
+                codes.append("38;5;{}".format(fg))
+        return "\x1b[{}m".format(";".join(codes))
+
+    def emit_links(self):
+        out = "".join("\x1b7\x1b[{};{}H{}{}\x1b8".format(y + 1, x + 1, self.sgr(attr), osc8(uri, text))
+                      for y, x, text, uri, attr in self.links)
+        if out:
+            sys.stdout.write(out)
+            sys.stdout.flush()
+
     def scroll(self, pane, body):
         cur = self.cursor[pane]
         if cur < self.top[pane]:
@@ -1018,9 +1462,11 @@ class Browser:
     def draw(self):
         c = self.curses
         self.s.erase()
+        self.links = []
         height, width = self.s.getmaxyx()
         split = max(34, width * 2 // 5)
-        body = height - 9
+        body = height - DETAILS_ROWS
+        self.split, self.body = split, body
         by = GROUPINGS[self.grouping]
         heading = c.A_REVERSE if self.pane == 0 else c.A_BOLD
         self.put(0, 0, " What a session can load, by {}".format(
@@ -1046,6 +1492,17 @@ class Browser:
             elif row[0] == "insight":
                 text = "  {:>23}    • {}".format("", self.insights[row[1]]["title"])
                 attr = 0
+            elif row[0] == IDEAL:
+                mark = "▾" if IDEAL in self.left_open else "▸"
+                text = "✓ {:>23}  {} vs ideal ({} to improve)".format(
+                    "", mark, len(self.improvements))
+                attr = c.A_BOLD
+            elif row[0] == "improvement":
+                x = self.improvements[row[1]]
+                text = "  {:>7} {:>15}    {:<6} {}".format(
+                    "+" + tokens(x["excess"]) if x["excess"] else "", x["paid"][:15],
+                    x["check"], x["title"])
+                attr = self.heat_attr(x["excess"])
             elif row[0] == "group":
                 group = row[1]
                 launch, pulls, unmeasured, _, deepest = self.stats[group.key]
@@ -1061,14 +1518,16 @@ class Browser:
                 launch = n["size"] if n["tier"] == LAUNCH else None
                 deepest = max((depth_cost(self.nodes[m]) for m in self.g.pulled[id] & self.nodes.keys()),
                               default=0)
-                text = "{} {:>7} {:>7} {:>7}  {}{}".format(
+                lead = "{} {:>7} {:>7} {:>7}  {}".format(
                     HEAT_GLYPHS[heat_level(n["closure"])], tokens(launch), tokens(n["closure"]),
-                    tokens(deepest),
-                    "  " * depth, n["label"] + tag(n))
+                    tokens(deepest), "  " * depth)
+                text = lead + n["label"] + tag(n)
                 attr = self.heat_attr(n["closure"])
             if chosen:
                 attr = (attr | c.A_REVERSE) if self.pane == 0 else (attr | c.A_UNDERLINE)
             self.put(i + 3, 0, text, split, attr)
+            if row[0] not in (INSIGHTS, "insight", IDEAL, "improvement", "group"):
+                self.link(i + 3, len(lead), n["label"], n["path"], split, attr)
 
         self.scroll(1, body)
         for i, (path, depth, cut) in enumerate(self.right[self.top[1]:self.top[1] + body]):
@@ -1082,16 +1541,17 @@ class Browser:
             # no path above it, so it shows the cheapest one from any root.
             spent = (sum(self.nodes[id]["size"] for id in set(path[:-1]))
                      if len(path) > 1 else n["reach"])
-            text = "{} {:>7} {:>7} {:>7} {:>7}  {}{} {}{}".format(
+            lead = "{} {:>7} {:>7} {:>7} {:>7}  {}{} {}".format(
                 HEAT_GLYPHS[heat_level(n["closure"])], tokens(spent),
                 tokens(n["size"]) if measured else "?",
                 tokens(n["next"]) if has_children else "-",
                 tokens(n["closure"]) if measured else "?",
-                "  " * depth, mark, (edge + " ") if edge else "", n["label"] + tag(n))
+                "  " * depth, mark, (edge + " ") if edge else "")
             attr = self.heat_attr(n["closure"])
             if index == self.cursor[1] and self.pane == 1:
                 attr |= c.A_REVERSE
-            self.put(i + 3, split + 1, text, width - split - 1, attr)
+            self.put(i + 3, split + 1, lead + n["label"] + tag(n), width - split - 1, attr)
+            self.link(i + 3, split + 1 + len(lead), n["label"], n["path"], width, attr)
 
         for y in range(0, body + 3):
             try:
@@ -1103,19 +1563,40 @@ class Browser:
                   " · sort: {} · filter: {}").format(
             tokens(t["launch"]), tokens(t["reachable"]), tokens(t["deepest"]), t["unmeasured"],
             SORT_LABELS[SORTS[self.sort]], self.query or self.describe_base() or "none")
-        self.put(height - 6, 0, "─" * width, width)
+        self.put(height - 7, 0, "─" * width, width)
         when, via = self.details()
-        self.put(height - 5, 0, " when  " + when, width, c.A_BOLD)
-        self.put(height - 4, 0, " via   " + via, width)
+        self.put(height - 6, 0, " when  " + when, width, c.A_BOLD)
+        self.put(height - 5, 0, " via   " + via, width)
+        path = self.selected_path()
+        if path:
+            folder = os.path.dirname(path) + os.sep
+            self.put(height - 4, 0, " file  " + folder + os.path.basename(path), width)
+            self.link(height - 4, 7, folder, folder, width)
+            self.link(height - 4, 7 + len(folder), os.path.basename(path), path, width)
+        else:
+            self.put(height - 4, 0, " file", width)
         self.put(height - 3, 0, "─" * width, width)
         self.put(height - 2, 0, footer, width)
         self.put(height - 1, 0,
                  " ↑↓ move  tab pane  enter/space expand  ←→ collapse/expand  "
-                 "s sort  g group by  / filter  q quit", width, c.A_DIM)
+                 "s sort  g group by  / filter  q quit  ·  mouse: click, wheel; "
+                 "cmd+click a file or folder to open it", width, c.A_DIM)
         self.s.refresh()
+        self.emit_links()
 
     def heat_attr(self, n):
         return self.heat[heat_level(n)]
+
+    def selected_path(self):
+        """The file under the cursor: the right pane's row, else the left's root."""
+        if self.pane == 1 and self.right:
+            return self.nodes[self.right[self.cursor[1]][0][-1]]["path"]
+        row = self.selected()
+        if row is not None and row[0] == "root":
+            return self.nodes[row[1]]["path"]
+        if row is not None and row[0] == "improvement":
+            return self.nodes[self.improvements[row[1]]["id"]]["path"]
+        return None
 
     def details(self):
         """(when the selected node loads, the line that opens it) for the strip
@@ -1138,6 +1619,10 @@ class Browser:
             return self.nodes[row[1]].get("when", ""), "a root: the harness opens it"
         if row[0] == "insight":
             return self.insights[row[1]]["text"], "how: " + self.insights[row[1]]["query"]
+        if row[0] == "improvement":
+            x = self.improvements[row[1]]
+            return ("{}, paid {}; the ideal is {}".format(x["text"].rstrip("."), x["paid"], x["goal"]),
+                    "fix: " + x["repair"])
         return "", ""
 
     def describe_base(self):
@@ -1176,14 +1661,26 @@ class Browser:
         self.setup_colors()
         self.s.keypad(True)
         self.on_select()
+        sys.stdout.write(MOUSE_ON)
+        sys.stdout.flush()
+        try:
+            self.loop()
+        finally:
+            sys.stdout.write(MOUSE_OFF)
+            sys.stdout.flush()
+
+    def loop(self):
+        c = self.curses
         while True:
             self.draw()
             key = self.s.getch()
             rows = self.left if self.pane == 0 else self.right
-            page = self.s.getmaxyx()[0] - 9
+            page = self.s.getmaxyx()[0] - DETAILS_ROWS
             if key == ord("q"):
                 return
-            if key == 9:
+            if key == 27:
+                self.mouse(self.read_escape())
+            elif key == 9:
                 self.pane = 1 - self.pane
             elif key in (c.KEY_DOWN, ord("j")):
                 self.move(1, rows)
@@ -1197,12 +1694,7 @@ class Browser:
                 self.sort = (self.sort + 1) % len(SORTS)
                 self.refresh_rows()
             elif key == ord("g"):
-                self.grouping = (self.grouping + 1) % len(GROUPINGS)
-                self.left_open = {INSIGHTS} & self.left_open
-                self.cursor = [0, 0]
-                self.top = [0, 0]
-                self.apply()
-                self.on_select()
+                self.regroup()
             elif key == ord("/"):
                 self.prompt()
                 self.on_select()
@@ -1212,6 +1704,58 @@ class Browser:
                 self.open(True)
             elif key in (c.KEY_LEFT, ord("h")):
                 self.open(False)
+
+    def regroup(self):
+        self.grouping = (self.grouping + 1) % len(GROUPINGS)
+        self.left_open = {INSIGHTS, IDEAL} & self.left_open
+        self.cursor = [0, 0]
+        self.top = [0, 0]
+        self.apply()
+        self.on_select()
+
+    def read_escape(self):
+        """The rest of an escape sequence curses didn't recognize as a key."""
+        self.s.nodelay(True)
+        try:
+            chars = []
+            while len(chars) < 32:
+                ch = self.s.getch()
+                if ch == -1:
+                    break
+                chars.append(chr(ch))
+                if chr(ch) in "Mm" and len(chars) > 1:
+                    break
+            return "".join(chars)
+        finally:
+            self.s.nodelay(False)
+
+    def mouse(self, sequence):
+        """A left click picks the pane and row under it, and on the row already
+        picked expands or collapses it; the wheel moves the pane under it."""
+        found = SGR_MOUSE.fullmatch(sequence)
+        if not found:
+            return
+        button, x, y, kind = int(found[1]), int(found[2]) - 1, int(found[3]) - 1, found[4]
+        pane = 0 if x < self.split else 1
+        rows = self.left if pane == 0 else self.right
+        if button in (WHEEL_UP, WHEEL_DOWN):
+            self.pane = pane
+            self.move(-3 if button == WHEEL_UP else 3, rows)
+            return
+        if button != 0 or kind != "M":
+            return
+        if pane == 0 and y == 1:
+            self.regroup()
+            return
+        index = self.top[pane] + y - 3
+        if not 0 <= y - 3 < self.body or index >= len(rows):
+            self.pane = pane
+            return
+        if pane == self.pane and index == self.cursor[pane]:
+            self.toggle()
+            return
+        self.pane = pane
+        self.move(index - self.cursor[pane], rows)
 
     def move(self, delta, rows):
         pane = self.pane
@@ -1234,9 +1778,9 @@ class Browser:
             row = self.selected()
             if row is None:
                 return
-            if row[0] == INSIGHTS:
-                self.left_open ^= {INSIGHTS}
-            elif row[0] == "insight":
+            if row[0] in (INSIGHTS, IDEAL):
+                self.left_open ^= {row[0]}
+            elif row[0] in ("insight", "improvement"):
                 self.pane = 1
             elif row[0] == "group":
                 self.left_open ^= {row[1].key}
@@ -1256,13 +1800,14 @@ class Browser:
             row = self.selected()
             if row is None:
                 return
-            if row[0] == INSIGHTS:
-                (self.left_open.add if expand else self.left_open.discard)(INSIGHTS)
-            elif row[0] == "insight":
+            if row[0] in (INSIGHTS, IDEAL):
+                (self.left_open.add if expand else self.left_open.discard)(row[0])
+            elif row[0] in ("insight", "improvement"):
                 if expand:
                     self.pane = 1
                 else:
-                    self.cursor[0] = 0
+                    head = INSIGHTS if row[0] == "insight" else IDEAL
+                    self.cursor[0] = next(i for i, r in enumerate(self.left) if r[0] == head)
                     self.on_select()
             elif row[0] == "group":
                 if expand:
@@ -1295,7 +1840,7 @@ class Browser:
         """Move the left cursor up to the nearest group above at a shallower depth."""
         for i in range(self.cursor[0] - 1, -1, -1):
             row = self.left[i]
-            if row[0] == INSIGHTS:
+            if row[0] in (INSIGHTS, IDEAL):
                 return
             if row[0] == "group" and row[1].depth < depth:
                 self.cursor[0] = i

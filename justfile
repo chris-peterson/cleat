@@ -32,6 +32,11 @@ demo-html dir=".":
 demo-json dir="." *filters:
     scripts/cleat graph {{quote(dir)}} --json {{filters}} | python3 examples/graph-hotspots.py
 
+# append a snapshot of the graph's numbers to ~/.local/state/cleat/metrics.yml, and print it
+[group('start here')]
+metrics dir=".":
+    scripts/cleat metrics {{quote(dir)}}
+
 # run the shell script test suite
 [group('work on cleat')]
 test:

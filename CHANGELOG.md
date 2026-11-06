@@ -34,6 +34,37 @@
 - `examples/graph-hotspots.py` reads `cleat graph --json` and prints the
   heaviest branches, the files several roots share, and what each plugin
   costs: a starting point for your own tooling.
+- `cleat graph` scores what a session can load against the ideal for each
+  tier: listing entries of about 100 tokens, skill bodies under 5,000 tokens
+  and 500 lines, references linked straight from the body, a table of contents
+  atop any reference over 100 lines (Anthropic's published skill budgets), and
+  launch within cleat's launch budget. The page's new "vs ideal" view shows a
+  scorecard per plugin and scope and a list of fixes, what every session pays
+  first; the terminal browser lists the same fixes under "vs ideal", and
+  `--json` carries both.
+- `cleat metrics` records the graph's numbers over time. Each run appends a
+  snapshot to `~/.local/state/cleat/metrics.yml` (or `--history PATH`) and
+  prints it: the totals, the context per load tier and per hop from a root,
+  the depth curve (how much context is within reach on a budget of 1k, 2k, 4k
+  tokens and so on), the budgets at which half and 90% of it is within reach,
+  the largest single file, and each owner's totals with a plugin's version and
+  a digest that changes when any of its files does. Run it from your own
+  machine: the numbers come mostly from your user scope and plugins.
+- Files in `cleat graph` open from where they're shown. In the terminal
+  browser, cmd+click a file's name (or whatever opens a link in your terminal)
+  to open it; the details strip shows the selected file's path, with its folder
+  linked too. The page's details panel links the file and its folder the same
+  way.
+- The terminal browser takes the mouse: click a row to pick it, click it again
+  to expand it, click "g groups by" to switch the grouping, and scroll either
+  pane with the wheel.
+- Double-click a star in the universe view to see only what it pulls in, as
+  in the graph view. A key says what each mark means, including the dashed
+  stars, which load only on a trigger.
+- Select an owner in the vs ideal view (or "What to change" on a plugin's
+  wedge) for a plan of what to change there: a step per kind of fix, largest
+  savings first, with the files each one touches, and a starter prompt to copy
+  into a coding agent session in that owner's repository.
 
 ## 0.5.0
 

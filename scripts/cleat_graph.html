@@ -192,6 +192,18 @@ button:hover { border-color: var(--accent); color: var(--accent); }
   font-weight: 700; color: var(--sky-ink); border-color: var(--sky-ray); background: rgb(13 18 32 / 0.7);
 }
 .help:hover { color: var(--star-2); border-color: var(--star-2); }
+.key {
+  position: absolute; left: 12px; top: 12px; max-width: min(300px, calc(100% - 100px));
+  background: rgb(13 18 32 / 0.8); border: 1px solid var(--sky-ray); border-radius: 10px;
+  padding: 6px 10px; font-size: 12px; color: var(--sky-dim);
+}
+.key summary { cursor: pointer; color: var(--sky-ink); }
+.key ul { list-style: none; margin: 6px 0 2px; padding: 0; display: grid; gap: 4px; }
+.key li { display: grid; grid-template-columns: 18px 1fr; gap: 6px; align-items: center; }
+.key svg { width: 16px; height: 16px; overflow: visible; }
+.key .mark-file { fill: var(--star-2); stroke: var(--sky); }
+.key .mark-gated { fill: var(--star-1); stroke: var(--sky-ink); stroke-dasharray: 2.5 2; stroke-width: 1.5; }
+.key .mark-ring { fill: none; stroke: var(--sky-ring); }
 .tour {
   position: absolute; top: 12px; left: 12px; width: min(340px, calc(100% - 24px));
   background: rgb(13 18 32 / 0.95); border: 1px solid var(--sky-ray); border-radius: 12px;
@@ -214,6 +226,77 @@ button:hover { border-color: var(--accent); color: var(--accent); }
 @keyframes pulse { 50% { transform: scale(1.7); } }
 .budget.tour-on { box-shadow: inset 0 0 0 1px var(--star-2); }
 
+
+/* vs ideal: a row per owner against each check, then the fixes, grouped by how
+   often a session pays for them. Quiet paper like the graph view. */
+#ideal {
+  position: absolute; inset: 0; overflow: auto; background: var(--surface);
+  border: 1px solid var(--rule); border-radius: 14px; padding: 16px 18px;
+  display: grid; align-content: start; gap: 20px;
+}
+#ideal > * { min-width: 0; }
+#ideal h3 { font-size: 13px; font-weight: 600; margin: 0 0 6px; }
+.ideal-intro { margin: 0; color: var(--ink-2); font-size: 13px; max-width: 72ch; }
+.checks-legend { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 4px 14px; margin: 0; font-size: 12px; }
+.checks-legend dt { font: 12px var(--font-data); color: var(--ink); }
+.checks-legend dd { margin: 0; color: var(--ink-2); }
+.checks-legend .src { color: var(--ink-3); white-space: nowrap; }
+.checks-legend a { color: var(--accent); }
+.table-wrap { overflow-x: auto; }
+.scorecard { border-collapse: collapse; width: 100%; font-size: 13px; }
+.scorecard th, .scorecard td { padding: 5px 8px; border-bottom: 1px solid var(--rule); text-align: right; white-space: nowrap; }
+.scorecard th { font-size: 12px; font-weight: 600; color: var(--ink-3); }
+.scorecard th:first-child, .scorecard td:first-child { text-align: left; }
+.scorecard tbody tr { cursor: pointer; }
+.scorecard tbody tr:hover, .scorecard tbody tr[aria-current=true] { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.scorecard .ok { color: var(--ink-3); }
+.scorecard .bad { color: var(--heat-4); font-weight: 600; }
+.scorecard .na { color: var(--ink-3); opacity: 0.5; }
+.fixes { list-style: none; margin: 0; padding: 0; display: grid; }
+.fix {
+  display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; gap: 2px 12px;
+  padding: 8px 6px; border-top: 1px solid var(--rule); cursor: pointer; font-size: 13px;
+}
+.fix:hover, .fix:focus-visible { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.fix .chk { font: 12px var(--font-data); color: var(--ink-3); padding-top: 1px; }
+.fix .t { font-weight: 500; overflow-wrap: anywhere; }
+.fix .x { color: var(--heat-4); font-weight: 600; white-space: nowrap; }
+.fix .r { grid-column: 2 / -1; font-size: 12px; color: var(--ink-2); overflow-wrap: anywhere; }
+/* The plan reads as a short document: steps in the order to do them, the
+   files each one touches, then the prompt to hand an agent. */
+#ideal.planning #fixes { order: -1; }
+#ideal.planning > .ideal-intro { display: none; }
+.plan { display: grid; gap: 14px; max-width: 78ch; }
+#ideal .plan h3 { font-size: 17px; font-weight: 700; letter-spacing: -0.015em; margin: 0; }
+.plan-lead { margin: 0; color: var(--ink-2); font-size: 14px; line-height: 1.55; }
+.plan-steps { margin: 0; padding-left: 1.4em; display: grid; gap: 16px; }
+.plan-steps > li::marker { font-weight: 700; color: var(--accent); }
+.plan-steps h4 { margin: 0 0 3px; font-size: 14px; font-weight: 600; }
+.plan-steps > li > p { margin: 0 0 6px; font-size: 13px; color: var(--ink-2); line-height: 1.5; }
+.plan-steps a { color: var(--accent); }
+.plan-files { list-style: none; margin: 0; padding: 0; display: grid; }
+.plan-files li {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 12px;
+  padding: 5px 6px; border-top: 1px solid var(--rule); font-size: 13px; cursor: pointer;
+}
+.plan-files li:hover, .plan-files li:focus-visible { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.plan-files .f { font: 12px var(--font-data); overflow-wrap: anywhere; }
+.plan-files .x { color: var(--heat-4); font-weight: 600; white-space: nowrap; }
+.plan-files .r { grid-column: 1 / -1; font-size: 12px; color: var(--ink-3); overflow-wrap: anywhere; }
+.starter { display: grid; gap: 6px; padding: 14px; border-radius: 12px; background: var(--sky); color: var(--sky-dim); }
+.starter-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.starter h4 { margin: 0; font-size: 14px; color: var(--sky-ink); }
+.starter p { margin: 0; font-size: 12px; }
+.starter button { color: var(--sky-ink); border-color: var(--sky-ray); background: transparent; }
+.starter button:hover { color: var(--star-2); border-color: var(--star-2); }
+.starter pre {
+  margin: 0; max-height: 360px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere;
+  font: 12px/1.55 var(--font-data); color: var(--sky-ink);
+}
+.vs { display: grid; gap: 4px; padding-left: 10px; border-left: 2px solid var(--heat-4); font-size: 13px; }
+.vs p { margin: 0; }
+.vs .r { color: var(--ink-2); font-size: 12px; }
+
 /* The selected file: what it costs, when it loads, and the lines that open it. */
 #details .empty { color: var(--ink-3); }
 .title { font-size: 17px; font-weight: 700; letter-spacing: -0.015em; overflow-wrap: anywhere; margin: 0; line-height: 1.25; }
@@ -222,6 +305,9 @@ button:hover { border-color: var(--accent); color: var(--accent); }
 .kv dt { color: var(--ink-3); font-size: 13px; }
 .kv dd { margin: 0; font-size: 13px; overflow-wrap: anywhere; }
 .kv dd.path-value { font: 12px var(--font-data); }
+.kv dd.path-value a { color: var(--ink-3); text-decoration: none; }
+.kv dd.path-value a:last-child { color: var(--accent); }
+.kv dd.path-value a:hover { text-decoration: underline; }
 .path { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; font: 12px var(--font-data); }
 .path li { overflow-wrap: anywhere; }
 .path .via { color: var(--ink-3); }
@@ -301,11 +387,18 @@ button:hover { border-color: var(--accent); color: var(--accent); }
       <div class="views" role="tablist" aria-label="View">
         <button id="view-universe" role="tab" aria-selected="true">Universe</button>
         <button id="view-graph" role="tab" aria-selected="false">Graph</button>
+        <button id="view-ideal" role="tab" aria-selected="false">vs ideal</button>
       </div>
       <div class="crumb" id="crumb"></div>
     </div>
     <div class="stage">
       <div id="cy" role="img" aria-label="Graph of what a session can load" hidden></div>
+      <div id="ideal" hidden>
+        <p class="ideal-intro">Each file against the budget for its tier. What every session pays comes first, then what each invocation pays, then what each read risks. Select an owner for what to change there and a prompt to hand an agent, and a file to see its costs.</p>
+        <section><h3>The ideal</h3><dl class="checks-legend" id="checks-legend"></dl></section>
+        <section><h3>By owner</h3><div class="table-wrap"><table class="scorecard" id="scorecard"></table></div></section>
+        <section id="fixes"></section>
+      </div>
       <div id="universe">
         <svg id="sky" role="img" aria-label="What a session can load, by how much context it takes to reach"></svg>
         <div class="budget">
@@ -319,6 +412,14 @@ button:hover { border-color: var(--accent); color: var(--accent); }
           <output id="budget-out" for="budget"></output>
         </div>
         <div class="tip" id="tip" hidden></div>
+        <details class="key" id="key" open>
+          <summary>Key</summary>
+          <ul>
+            <li><svg viewBox="0 0 16 16" aria-hidden="true"><circle class="mark-file" cx="8" cy="8" r="6"/></svg><span>A file: size is its cost, color what it pulls in</span></li>
+            <li><svg viewBox="0 0 16 16" aria-hidden="true"><circle class="mark-gated" cx="8" cy="8" r="6"/></svg><span>Dashed: loads only on a trigger (a typed command, a file its globs match, a hook)</span></li>
+            <li><svg viewBox="0 0 16 16" aria-hidden="true"><circle class="mark-ring" cx="8" cy="8" r="7"/></svg><span>Distance: context spent to reach it</span></li>
+          </ul>
+        </details>
         <button class="help" id="help" aria-label="How to read this view" title="How to read this view">?</button>
         <div class="tour" id="tour" role="dialog" aria-labelledby="tour-title" aria-live="polite" hidden>
           <p class="tour-count" id="tour-count"></p>
@@ -492,6 +593,7 @@ function render() {
   roots(shown);
   crumb(shown.length);
   if (view === "universe") { drawUniverse(keep); return; }
+  if (view === "ideal") { drawIdeal(); return; }
   const visible = cy.elements(":visible");
   const layout = focus
     ? { name: "breadthfirst", directed: true, roots: [focus], spacingFactor: 1.1, animate: false }
@@ -578,6 +680,8 @@ function select(id) {
       <p class="title">${n.label}</p>
       <p class="note">${t.label}, ${n.kind}, ${where}</p>
     </section>
+    ${IDEAL.improvements.filter(x => x.id === id).map(x => `<section><h2>vs ideal: ${x.check}</h2><div class="vs">
+      <p>${escapeHtml(x.text)}</p><p class="r">Ideal: ${escapeHtml(x.goal)}, paid ${escapeHtml(x.paid)}. Fix: ${escapeHtml(x.repair)}.</p></div></section>`).join("")}
     <section>
       <dl class="kv">
         ${n.when ? `<dt>Loads</dt><dd class="when">${escapeHtml(n.when)}</dd>` : ""}
@@ -587,7 +691,7 @@ function select(id) {
         <dt>Everything below</dt><dd>~${tok(n.closure)}${n.closureUnmeasured ? ` + ${n.closureUnmeasured} unmeasured` : ""}</dd>
         <dt>Pointed to by</dt><dd>${(inc.get(id) || []).length}</dd>
         ${n.note ? `<dt>Note</dt><dd>${escapeHtml(n.note)}</dd>` : ""}
-        <dt>File</dt><dd class="path-value">${escapeHtml(n.path)}</dd>
+        <dt>File</dt><dd class="path-value">${fileLinks(n.path)}</dd>
       </dl>
     </section>
     ${(inc.get(id) || []).some(e => e.text) ? `<section><h2>Opened by</h2><ul class="refs">${(inc.get(id) || []).filter(e => e.text).map(e =>
@@ -598,6 +702,15 @@ function select(id) {
       `<li data-id="${encodeURIComponent(m.id)}"><span class="k">${kind}</span><span class="n" title="${escapeHtml(m.label)}">${escapeHtml(m.label)}</span><span class="v">${m.measured ? "~" + tok(m.closure) : "?"}</span></li>`).join("")}</ul></section>` : ""}
     <section><button id="focus-node">Show what this pulls in</button></section>`;
   $("focus-node").onclick = () => { focus = id; focusSet = null; render(); select(id); };
+}
+
+// The folder and the file as links: the page opens from a file, so a file: URL
+// shows the file, and the folder's listing, in the browser.
+function fileLinks(path) {
+  const cut = path.lastIndexOf("/") + 1;
+  const url = p => "file://" + encodeURI(p).replace(/[?#]/g, encodeURIComponent);
+  return `<a href="${url(path.slice(0, cut))}" title="Open the folder">${escapeHtml(path.slice(0, cut))}</a>`
+    + `<a href="${url(path)}" title="Open the file">${escapeHtml(path.slice(cut))}</a>`;
 }
 
 function escapeHtml(s) {
@@ -636,6 +749,9 @@ let stars = new Map(), rays = new Map(), parentOf = new Map(), maxSpend = 1, wed
 const wedgeOf = n => U.drill ? n.label : ownerOf(n);
 
 const tokensOf = bytes => (bytes || 0) / DATA.bytesPerToken;
+// vs ideal names an owner as `owner_label` does: a plugin with its marketplace.
+const ownerLabel = n => n.scope === "plugin" ? `${n.plugin}@${n.marketplace || ""}`
+  : ({ repo: "this repo", user: "user scope" })[n.scope] || n.scope;
 const ownerOf = n => n.scope === "plugin" ? n.plugin : n.scope === "repo" ? "this repo" : n.scope === "user" ? "user scope" : "elsewhere";
 // Conditional roots and what grows from them: they open only on a trigger.
 const gatedRoot = n => n.root && (n.tier !== "launch" || n.trigger === "typed only" || n.trigger === "retired");
@@ -867,6 +983,13 @@ $("play").addEventListener("click", () => {
   expand(6000);
 });
 
+sky.addEventListener("dblclick", ev => {
+  const id = ev.target.dataset?.id;
+  if (!id) return;
+  focus = id; focusSet = null; U.budget = null;
+  render();
+  select(id);
+});
 sky.addEventListener("click", ev => {
   const owner = ev.target.dataset?.owner;
   if (owner) { chooseOwner(U.owner === owner ? null : owner, true); return; }
@@ -909,11 +1032,13 @@ function ownerPanel(owner) {
     </section>
     <section class="actions">
       <button id="drill-in">Drill in</button>
+      ${mine.length && IDEAL.improvements.some(x => x.owner === ownerLabel(mine[0])) ? '<button id="owner-plan">What to change</button>' : ""}
       <button id="owner-clear">Clear</button>
     </section>
     ${heavy.length ? `<section><h2>Heaviest files</h2><ul class="owner-files">${heavy.map(n =>
       `<li data-id="${encodeURIComponent(n.id)}"><span title="${escapeHtml(n.label)}">${escapeHtml(n.label)}</span><span>~${tok(n.closure)}</span></li>`).join("")}</ul></section>` : ""}`;
   $("drill-in").onclick = () => drill(owner);
+  if ($("owner-plan")) $("owner-plan").onclick = () => { idealOwner = ownerLabel(mine[0]); setView("ideal"); $("ideal").scrollTop = 0; };
   $("owner-clear").onclick = () => { chooseOwner(null, false); $("details").innerHTML = '<p class="empty">Select a file or a wedge.</p>'; };
 }
 
@@ -1017,17 +1142,149 @@ addEventListener("keydown", ev => {
   else if (ev.key === "ArrowLeft" && tour.step > 0) showStep(tour.step - 1);
 });
 
+// vs ideal: the scorecard and fixes the CLI computed for this page's data.
+const IDEAL = DATA.ideal;
+const CHECK_NAMES = Object.keys(IDEAL.checks);
+const PAID = ["every session", "each invocation", "each read"];
+let idealOwner = null;
+const link = s => s.startsWith("http")
+  ? `<a href="${escapeHtml(s)}" target="_blank" rel="noopener">${escapeHtml(s.split("/").pop())}</a>` : escapeHtml(s);
+$("checks-legend").innerHTML = CHECK_NAMES.map(c => {
+  const k = IDEAL.checks[c];
+  return `<dt>${c}</dt><dd>${escapeHtml(k.goal)}; the excess is paid ${escapeHtml(k.paid)}</dd><dd class="src">${k.sources.map(link).join(", ")}</dd>`;
+}).join("");
+
+function drawIdeal() {
+  const cell = r => !r ? '<td class="na">–</td>'
+    : `<td class="${r.failing ? "bad" : "ok"}">${r.failing}/${r.of}</td>`;
+  const over = b => b ? "+" + tok(b) : '<span class="na">–</span>';
+  $("scorecard").innerHTML = `<thead><tr><th>Owner</th>${CHECK_NAMES.map(c =>
+    `<th title="${escapeHtml(IDEAL.checks[c].goal)}">${c}</th>`).join("")}<th>~tokens over, every session</th><th>~tokens over, per invocation</th></tr></thead>
+    <tbody>${IDEAL.owners.map(o => `<tr tabindex="0" data-owner="${escapeHtml(o.owner)}"${idealOwner === o.owner ? ' aria-current="true"' : ""}>
+      <td>${escapeHtml(o.owner)}</td>${CHECK_NAMES.map(c => cell(o.checks[c])).join("")}
+      <td>${over(o.excess.session)}</td><td>${over(o.excess.invocation)}</td></tr>`).join("")}</tbody>`;
+  const mine = IDEAL.improvements.map((x, i) => [x, i]).filter(([x]) => !idealOwner || x.owner === idealOwner);
+  $("ideal").classList.toggle("planning", !!idealOwner && mine.length > 0);
+  if (idealOwner && mine.length) drawPlan(idealOwner);
+  else $("fixes").innerHTML = mine.length ? PAID.map(paid => {
+    const rows = mine.filter(([x]) => x.paid === paid);
+    return rows.length ? `<h3>Paid ${paid} (${rows.length})</h3><ol class="fixes">${rows.map(([x, i]) =>
+      `<li class="fix" tabindex="0" data-fix="${i}"><span class="chk">${x.check}</span><span class="t">${escapeHtml(x.title)}</span>
+        <span class="x">${x.excess ? "+" + tok(x.excess) : ""}</span><span class="r">${escapeHtml(x.owner)} · ${escapeHtml(x.repair)}</span></li>`).join("")}</ol>` : "";
+  }).join("") : '<p class="ideal-intro">Nothing here is past its ideal.</p>';
+  $("crumb").innerHTML = idealOwner
+    ? `<strong>${escapeHtml(idealOwner)}</strong><span>${mine.length} to improve</span><button id="all">All owners</button>`
+    : `<span>${IDEAL.improvements.length} to improve across ${IDEAL.owners.length} owners</span>`;
+  if (idealOwner) $("all").onclick = () => { idealOwner = null; drawIdeal(); };
+}
+// ---- what would you change: one owner's fixes as steps, and a prompt ---------
+//
+// A step per check, the session-paid ones first, then by what they save. Each
+// owner lives in its own repository, so each gets its own prompt.
+
+const STEP = {
+  launch: () => "Bring launch within the budget",
+  entry: n => `Shorten ${n} listing ${n === 1 ? "entry" : "entries"} to about 100 tokens`,
+  body: n => `Split ${n} skill ${n === 1 ? "body" : "bodies"} to under 5,000 tokens and 500 lines`,
+  nested: n => `Link ${n} ${n === 1 ? "reference" : "references"} straight from the skill body`,
+  toc: n => `Add a table of contents to ${n} long ${n === 1 ? "reference" : "references"}`,
+};
+const PROMPT_FILES = 15;
+
+function planFor(owner) {
+  const mine = IDEAL.improvements.filter(x => x.owner === owner);
+  const steps = CHECK_NAMES.map(check => {
+    const fixes = mine.filter(x => x.check === check);
+    if (!fixes.length) return null;
+    const k = IDEAL.checks[check];
+    return { check, fixes, title: STEP[check](fixes.length), saves: fixes.reduce((s, x) => s + x.excess, 0), ...k };
+  }).filter(Boolean).sort((a, b) => PAID.indexOf(a.paid) - PAID.indexOf(b.paid) || b.saves - a.saves);
+  const paths = DATA.nodes.filter(n => ownerLabel(n) === owner).map(n => n.path);
+  let root = paths.length ? paths[0].slice(0, paths[0].lastIndexOf("/")) : "";
+  for (const path of paths) while (root && !(path + "/").startsWith(root + "/")) root = root.slice(0, root.lastIndexOf("/"));
+  const sample = DATA.nodes.find(n => ownerLabel(n) === owner);
+  const narrow = { "this repo": "--scope repo", "user scope": "--scope user" }[owner]
+    || (sample.scope === "plugin" ? `--plugin ${sample.plugin}` : "");
+  return { owner, steps, root, narrow, card: IDEAL.owners.find(o => o.owner === owner) };
+}
+
+function whereText(plan) {
+  if (plan.owner === "this repo") return `The files are in this repository, ${plan.root}; the paths below are relative to it.`;
+  if (plan.owner === "user scope") return `The files are in your user scope, ${plan.root}; the paths below are relative to it. If they're deployed there from a source repository, make the changes in that repository instead.`;
+  if (plan.owner === "other") return "The files sit outside this repository, your user scope, and the plugins; each path below says where. Make each change where that file's source lives.";
+  return `The files are the installed copy of the ${plan.owner} plugin, under ${plan.root}; the paths below are relative to it, and match the source repository's layout. Make the changes in the plugin's source repository: an update replaces the installed copy.`;
+}
+
+function promptText(plan) {
+  const lines = [
+    `Trim what ${plan.owner} costs each Claude Code session. cleat's context graph measured its skills, guides, and rules against Anthropic's skill budgets; these are the fixes it found, the largest savings first.`,
+    "", whereText(plan), "",
+  ];
+  plan.steps.forEach((step, i) => {
+    lines.push(`${i + 1}. ${step.title}${step.saves ? ` (saves ~${tok(step.saves)} tokens, paid ${step.paid})` : ""}.`);
+    lines.push(`   The ideal: ${step.goal}.`);
+    lines.push(`   How: ${step.repair}.`);
+    const where = path => plan.root && path.startsWith(plan.root + "/") ? path.slice(plan.root.length + 1) : path;
+    for (const x of step.fixes.slice(0, PROMPT_FILES)) lines.push(`   - ${where(nodes.get(x.id).path)}: ${x.text}`);
+    if (step.fixes.length > PROMPT_FILES) lines.push(`   - and ${step.fixes.length - PROMPT_FILES} more; \`${["cleat graph", plan.narrow].filter(Boolean).join(" ")}\` lists them under "vs ideal".`);
+    lines.push("");
+  });
+  const sources = [...new Set(plan.steps.flatMap(st => st.sources).filter(u => u.startsWith("http")))];
+  lines.push("Move content rather than delete it: each skill must still do what it does now, and each description must still tell the model when to use the skill.");
+  if (sources.length) lines.push(`The budgets: ${sources.join(" and ")}`);
+  lines.push(`When you're done, run \`${["cleat graph --json", plan.narrow].filter(Boolean).join(" ")}\` and confirm the "ideal" improvements for ${plan.owner} are gone, or say why any remain.`);
+  return lines.join("\n");
+}
+
+function drawPlan(owner) {
+  const plan = planFor(owner), c = plan.card;
+  const paidLine = [c.excess.session ? `~${tok(c.excess.session)} tokens over the ideal every session` : "",
+                    c.excess.invocation ? `~${tok(c.excess.invocation)} on each invocation` : ""].filter(Boolean).join(", and ");
+  $("fixes").innerHTML = `<article class="plan">
+    <h3>What to change in ${escapeHtml(owner)}</h3>
+    <p class="plan-lead">${paidLine ? `It costs ${paidLine}. ` : ""}${plan.steps.length === 1 ? "One step." : `${plan.steps.length} steps, the largest savings first.`} ${escapeHtml(whereText(plan))}</p>
+    <ol class="plan-steps">${plan.steps.map(step => `<li>
+      <h4>${escapeHtml(step.title)}</h4>
+      <p>${step.saves ? `Saves ~${tok(step.saves)} tokens, paid ${escapeHtml(step.paid)}. ` : ""}The ideal is ${escapeHtml(step.goal)} (${step.sources.map(link).join(", ")}). ${escapeHtml(step.repair[0].toUpperCase() + step.repair.slice(1))}.</p>
+      <ul class="plan-files">${step.fixes.map(x => `<li data-fix="${IDEAL.improvements.indexOf(x)}" tabindex="0">
+        <span class="f">${escapeHtml(x.label)}</span><span class="x">${x.excess ? "+" + tok(x.excess) : ""}</span>
+        <span class="r">${escapeHtml(x.text)}</span></li>`).join("")}</ul></li>`).join("")}</ol>
+    <section class="starter">
+      <div class="starter-head"><h4 id="prompt-title">Starter prompt</h4><button id="copy-prompt">Copy prompt</button></div>
+      <p>Paste it into an agent session in the repository the files come from.</p>
+      <pre id="prompt" aria-labelledby="prompt-title" tabindex="0"></pre>
+    </section>
+  </article>`;
+  $("prompt").textContent = promptText(plan);
+  $("copy-prompt").onclick = ev => navigator.clipboard.writeText($("prompt").textContent).then(
+    () => { ev.target.textContent = "Copied"; setTimeout(() => { ev.target.textContent = "Copy prompt"; }, 1600); },
+    err => { ev.target.textContent = `Copy failed (${err.name}): select the prompt and copy it`; });
+}
+
+function pickOwner(row) { idealOwner = idealOwner === row.dataset.owner ? null : row.dataset.owner; drawIdeal(); $("ideal").scrollTop = 0; }
+function pickFix(row) { select(IDEAL.improvements[Number(row.dataset.fix)].id); }
+$("scorecard").addEventListener("click", ev => { const r = ev.target.closest("[data-owner]"); if (r) pickOwner(r); });
+$("fixes").addEventListener("click", ev => { const r = ev.target.closest("[data-fix]"); if (r) pickFix(r); });
+$("ideal").addEventListener("keydown", ev => {
+  if (ev.key !== "Enter" && ev.key !== " ") return;
+  const owner = ev.target.closest("[data-owner]"), fix = ev.target.closest("[data-fix]");
+  if (owner) { ev.preventDefault(); pickOwner(owner); } else if (fix) { ev.preventDefault(); pickFix(fix); }
+});
+
 function setView(next) {
   view = next;
   $("view-universe").setAttribute("aria-selected", next === "universe");
   $("view-graph").setAttribute("aria-selected", next === "graph");
+  $("view-ideal").setAttribute("aria-selected", next === "ideal");
   $("universe").hidden = next !== "universe";
   $("cy").hidden = next !== "graph";
+  $("ideal").hidden = next !== "ideal";
   cy.resize();
   render();
 }
 $("view-universe").addEventListener("click", () => setView("universe"));
 $("view-graph").addEventListener("click", () => setView("graph"));
+$("view-ideal").addEventListener("click", () => setView("ideal"));
 let resizing;
 addEventListener("resize", () => { clearTimeout(resizing); resizing = setTimeout(() => view === "universe" && render(), 150); });
 

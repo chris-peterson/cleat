@@ -44,6 +44,14 @@ scripts/cleat graph ../some-repo --plugin anchor --json
 scripts/cleat graph ../some-repo --html       # opens a temporary page in your browser
 ```
 
+Append a snapshot of those numbers to the metrics history, to see how they move
+between runs:
+
+```bash
+scripts/cleat metrics ../some-repo
+scripts/cleat metrics ../some-repo --history /path/to/metrics.yml
+```
+
 Feed it a hook payload the way Claude Code would:
 
 ```bash

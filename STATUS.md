@@ -7,7 +7,7 @@ in-repo implementation. Status vocabulary: **Covered** · **Partial** ·
 **Evidence pointers:** file + enclosing symbol. A line number is invalidated by
 any edit above it, and the ledger is read long after that edit.
 
-**Coverage: 125/125 requirements Covered (100%)**
+**Coverage: 141/141 requirements Covered (100%)**
 
 ## CHECK — The check command
 
@@ -100,6 +100,27 @@ CHECK-12 is retired and not counted.
 | GRAPH-16 | Covered | scripts/cleat_graph.py (`Walker.ref`, `Walker.retired`, the `when` and `trigger` fields, `Graph.refs`, `Browser.details`, `tag`); scripts/cleat_graph.html (Loads, Opened by); scripts/tests/graph.test.sh |
 | GRAPH-17 | Covered | scripts/cleat_graph.html (`drawUniverse`, `lightTo`, `setMode`, `chooseOwner`, `ownerPanel`, `drill`, `expand`, `tourSteps`) |
 | GRAPH-18 | Covered | scripts/cleat_graph.py (`depth_cost`, `totals`, `owners`, `group_stats`, `Browser.draw`, `write_page`); scripts/cleat_graph.html (`totals`, `ownerPanel`); scripts/tests/graph.test.sh |
+| GRAPH-19 | Covered | scripts/cleat_graph.py (`vs_ideal`, `checks`, `_reads_below`, `has_toc`, `Walker.file_node` — the `lines` and `toc` fields, `build` — `launch_budget`); scripts/tests/ideal.test.sh |
+| GRAPH-20 | Covered | scripts/cleat_graph.py (`vs_ideal` — `improve`, the ranking sort); scripts/tests/ideal.test.sh |
+| GRAPH-21 | Covered | scripts/cleat_graph.py (`vs_ideal` — `counted`, the owner cards); scripts/tests/ideal.test.sh |
+| GRAPH-22 | Covered | scripts/cleat_graph.py (`as_json`, `Browser` — the `IDEAL` group, `details`); scripts/cleat_graph.html (`drawIdeal`, `setView`, the details panel's vs ideal section); scripts/tests/ideal.test.sh, under a pty |
+| GRAPH-23 | Covered | scripts/cleat_graph.py (`osc8`, `Browser.link`, `Browser.emit_links`, `Browser.sgr`, `Browser.selected_path`, the details strip's file line); scripts/cleat_graph.html (`fileLinks`); scripts/tests/graph.test.sh, under a pty |
+| GRAPH-24 | Covered | scripts/cleat_graph.py (`MOUSE_ON`, `MOUSE_OFF`, `SGR_MOUSE`, `Browser.run`, `Browser.read_escape`, `Browser.mouse`, `Browser.regroup`); scripts/tests/graph.test.sh, under a pty |
+| GRAPH-25 | Covered | scripts/cleat_graph.html (the sky's dblclick handler, `crumb`, `#key`); scripts/tests/graph.test.sh |
+| GRAPH-26 | Covered | scripts/cleat_graph.html (`planFor`, `whereText`, `promptText`, `drawPlan`, `ownerLabel`, `ownerPanel`'s What to change); scripts/tests/graph.test.sh |
+
+## METRICS — Context metrics
+
+| ID         | Status  | Location |
+|------------|---------|----------|
+| METRICS-01 | Covered | scripts/cleat (`cmd_metrics`, `main`); scripts/cleat_graph.py (`run_metrics`); scripts/tests/metrics.test.sh |
+| METRICS-02 | Covered | scripts/cleat_graph.py (`history_path`, `run_metrics`, `yaml_lines`, `_scalar`); scripts/tests/metrics.test.sh |
+| METRICS-03 | Covered | scripts/cleat_graph.py (`snapshot`); scripts/tests/metrics.test.sh |
+| METRICS-04 | Covered | scripts/cleat_graph.py (`snapshot`, `_stats`); scripts/tests/metrics.test.sh |
+| METRICS-05 | Covered | scripts/cleat_graph.py (`hop_counts`, `snapshot`); scripts/tests/metrics.test.sh |
+| METRICS-06 | Covered | scripts/cleat_graph.py (`depth_curve`, `CURVE_START_TOKENS`, `snapshot`); scripts/tests/metrics.test.sh |
+| METRICS-07 | Covered | scripts/cleat_graph.py (`owner_digest`, `snapshot`, `enabled_plugins`, `Graph.plugins`); scripts/tests/metrics.test.sh |
+| METRICS-08 | Covered | scripts/cleat_graph.py (`run_metrics`); scripts/tests/metrics.test.sh |
 
 ## DESIGN — Design tenets
 
@@ -209,6 +230,18 @@ PACKAGING-03 is retired and not counted.
 | STATE-03 | Covered | scripts/cleat (`_prune_sessions`) |
 
 ## Audit history
+
+### 2026-11-06 — Opening files, the mouse, focus, and a plan per owner (spec-req)
+
++4 IDs (GRAPH-23–26). Files open from where they're shown: OSC 8 links in the terminal browser and links on the page, each to the file and its folder. The terminal browser takes clicks and the wheel. Double-clicking a star narrows the universe to what it pulls in, and a key explains its marks. Selecting an owner in vs ideal gives a plan of what to change there and a starter prompt to hand a coding agent. 141/141 Covered.
+
+### 2026-11-06 — vs ideal (spec-req)
+
++4 IDs (GRAPH-19–22) and two concepts (ideal, excess). `cleat graph` checks each file against the budget for its tier (Anthropic's published skill budgets, and cleat's launch budget for launch), ranks the improvements by how often a session pays for them, and scores each owner, in a vs ideal view on the page, a group in the terminal browser, and the JSON. 137/137 Covered.
+
+### 2026-11-06 — Context metrics (spec-req)
+
++8 IDs (METRICS-01–08) and four concepts (depth cost, hop count, depth curve, metrics history). `cleat metrics` appends a YAML snapshot of the context graph's numbers to a history on the machine that took it: totals, per load tier, per hop count, the depth curve with b50 and b90, the largest step, and per-owner totals with plugin versions and content digests. 133/133 Covered.
 
 ### 2026-11-05 — The context graph (spec-req)
 

@@ -196,6 +196,11 @@ contains "carries the graph" "$(cat "$page")" '"label":"/acme:deploy"'
 contains "and its insights" "$(cat "$page")" '"title":"Heaviest skill: /acme:deploy"'
 contains "and each reference's line" "$(cat "$page")" '"text":"The [design notes](docs/design.md) are here."'
 absent "with the placeholder filled" "$(cat "$page")" "/*GRAPH*/null"
+contains "the details panel links the file and its folder" "$(cat "$page")" 'function fileLinks(path)'
+contains "double-clicking a star narrows the universe to what it pulls in" "$(cat "$page")" 'sky.addEventListener("dblclick"'
+contains "a key says what a dashed star means" "$(cat "$page")" 'Dashed: loads only on a trigger'
+contains "an owner's fixes become a plan" "$(cat "$page")" 'function drawPlan(owner)'
+contains "with a starter prompt to copy" "$(cat "$page")" 'id="copy-prompt"'
 
 echo "== --html with no path writes a temporary page and opens it =="
 # BROWSER names the opener Python's webbrowser runs; this one records the URL.
@@ -238,10 +243,10 @@ def drain(seconds):
                 seen += os.read(fd, 65536)
             except OSError:
                 return
-# Insights opens first; close it, then Instructions, Rules, Plugins: down three
-# to Plugins, open it, down to acme, open that. xterm sends the arrows in keypad
-# mode as ESC O <letter>.
-for keys in (b" ", b"jjj", b" ", b"j", b"\n", b"j", b"s", b"\t", b"\x1bOD", b"g", b"q"):
+# Insights opens first; close it, then vs ideal, Instructions, Rules, Plugins:
+# down four to Plugins, open it, down to acme, open that. xterm sends the arrows
+# in keypad mode as ESC O <letter>.
+for keys in (b" ", b"jjjj", b" ", b"j", b"\n", b"j", b"s", b"\t", b"\x1bOD", b"g", b"q"):
     drain(0.6)
     try:
         os.write(fd, keys)
@@ -252,29 +257,83 @@ drain(1.5)
 _, status = os.waitpid(pid, 0)
 text = seen.decode("utf-8", "replace")
 print("exit", os.waitstatus_to_exitcode(status))
-print("by type" if "by artifact type" in text else "no type rollup")
-print("insights" if "Insights (" in text and "Heaviest skill" in text else "no insights")
-print("categories" if all(c in text for c in ("Instructions", "Rules", "Plugins", "Hooks")) else "missing a category")
-print("deploy" if "acme:deploy" in text else "no deploy root")
+print(("ok:" if "by artifact type" in text else "fail:") + "by type")
+print(("ok:" if "Insights (" in text and "Heaviest skill" in text else "fail:") + "insights")
+print(("ok:" if all(c in text for c in ("Instructions", "Rules", "Plugins", "Hooks")) else "fail:") + "categories")
+print(("ok:" if "acme:deploy" in text else "fail:") + "deploy")
 # curses redraws only the cells that change, so the heading's new word arrives
 # without the "by " it shares with the old one.
-print("by owner" if "owner" in text else "no owner rollup")
-print("footer" if "launch" in text and "unmeasured" in text else "no footer")
-print("token columns" if all(c in text for c in ("spent", "+next", "~tokens")) else "no token columns")
-print("deep column" if "deep" in text and "deepest path" in text and "every file" in text else "no depth or breadth")
-print("details strip" if " when " in text and " via " in text else "no details strip")
+print(("ok:" if "owner" in text else "fail:") + "by owner")
+print(("ok:" if "launch" in text and "unmeasured" in text else "fail:") + "footer")
+print(("ok:" if all(c in text for c in ("spent", "+next", "~tokens")) else "fail:") + "token columns")
+print(("ok:" if "deep" in text and "deepest path" in text and "every file" in text else "fail:") + "deep column")
+print(("ok:" if " when" in text and "via" in text else "fail:") + "details strip")
 PY
 )"
 contains "exits 0" "$tui" "exit 0"
-contains "opens on the rollup by artifact type" "$tui" "by type"
-contains "with the insights open at the top" "$tui" "insights"
-contains "with a row per category" "$tui" "categories"
-contains "enter and space open a plugin to its roots" "$tui" "deploy"
-contains "g switches the rollup to owners" "$tui" "by owner"
-contains "draws the footer totals" "$tui" "footer"
-contains "costs in tokens: spent, this, +next, all" "$tui" "token columns"
-contains "launch, every file, and the deepest path, as the page reports them" "$tui" "deep column"
-contains "a strip saying when the selection loads and what opens it" "$tui" "details strip"
+contains "opens on the rollup by artifact type" "$tui" "ok:by type"
+contains "with the insights open at the top" "$tui" "ok:insights"
+contains "with a row per category" "$tui" "ok:categories"
+contains "enter and space open a plugin to its roots" "$tui" "ok:deploy"
+contains "g switches the rollup to owners" "$tui" "ok:by owner"
+contains "draws the footer totals" "$tui" "ok:footer"
+contains "costs in tokens: spent, this, +next, all" "$tui" "ok:token columns"
+contains "launch, every file, and the deepest path, as the page reports them" "$tui" "ok:deep column"
+contains "a strip saying when the selection loads and what opens it" "$tui" "ok:details strip"
+
+echo "== the mouse picks panes and rows, and files are links =="
+tui="$(python3 - "$CLEAT" "$REPO" <<'PY'
+import os, pty, re, select, sys, time
+pid, fd = pty.fork()
+if pid == 0:
+    os.environ["TERM"] = "xterm-256color"
+    os.environ["LINES"], os.environ["COLUMNS"] = "30", "120"
+    os.execvp(sys.executable, [sys.executable, sys.argv[1], "graph", sys.argv[2]])
+seen = b""
+def drain(seconds):
+    global seen
+    end = time.time() + seconds
+    while time.time() < end:
+        ready, _, _ = select.select([fd], [], [], 0.1)
+        if ready:
+            try:
+                seen += os.read(fd, 65536)
+            except OSError:
+                return
+def click(x, y, button=0):
+    return "\x1b[<{};{};{}M".format(button, x + 1, y + 1).encode()
+# Rows start on line 3. A click on the picked row (Insights) closes it, which
+# puts Plugins on line 7; a click picks it, a second opens it, and the same
+# again opens acme below it. Then the wheel turns down and back up over the
+# right pane, and a click picks its top row.
+for keys in (click(5, 3), click(5, 7), click(5, 7), click(5, 8), click(5, 8),
+             click(60, 4, 65), click(60, 4, 64), click(60, 3), b"q"):
+    drain(0.6)
+    try:
+        os.write(fd, keys)
+    except OSError:
+        print("exited before", keys)
+        break
+drain(1.5)
+_, status = os.waitpid(pid, 0)
+text = seen.decode("utf-8", "replace")
+print("exit", os.waitstatus_to_exitcode(status))
+print(("ok:" if "\x1b[?1006h" in text else "fail:") + "mouse on")
+print(("ok:" if text.rfind("\x1b[?1000l") > text.rfind("\x1b[?1006h") else "fail:") + "mouse off")
+print(("ok:" if "acme:deploy" in text else "fail:") + "deploy")
+links = re.findall(r"\x1b\]8;;(file://[^\x1b]+)\x1b\\([^\x1b]*)\x1b\]8;;\x1b\\", text)
+print(("ok:" if any(t == "/acme:deploy" and u.endswith("/SKILL.md") for u, t in links) else "fail:") + "row links")
+print(("ok:" if any(t.endswith("/") and u.endswith(t.rstrip("/").replace(" ", "%20")) for u, t in links) else "fail:") + "folder link")
+print(("ok:" if " file" in text else "fail:") + "file line")
+PY
+)"
+contains "exits 0" "$tui" "exit 0"
+contains "turns on the terminal's mouse reporting" "$tui" "ok:mouse on"
+contains "and off again on quit" "$tui" "ok:mouse off"
+contains "clicks pick and open rows down to a plugin's roots" "$tui" "ok:deploy"
+contains "each file's name is a link to it" "$tui" "ok:row links"
+contains "the file line links its folder" "$tui" "ok:folder link"
+contains "the details strip names the file" "$tui" "ok:file line"
 
 echo "== broken inputs exit 2 and name the cause =="
 good_settings="$(cat "$USER_DIR/settings.json")"
