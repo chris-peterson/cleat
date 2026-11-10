@@ -31,7 +31,7 @@ hooks/prefilter.sh      the bash prefilter fronting every registration
 scripts/cleat           the CLI: `check`, `index`, `cost`, `graph`, `metrics`, and `hook`
 scripts/cleat_graph.*   `graph`'s walk, terminal browser, and page, and `metrics`' snapshot, loaded by those commands alone
 scripts/tests/          bash test suite
-examples/               tools built on `cleat graph --json`, run by `just demo-json`
+examples/               tools built on `cleat graph --json`: `just demo-json`, and `just compare-probe`, which checks a probe against a headless `claude -p` (spends tokens)
 skills/                 skills, for the help no hook can reach
 guides/                 the long-form guidance the findings and skills name by path
 SPEC.md / STATUS.md     requirements and their coverage
@@ -79,6 +79,14 @@ what picks the level.
 - **Findings carry a severity.** Errors drive the exit code; advisories
   (`unguided`, heading-only duplication) are reported and leave the check green,
   because a repo may legitimately sit that way.
+
+## Rules
+
+These load only for matching files:
+
+| Applies to | Rule |
+| --- | --- |
+| `scripts/cleat`, `scripts/cleat_graph.*`, `scripts/tests/graph.test.sh` | [view-parity.md](.claude/rules/view-parity.md) |
 
 ## Glossary
 

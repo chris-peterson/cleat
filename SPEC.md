@@ -457,7 +457,11 @@ two-pane terminal browser in the manner of
 pane rolls the roots up by artifact type (instructions, rules, skills and
 commands and agents, plugins with a group per plugin, and hooks), each group
 collapsed and giving its launch cost and the union of its members' closures;
-a key switches the rollup to a group per scope or plugin. The right pane shows
+a key switches the rollup to a group per scope or plugin, then by distance,
+then to the external dependencies: each web address's host the shown files
+name, most-named first, giving what following its addresses costs, with the
+files that name it in the right pane and a footer counting the hosts,
+addresses, lines, and files; another key opens that rollup directly. The right pane shows
 the tree reachable from a selected root, or the heaviest files a selected group
 pulls in. Each row gives a bar and one cost, the closure cost or the column
 sorted by; a key shows every column, spent, this (size), +next (next cost),
@@ -486,12 +490,14 @@ slate through purple to pink, a node past its ideal in orange, and a remote
 site in red, so that only what leaves the machine reads as an alarm; the
 terminal browser shall use the nearest of the same colors. Given a `PATH`, it shall write the page there; given
 none, it shall write it to a new temporary file and open that in the default
-browser.
+browser. In the terminal browser, `w` shall do the same for the nodes it
+shows, with its filter and probe term, and say on its key line what it wrote.
 
 #### `GRAPH-11`
 Where `--json` is passed, `cleat graph` shall emit the nodes, edges, and costs
 as JSON on stdout, the costs in bytes alongside the bytes-per-token ratio the
-other views convert with.
+other views convert with, and each host the shown nodes name, with its
+references and the nodes holding them.
 
 #### `GRAPH-12`
 If neither `--json` nor `--html` is passed and stdin or stdout is not a
@@ -536,7 +542,7 @@ center, each node's distance from it set by its reach cost, its angle by its
 owner (this repo, user scope, or a plugin) and its parent's wedge, its size by
 its own size, and its color by the `GRAPH-09` thresholds, with nodes that grow
 from a conditional root drawn dashed, a node no root reaches and each
-`GRAPH-33` orphan placed past a horizon, and each remote site the shown nodes name at the rim, as `GRAPH-29`
+`GRAPH-33` orphan placed past a horizon, and each remote site the shown nodes name on the perimeter, as `GRAPH-29`
 draws it. Its summary shall count the roots a session has at launch (loaded,
 or in the listing) apart from those waiting on a hook, a glob, or a typed name,
 and say that the harness's own prompt, tools, and built-in skills come on top.
@@ -554,9 +560,13 @@ look at first: with no term, the launch cost, its share by kind (rules, the
 skill listing, instruction files), and the three improvements paid soonest;
 with a term, what the term adds beyond launch and its heaviest nodes, each
 marked where it is past its ideal or was reached through a line that never
-names the term. A selected node's panel shall lead with its reach cost, size,
-and closure cost, and keep the rest of its `GRAPH-10` details behind a
-disclosure.
+names the term. With no term it shall also give the three most-named remote
+sites. A control on the radar, the perimeter, and its label shall each open
+the external dependencies: every site the radar draws, as the `GRAPH-09` rollup lists them, each giving what
+following its addresses costs and how many lines and files name it, and
+opening its site panel when selected. A selected node's panel shall lead with
+its reach cost, size, and closure cost, and keep the rest of its `GRAPH-10`
+details behind a disclosure.
 Selecting an owner's wedge shall highlight it and give that owner's totals;
 drilling in, by a control or by double-clicking the wedge, shall redraw the
 radar with that owner alone, its roots as the wedges. Escape shall step back
@@ -647,7 +657,16 @@ probe shall light each root whose text mentions it, then follow each
 reference a lit node states, hop by hop and each node once, to a node the
 reference's line mentions the term in, whose own text mentions it, or that a
 lit listing entry invokes. A term shall be looked for in what a file says
-with its web addresses blanked, so a host's name is not a mention. With no
+with its web addresses blanked, so a host's name is not a mention. A term of
+several words is a prompt: a line mentions it where it mentions any of its
+words but the common ones that say nothing about what to load, from one list
+every view reads; a term in double quotes is looked for as typed. A word
+shall match only where a word in the text starts, so a short word is not
+found inside a longer one. Each lit node shall carry which of the prompt's
+words it says: the terminal browser shall order the roots at launch by how
+many and tag each row with the count, the page shall list the three listing
+entries saying the most as the closest matches, and `--json` shall carry
+them. With no
 term, the probe shall light every node a root reaches, at its hop count along
 its cheapest path, and name every remote site the nodes shown state.
 
@@ -657,7 +676,7 @@ lit, each at its own distance, and the islands, the nodes that mention the
 term but that no lit node leads to, past the horizon; a node reached only through a line that
 never names the term shall have a dashed ray, and one opened for its line
 alone shall be hollow. Each remote site a lit node names on a line mentioning
-the term shall sit at the rim, one mark per host, with a ray from each file
+the term shall sit on the perimeter, one mark per host, with a ray from each file
 that names it. A summary shall give how many loaded files mention the term,
 how many more following them reaches and over how many hops, what reading
 them all costs, how many islands there are, and how many remote
@@ -695,7 +714,9 @@ drill-in, a narrowing to what a node pulls in, an insight's or the
 scorecard's Show) shall be an entry in the browser's history, refining a term
 in place replacing its entry; Escape, the mouse's back button, the browser's
 back, and a Back control shall each return to the previous entry, and at the
-trail's start Escape shall clear the filters, then close the drawer. In the
+trail's start Escape shall clear the filters, then close the drawer. A home
+control at the page's top left, and the repo's name beside it, shall each return to the trail's start, clear the
+filters and the search, and close the drawer, in one step. In the
 terminal browser, Escape, backspace, and the mouse's back button shall leave
 the right pane, else return to the view before the latest probe, filter, or
 regroup, else move the cursor to the group above it.
@@ -736,7 +757,8 @@ Orphans shall count in no total. `--json` shall carry them, filtered as the
 nodes are; the terminal browser shall list them in an Orphans group under vs
 ideal, the right pane showing the file to name one in and the strip its fix;
 and the page shall draw them past the horizon in their owner's wedge as hollow
-squares when no term is asked, list the heaviest with what loads at start, list
+quatrefoils, the mark military symbology (APP-6, MIL-STD-2525) gives an
+unknown contact, when no term is asked, list the heaviest with what loads at start, list
 them all by owner on request, and give each a card with its fix.
 
 ### `METRICS`
@@ -791,6 +813,11 @@ cleat shall keep its own share of session context as small as the job allows:
 a hook wherever one can reach the moment, a guide named by path for anything
 long, and a listing entry only for help a user asks for in conversation, which
 no hook can see.
+
+#### `DESIGN-02`
+Every view of one command's data shall offer the same features: what the
+terminal browser shows, the `--html` page and `--json` shall show too, and a
+change adding a feature to one view shall add it to the others.
 
 ### `HOOK`
 Hook dispatch

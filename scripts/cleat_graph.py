@@ -10,6 +10,7 @@ import base64
 import collections
 import datetime
 import concurrent.futures
+import functools
 import gzip
 import hashlib
 import heapq
@@ -964,6 +965,7 @@ def as_json(root, g, nodes, edges, filters):
         "edges": [dict({"source": s, "target": t, "kind": k}, **g.refs.get((s, t, k), {}))
                   for s, t, k in edges],
         "orphans": [o for o in g.orphans if matches(o, filters)],
+        "sites": list(remote_sites(nodes, nodes).values()),
     }
 
 
@@ -1422,6 +1424,52 @@ def remote_cost(sites):
 
 # ---- the probe --------------------------------------------------------------
 
+# The words a prompt carries that say nothing about what to load. The page gets
+# this same list, so a prompt lights the same files in every view.
+STOPWORDS = frozenset("""
+a about after all also am an and any are as at be been before but by can could
+did do does done for from get got had has have help how i if in into is it its
+just let like make me might more my need no not now of on once or our out over
+please run should so some than that the their them then there these they this
+those to too up us use want was we were what when where which while who why
+will with would yes you your
+""".split())
+PROMPT_EDGES = ".,;:!?\"'()[]{}<>`"
+
+
+def keywords(term):
+    """What a probe looks for: a "quoted phrase" as typed, else each word of
+    the prompt that isn't a stopword, else the prompt itself."""
+    term = (term or "").strip().lower()
+    if len(term) > 1 and term[0] == term[-1] == '"':
+        return (term[1:-1].strip(),) if term[1:-1].strip() else ()
+    words = (w.strip(PROMPT_EDGES) for w in term.split())
+    kept = tuple(dict.fromkeys(w for w in words if len(w) > 1 and w not in STOPWORDS))
+    return kept or ((term,) if term else ())
+
+
+@functools.lru_cache(maxsize=64)
+def _starts(words):
+    return re.compile("|".join("(?<![a-z0-9])" + re.escape(w) for w in words))
+
+
+def says(line, words):
+    """Whether line holds any of words where a word starts, so "ci" finds
+    "ci:" and "cicd" but not "decision"."""
+    return bool(words) and _starts(tuple(words)).search(line) is not None
+
+
+def matched(text, words):
+    """The words text says, in the prompt's order: how well a node answers it."""
+    return [w for w in words if _starts((w,)).search(text)]
+
+
+def quoted(words):
+    """The keywords as a sentence names them: “deploy” or “candidate”."""
+    q = ["\u201c{}\u201d".format(w) for w in words]
+    return q[0] if len(q) == 1 else ", ".join(q[:-1]) + " or " + q[-1]
+
+
 def plain(text):
     """What a file says, lowercased, its web addresses blanked at their own
     length: a term is looked for in the words, not in where they link."""
@@ -1436,23 +1484,26 @@ def probe(g, nodes, term):
     its cheapest path, and every remote site. The page's probe() is the same
     walk in JavaScript."""
     term = (term or "").strip().lower()
-    hits, mentions = {}, {}
+    words = keywords(term)
+    hits, mentions, said = {}, {}, {}
     if term:
         for id in nodes:
             text = g.texts.get(id)
             if text is None:
                 continue
             low = plain(text)
-            if term not in low:
+            if not says(low, words):
                 continue
             raw = text.split("\n")
-            mentions[id] = [raw[i].strip() for i, line in enumerate(low.split("\n")) if term in line]
+            mentions[id] = [raw[i].strip() for i, line in enumerate(low.split("\n")) if says(line, words)]
+            said[id] = matched(low, words)
         out = {}
         for s, t, k in g.edges:
             out.setdefault(s, []).append((t, k))
         frontier = sorted(id for id, n in nodes.items() if n["root"] and id in mentions)
         for id in frontier:
-            hits[id] = {"hop": 0, "via": None, "lines": mentions[id], "signposted": True}
+            hits[id] = {"hop": 0, "via": None, "lines": mentions[id], "signposted": True,
+                        "matched": said[id]}
         hop = 0
         while frontier:
             hop += 1
@@ -1462,12 +1513,13 @@ def probe(g, nodes, term):
                     if target not in nodes or target in hits:
                         continue
                     ref = g.refs.get((id, target, kind))
-                    signposted = (bool(ref and term in plain(ref["text"]))
+                    signposted = (bool(ref and says(plain(ref["text"]), words))
                                   or (kind == "invoke" and nodes[id]["kind"] == "entry"))
                     lines = mentions.get(target)
                     if not signposted and lines is None:
                         continue
-                    hits[target] = {"hop": hop, "via": id, "lines": lines or [], "signposted": signposted}
+                    hits[target] = {"hop": hop, "via": id, "lines": lines or [], "signposted": signposted,
+                                    "matched": said.get(target, [])}
                     next_frontier.append(target)
             frontier = next_frontier
         hops = max(0, hop - 1)
@@ -1476,20 +1528,42 @@ def probe(g, nodes, term):
         counts = hop_counts(nodes)
         for id, n in nodes.items():
             if counts[id] is not None:
-                hits[id] = {"hop": counts[id], "via": n["via"], "lines": [], "signposted": True}
+                hits[id] = {"hop": counts[id], "via": n["via"], "lines": [], "signposted": True, "matched": []}
         hops = max((h["hop"] for h in hits.values()), default=0)
         islands = sorted(id for id, count in counts.items() if count is None)
+    return {"term": term, "words": words, "hits": hits, "islands": islands, "hops": hops,
+            "mentions": mentions, "remotes": remote_sites(nodes, hits, term)}
+
+
+def remote_sites(nodes, ids, term=""):
+    """Each host the lines of ids name (only the lines mentioning term, given
+    one), most-named first, with each reference and the files holding them.
+    The page's sites() is the same grouping in JavaScript."""
+    words = keywords(term)
     remotes = {}
-    for id in hits:
+    for id in ids:
         for r in nodes[id].get("remotes", ()):
-            if term and term not in plain(r["text"]):
+            if words and not says(plain(r["text"]), words):
                 continue
             site = remotes.setdefault(r["host"], {"host": r["host"], "refs": [], "sources": []})
             site["refs"].append(dict(r, source=id))
             if id not in site["sources"]:
                 site["sources"].append(id)
-    return {"term": term, "hits": hits, "islands": islands, "hops": hops, "mentions": mentions,
-            "remotes": dict(sorted(remotes.items(), key=lambda kv: -len(kv[1]["refs"])))}
+    return dict(sorted(remotes.items(), key=lambda kv: -len(kv[1]["refs"])))
+
+
+def sites_summary(sites):
+    """One line on what the sites cost a session: hosts, addresses, the lines
+    and files naming them, and following each address once."""
+    sites = list(sites)
+    online, addresses, measured = remote_cost(sites)
+    lines = sum(len(site["refs"]) for site in sites)
+    files = len({id for site in sites for id in site["sources"]})
+    return ("{} {}, {} {} named on {} {} of {} {}; following each once ~{}{}".format(
+        len(sites), "host" if len(sites) == 1 else "hosts",
+        addresses, "address" if addresses == 1 else "addresses",
+        lines, "line" if lines == 1 else "lines", files, "file" if files == 1 else "files",
+        tokens(online), "" if measured == addresses else " (estimated)"))
 
 
 def listed(node):
@@ -1517,10 +1591,10 @@ def probe_summary(p, nodes):
             parts.append("{} {}: nothing leads there.".format(
                 len(p["islands"]), "file is an island" if len(p["islands"]) == 1 else "files are islands"))
     elif not lit:
-        parts.append("Nothing loaded mentions \u201c{}\u201d.".format(p["term"]))
+        parts.append("Nothing loaded mentions {}.".format(quoted(p["words"])))
     else:
-        parts.append("{} of {} loaded files mention \u201c{}\u201d{}.".format(
-            lit, roots, p["term"],
+        parts.append("{} of {} loaded files mention {}{}.".format(
+            lit, roots, quoted(p["words"]),
             ", and {} waiting on a trigger".format(waiting) if waiting else ""))
         parts.append("Following them lights {} more over {}; reading all {} costs ~{} tokens.".format(
             more, hops, len(p["hits"]), tokens(cost)) if more else
@@ -1539,6 +1613,7 @@ def probe_public(g, p, nodes):
     """The probe as `--json` carries it."""
     return {
         "term": p["term"],
+        "words": list(p["words"]),
         "hops": p["hops"],
         "summary": probe_summary(p, nodes),
         "hits": [dict(id=id, label=nodes[id]["label"], **h) for id, h in p["hits"].items()],
@@ -1579,8 +1654,9 @@ def island_advice(fix, term, nodes):
     if fix is None:
         return "Nothing links here."
     if fix["fix"] == "name":
-        return ("{} is lit, but its line opening {} never says \u201c{}\u201d. Say it there, and "
-                "both light.".format(nodes[fix["id"]]["label"], nodes[fix["opens"]]["label"], term))
+        return ("{} is lit, but its line opening {} never says {}. Say it there, and "
+                "both light.".format(nodes[fix["id"]]["label"], nodes[fix["opens"]]["label"],
+                                     quoted(keywords(term))))
     others = " and {} more".format(fix["others"]) if fix["others"] else ""
     return "{}{} {} here, and asking about \u201c{}\u201d never opens {}.".format(
         nodes[fix["id"]]["label"], others, "link" if others else "links", term,
@@ -1593,13 +1669,14 @@ def render_html(data, texts):
     server and the page stays a fraction of the size of the text."""
     template = PAGE.read_text(encoding="utf-8")
     payload = json.dumps(data, separators=(",", ":")).replace("</", "<\\/")
-    for placeholder in ("/*GRAPH*/null", "/*TEXT*/null"):
+    for placeholder in ("/*GRAPH*/null", "/*TEXT*/null", "/*STOPWORDS*/null"):
         if placeholder not in template:
             raise RuntimeError("{} has no {} placeholder".format(PAGE, placeholder))
     packed = base64.b64encode(gzip.compress(
         json.dumps(texts, separators=(",", ":")).encode("utf-8"), mtime=0)).decode("ascii")
     return (template.replace("/*GRAPH*/null", payload, 1)
-            .replace("/*TEXT*/null", json.dumps(packed), 1))
+            .replace("/*TEXT*/null", json.dumps(packed), 1)
+            .replace("/*STOPWORDS*/null", json.dumps(sorted(STOPWORDS)), 1))
 
 
 # ---- the terminal browser --------------------------------------------------
@@ -1616,7 +1693,7 @@ CATEGORIES = (
     ("plugins", "Plugins"),
     ("hooks", "Hooks"),
 )
-GROUPINGS = ("type", "owner", "distance")
+GROUPINGS = ("type", "owner", "distance", "external")
 # The by-distance rollup's last two groups, after a group per hop.
 ISLANDS, SITES = "islands", "sites"
 # The left pane's first group, open from the start: the findings come before the
@@ -1711,11 +1788,18 @@ class Group:
         return out
 
 
-def rollup(nodes, by, probe=None):
+def rollup(nodes, by, probe=None, sites=None):
     """[Group] for the left pane. By type: a category per kind of artifact,
     with each plugin a group of its own inside Plugins. By owner: a group per
     scope or plugin. By distance: what the probe lit at each hop from launch,
-    then the islands, then the remote sites."""
+    then the islands, then the remote sites. External: every site the nodes
+    name, the one dependency a session reaches off the machine."""
+    if by == "external":
+        if not sites:
+            return []
+        group = Group(SITES, "Web addresses", 0)
+        group.sites = list(sites)
+        return [group]
     if by == "distance":
         groups = []
         for hop in range(probe["hops"] + 1):
@@ -1783,8 +1867,9 @@ def group_stats(group, nodes, pulled):
             max((depth_cost(nodes[id]) for id in union), default=0))
 
 
-def left_rows(groups, expanded, sort, nodes, stats):
-    """[("group", Group) | ("root", id, depth)] in display order."""
+def left_rows(groups, expanded, sort, nodes, stats, rank=None):
+    """[("group", Group) | ("root", id, depth)] in display order; given rank,
+    how many of a prompt's words each root says, the closest matches first."""
     rows = []
 
     def visit(group):
@@ -1793,8 +1878,9 @@ def left_rows(groups, expanded, sort, nodes, stats):
             return
         for sub in sorted(group.groups, key=lambda s: -stats[s.key][1]):
             visit(sub)
-        rows.extend(("root", id, group.depth + 1)
-                    for id in sorted(group.roots, key=_sort_key(sort, nodes)))
+        key = _sort_key(sort, nodes)
+        order = (lambda id: (-rank.get(id, 0), key(id))) if rank else key
+        rows.extend(("root", id, group.depth + 1) for id in sorted(group.roots, key=order))
         rows.extend(("site", host, group.depth + 1) for host in group.sites)
 
     for group in groups:
@@ -1834,12 +1920,12 @@ def parse_filter(text):
     return filters, words
 
 
-def browse(g, base_filters, term=None):
+def browse(g, base_filters, term=None, root=None):
     # A bare Esc steps back, so curses waits only as long as an escape
     # sequence's bytes take to arrive, not its default second.
     os.environ.setdefault("ESCDELAY", "25")
     import curses
-    curses.wrapper(lambda screen: Browser(screen, g, base_filters, term).run())
+    curses.wrapper(lambda screen: Browser(screen, g, base_filters, term, root).run())
 
 
 # The terminal reports the mouse in SGR form, ESC [ < button ; x ; y M (press)
@@ -1857,11 +1943,14 @@ def osc8(uri, text):
 
 
 class Browser:
-    def __init__(self, screen, g, base_filters, term=None):
+    def __init__(self, screen, g, base_filters, term=None, root=None):
         import curses
         self.curses = curses
         self.s = screen
         self.g = g
+        self.root = root
+        # What `w` did, shown in place of the key line until the next key.
+        self.notice = ""
         self.kinds = {(s, t): k for s, t, k in g.edges}
         self.base = base_filters
         self.query = ""
@@ -1888,6 +1977,7 @@ class Browser:
         merged = {k: set(v) for k, v in self.base.items() if v}
         for k, v in filters.items():
             merged[k] = merged.get(k, set()) | v
+        self.filters = merged
         self.nodes, _ = filtered(self.g, merged)
         if words:
             self.nodes = {id: n for id, n in self.nodes.items()
@@ -1895,7 +1985,9 @@ class Browser:
                               w in (n["label"] + " " + (n["plugin"] or "")).lower() for w in words)}
         by = GROUPINGS[self.grouping]
         self.probe = probe(self.g, self.nodes, self.term) if by == "distance" else None
-        self.groups = rollup(self.nodes, by, self.probe)
+        self.sites = (self.probe["remotes"] if self.probe is not None
+                      else remote_sites(self.nodes, self.nodes) if by == "external" else {})
+        self.groups = rollup(self.nodes, by, self.probe, self.sites)
         self.stats = {}
         for group in self.groups:
             for each in [group] + group.groups:
@@ -1923,7 +2015,9 @@ class Browser:
             head.append((ORPHANS,))
             if ORPHANS in self.left_open:
                 head.extend(("orphan", i) for i in range(len(self.orphans)))
-        self.left = head + left_rows(self.groups, self.left_open, sort, self.nodes, self.stats)
+        rank = ({id: len(h["matched"]) for id, h in self.probe["hits"].items()}
+                if self.probe is not None and len(self.probe["words"]) > 1 else None)
+        self.left = head + left_rows(self.groups, self.left_open, sort, self.nodes, self.stats, rank)
         self.cursor[0] = min(self.cursor[0], max(len(self.left) - 1, 0))
         self.right = tree_rows(self.nodes, self.right_tops(), sort, self.right_open)
         self.cursor[1] = min(self.cursor[1], max(len(self.right) - 1, 0))
@@ -1940,9 +2034,12 @@ class Browser:
         if row[0] == "root":
             return [row[1]]
         if row[0] == "site":
-            return [id for id in self.probe["remotes"][row[1]]["sources"] if id in self.nodes]
+            return [id for id in self.sites[row[1]]["sources"] if id in self.nodes]
         if row[0] in HEADS:
             return []
+        if row[0] == "group" and row[1].key == SITES:
+            return sorted({id for host in row[1].sites for id in self.sites[host]["sources"]
+                           if id in self.nodes}, key=_sort_key(SORTS[self.sort], self.nodes))
         if row[0] == "orphan":
             fix = self.orphans[row[1]].get("fix")
             return [fix["id"]] if fix and fix["id"] in self.nodes else []
@@ -1964,9 +2061,9 @@ class Browser:
         if row[0] == "root":
             return "{}: what it opens".format(self.nodes[row[1]]["label"])
         if row[0] == "site":
-            site = self.probe["remotes"][row[1]]
-            return "{}: the {} that send a session there".format(
-                row[1], "file" if len(site["sources"]) == 1 else "files")
+            site = self.sites[row[1]]
+            return "{}: the {} a session there".format(
+                row[1], "file that sends" if len(site["sources"]) == 1 else "files that send")
         if row[0] == INSIGHTS:
             return "Insights: what stands out in this graph; select one to see its files"
         if row[0] == "insight":
@@ -1982,6 +2079,8 @@ class Browser:
         if row[0] == "orphan":
             o = self.orphans[row[1]]
             return "{}: {}".format(o["label"], "where to name it" if o.get("fix") else "nothing names its topic")
+        if row[0] == "group" and row[1].key == SITES:
+            return "{}: the files that send a session off the machine".format(row[1].label)
         return "{}: heaviest files it pulls in".format(row[1].label.split("  ")[0])
 
     # -- drawing -------------------------------------------------------------
@@ -2127,6 +2226,8 @@ class Browser:
         if by == "distance":
             title = ("Asking about \u201c{}\u201d, by distance".format(self.term) if self.term
                      else "Everything, by distance from launch")
+        elif by == "external":
+            title = "What a session reaches off the machine, by web address"
         else:
             title = "What a session can load, by {}".format("artifact type" if by == "type" else "owner")
         self.put(1, 0, " " + title, split, heading)
@@ -2136,7 +2237,8 @@ class Browser:
         if self.detail:
             following = GROUPINGS[(self.grouping + 1) % len(GROUPINGS)]
             self.put(2, 0, " g groups by {}  p asks about a term".format(
-                {"type": "artifact type", "owner": "owner", "distance": "distance"}[following]), split, c.A_DIM)
+                {"type": "artifact type", "owner": "owner", "distance": "distance",
+                 "external": "web address"}[following]), split, c.A_DIM)
             self.put(2, split + 1, " " + " ".join(title[1:]), width - split - 1, heading)
             self.put(3, 0, "   {:>7} {:>7} {:>7}   ~tokens".format("launch", "all", "deep"), split, c.A_DIM)
             self.put(3, split + 1, "   {:>7} {:>7} {:>7} {:>7}   ~tokens".format(
@@ -2185,13 +2287,17 @@ class Browser:
                 count = len(group.roots) + len(group.sites)
                 # By distance, a group's one number is what reading its files
                 # spends, so the hops add up to what the meter shows.
-                own = (sum(self.nodes[id]["size"] for id in group.roots)
-                       if by == "distance" and group.key != SITES else pulls)
+                if group.key == SITES:
+                    own = remote_cost(self.sites[host] for host in group.sites)[0]
+                elif by == "distance":
+                    own = sum(self.nodes[id]["size"] for id in group.roots)
+                else:
+                    own = pulls
                 lead = self.lead(own, (tokens(launch), "?" if unmeasured and not pulls else tokens(pulls), tokens(deepest)))
                 text = lead + "{}{} {} ({})".format("  " * group.depth, mark, group.label, count)
                 attr = self.heat_attr(own if not self.detail else pulls) | c.A_BOLD
             elif row[0] == "site":
-                site = self.probe["remotes"][row[1]]
+                site = self.sites[row[1]]
                 lead = "◆" + blank[1:] + "  " * row[2]
                 text = lead + row[1] + "  [{} {}]".format(
                     len(site["refs"]), "line" if len(site["refs"]) == 1 else "lines")
@@ -2274,15 +2380,20 @@ class Browser:
                 SORT_LABELS[sort], self.query or self.describe_base() or "none")
             if self.probe is not None:
                 footer = " " + probe_summary(self.probe, self.nodes)
+            elif by == "external":
+                footer = " " + sites_summary(self.sites.values())
             self.put(height - 3, 0, "─" * width, width)
             self.put(height - 2, 0, footer, width)
             keys = (" ↑↓ move  tab pane  enter/space expand  ←→ collapse/expand  esc back  "
-                    "s sort  g group by  p ask about  / filter  d less  q quit  ·  mouse: click, wheel, back; "
+                    "s sort  g group by  e external  p ask about  / filter  w page  d less  q quit  ·  mouse: click, wheel, back; "
                     "cmd+click a file or folder to open it")
         else:
-            keys = (" ↑↓ move  enter open  esc back  p ask about a term  g group  "
-                    "s sort ({})  / filter  d details  q quit".format(SORT_LABELS[sort]))
-        self.put(height - 1, 0, keys, width, c.A_DIM)
+            keys = (" ↑↓ move  enter open  esc back  p ask about  g group  "
+                    "s sort ({})  e external  / filter  w page  d details  q quit".format(SORT_LABELS[sort]))
+        if self.notice:
+            self.put(height - 1, 0, " " + self.notice, width, c.A_BOLD)
+        else:
+            self.put(height - 1, 0, keys, width, c.A_DIM)
         self.s.refresh()
         self.emit_links()
 
@@ -2297,8 +2408,10 @@ class Browser:
         hit = self.probe["hits"].get(id)
         if hit is None:
             return "  [island]" if id in self.probe["islands"] else ""
+        words = len(self.probe["words"])
+        said = "{} of {} words, ".format(len(hit["matched"]), words) if words > 1 and hit["matched"] else ""
         if hit["lines"]:
-            return "  [{} {}]".format(len(hit["lines"]), "line" if len(hit["lines"]) == 1 else "lines")
+            return "  [{}{} {}]".format(said, len(hit["lines"]), "line" if len(hit["lines"]) == 1 else "lines")
         return "  [signpost only]"
 
     def selected_path(self):
@@ -2334,7 +2447,7 @@ class Browser:
         if row is None:
             return "", ""
         if row[0] == "site":
-            site = self.probe["remotes"][row[1]]
+            site = self.sites[row[1]]
             first = site["refs"][0]
             return ("remote: a network round trip, and whatever {} serves that day".format(row[1]),
                     "{}:{}  {}".format(self.nodes[first["source"]]["label"], first["line"] or "?",
@@ -2463,6 +2576,7 @@ class Browser:
         while True:
             self.draw()
             key = self.s.getch()
+            self.notice = ""
             rows = self.left if self.pane == 0 else self.right
             page = self.body
             if key == ord("q"):
@@ -2497,12 +2611,16 @@ class Browser:
                 self.refresh_rows()
             elif key == ord("g"):
                 self.regroup()
+            elif key == ord("e") and GROUPINGS[self.grouping] != "external":
+                self.regroup("external")
             elif key == ord("/"):
                 self.filter_prompt()
                 self.on_select()
             elif key == ord("p"):
                 self.probe_prompt()
                 self.on_select()
+            elif key == ord("w"):
+                self.open_page()
             elif key in (10, 13, 32, c.KEY_ENTER):
                 self.toggle()
             elif key in (c.KEY_RIGHT, ord("l")):
@@ -2510,10 +2628,31 @@ class Browser:
             elif key in (c.KEY_LEFT, ord("h")):
                 self.open(False)
 
-    def regroup(self):
+    def open_page(self):
+        """The `--html` page for what the browser shows, its filter and probe
+        term with it, in a new temporary file opened in the default browser."""
+        nodes = self.nodes
+        edges = sorted((s, t, k) for s, t, k in self.g.edges if s in nodes and t in nodes)
+        data = as_json(self.root, self.g, nodes, edges, self.filters)
+        if self.probe is not None:
+            data["probe"] = probe_public(self.g, self.probe, nodes)
+        try:
+            path, summary = save_page(data, {id: self.g.texts[id] for id in nodes if id in self.g.texts})
+        except (OSError, RuntimeError) as exc:
+            self.notice = "cleat: {}".format(exc)
+            return
+        opened = webbrowser.open(path.resolve().as_uri())
+        # A browser launcher may write to the terminal under curses.
+        self.s.clear()
+        self.notice = summary if opened else "no browser opened {}; open it yourself".format(path)
+
+    def regroup(self, to=None):
+        """The next rollup, or the one named by to."""
         self.remember()
-        self.grouping = (self.grouping + 1) % len(GROUPINGS)
+        self.grouping = (self.grouping + 1) % len(GROUPINGS) if to is None else GROUPINGS.index(to)
         self.left_open = set(HEADS) & self.left_open
+        if GROUPINGS[self.grouping] == "external":
+            self.left_open.add(SITES)
         self.cursor = [0, 0]
         self.top = [0, 0]
         self.apply()
@@ -2686,7 +2825,7 @@ def run(h, args):
         cache = measure_remotes(filtered(g, filters)[0], cache, cache_path)
     attach_remote_sizes(g.nodes, cache)
     if interactive:
-        browse(g, filters, args.probe)
+        browse(g, filters, args.probe, directory.resolve())
         return 0
     nodes, edges = filtered(g, filters)
     data = as_json(directory.resolve(), g, nodes, edges, filters)
@@ -2702,14 +2841,10 @@ def run(h, args):
     return 0
 
 
-def write_page(data, target, texts):
-    """Write the page to target, or with no target to a new temporary file that
-    then opens in the default browser."""
-    try:
-        page = render_html(data, texts)
-    except (OSError, RuntimeError) as exc:
-        sys.stderr.write("cleat: {}\n".format(exc))
-        return 2
+def save_page(data, texts, target=None):
+    """Write the page to target, or with none to a new temporary file, and
+    return the path and a line summing up what it holds."""
+    page = render_html(data, texts)
     if target:
         path = pathlib.Path(target)
     else:
@@ -2718,10 +2853,22 @@ def write_page(data, target, texts):
         path = pathlib.Path(name)
     path.write_text(page, encoding="utf-8")
     t = data["totals"]
-    sys.stderr.write("cleat: wrote {} ({} files; ~tokens at launch {}, every file {}, deepest "
-                     "path {}; {} unmeasured)\n".format(
-                         path, t["nodes"], tokens(t["launch"]), tokens(t["reachable"]),
-                         tokens(t["deepest"]), t["unmeasured"]))
+    summary = ("wrote {} ({} files; ~tokens at launch {}, every file {}, deepest "
+               "path {}; {} unmeasured)").format(
+                   path, t["nodes"], tokens(t["launch"]), tokens(t["reachable"]),
+                   tokens(t["deepest"]), t["unmeasured"])
+    return path, summary
+
+
+def write_page(data, target, texts):
+    """Write the page to target, or with no target to a new temporary file that
+    then opens in the default browser."""
+    try:
+        path, summary = save_page(data, texts, target)
+    except (OSError, RuntimeError) as exc:
+        sys.stderr.write("cleat: {}\n".format(exc))
+        return 2
+    sys.stderr.write("cleat: {}\n".format(summary))
     if not target and not webbrowser.open(path.resolve().as_uri()):
         sys.stderr.write("cleat: no browser opened {}; open it yourself\n".format(path))
         return 2

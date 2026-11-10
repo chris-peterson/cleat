@@ -7,7 +7,7 @@ in-repo implementation. Status vocabulary: **Covered** · **Partial** ·
 **Evidence pointers:** file + enclosing symbol. A line number is invalidated by
 any edit above it, and the ledger is read long after that edit.
 
-**Coverage: 148/148 requirements Covered (100%)**
+**Coverage: 149/149 requirements Covered (100%)**
 
 ## CHECK — The check command
 
@@ -90,15 +90,15 @@ CHECK-12 is retired and not counted.
 | GRAPH-06 | Covered | scripts/cleat_graph.py (`compute_costs`); scripts/tests/graph.test.sh |
 | GRAPH-07 | Covered | scripts/cleat_graph.py (`compute_costs`, `totals`); scripts/tests/graph.test.sh |
 | GRAPH-08 | Covered | scripts/cleat_graph.py (`filtered`, `matches`, `parse_filter`); scripts/cleat (`main`); scripts/tests/graph.test.sh |
-| GRAPH-09 | Covered | scripts/cleat_graph.py (`Browser`, `Browser.meter`, `Browser.lead`, `Browser.layout`, `size_bar`, `rollup`, `group_stats`, `left_rows`, `tree_rows`, `heat_level`); scripts/tests/graph.test.sh, under a pty |
-| GRAPH-10 | Covered | scripts/cleat_graph.py (`render_html`, `write_page`); scripts/cleat_graph.html (`#drawer`, `setDrawer`, `fileCard`), which loads no script, font, or style from outside the file; scripts/tests/graph.test.sh |
-| GRAPH-11 | Covered | scripts/cleat_graph.py (`as_json`, `run`); scripts/tests/graph.test.sh |
+| GRAPH-09 | Covered | scripts/cleat_graph.py (`Browser`, `remote_sites`, `sites_summary`, `rollup` external, `Browser.meter`, `Browser.lead`, `Browser.layout`, `size_bar`, `rollup`, `group_stats`, `left_rows`, `tree_rows`, `heat_level`); scripts/tests/graph.test.sh, under a pty |
+| GRAPH-10 | Covered | scripts/cleat_graph.py (`render_html`, `save_page`, `write_page`, `Browser.open_page`); scripts/cleat_graph.html (`#drawer`, `setDrawer`, `fileCard`), which loads no script, font, or style from outside the file; scripts/tests/graph.test.sh |
+| GRAPH-11 | Covered | scripts/cleat_graph.py (`as_json`, `remote_sites`, `run`); scripts/tests/graph.test.sh |
 | GRAPH-12 | Covered | scripts/cleat_graph.py (`run`); scripts/tests/graph.test.sh |
 | GRAPH-13 | Covered | scripts/cleat_graph.py (`_json_file`, `enabled_plugins`, `run`); scripts/tests/graph.test.sh |
 | GRAPH-14 | Covered | scripts/cleat_graph.py (`BYTES_PER_TOKEN`, `tokens`, `write_page`); scripts/cleat_graph.html (`tok`); scripts/tests/graph.test.sh |
 | GRAPH-15 | Covered | scripts/cleat_graph.py (`insights`, `_insight`, `Browser.refresh_rows`); scripts/cleat_graph.html (the Insights card, `focusSet`); scripts/tests/graph.test.sh |
 | GRAPH-16 | Covered | scripts/cleat_graph.py (`Walker.ref`, `Walker.retired`, the `when` and `trigger` fields, `Graph.refs`, `Browser.details`, `tag`); scripts/cleat_graph.html (Loads, Opened by); scripts/tests/graph.test.sh |
-| GRAPH-17 | Covered | scripts/cleat_graph.html (`drawRadar`, `spendOrder`, `drawMeter`, `meterRead`, `lightTo`, `focusPanel`, `fileCard`, `chooseOwner`, `ownerPanel`, `drill`, `tourSteps`); scripts/tests/graph.test.sh |
+| GRAPH-17 | Covered | scripts/cleat_graph.html (`drawRadar`, `sitesPanel`, `siteRow`, `openSites`, `#sites-open`, `.perimeter-hit`, `spendOrder`, `drawMeter`, `meterRead`, `lightTo`, `focusPanel`, `fileCard`, `chooseOwner`, `ownerPanel`, `drill`, `tourSteps`); scripts/tests/graph.test.sh |
 | GRAPH-18 | Covered | scripts/cleat_graph.py (`depth_cost`, `totals`, `owners`, `group_stats`, `Browser.draw`, `write_page`); scripts/cleat_graph.html (`focusPanel`, `ownerPanel`); scripts/tests/graph.test.sh |
 | GRAPH-19 | Covered | scripts/cleat_graph.py (`vs_ideal`, `checks`, `_reads_below`, `has_toc`, `Walker.file_node` — the `lines` and `toc` fields, `build` — `launch_budget`); scripts/tests/ideal.test.sh |
 | GRAPH-20 | Covered | scripts/cleat_graph.py (`vs_ideal` — `improve`, the ranking sort); scripts/tests/ideal.test.sh |
@@ -109,12 +109,12 @@ CHECK-12 is retired and not counted.
 | GRAPH-25 | Covered | scripts/cleat_graph.html (the radar's dblclick handler, `crumb`, `#key`); scripts/tests/graph.test.sh |
 | GRAPH-26 | Covered | scripts/cleat_graph.html (`planFor`, `whereText`, `promptText`, `drawPlan`, `showOwnerPlan`, `ownerLabel`, `ownerPanel`'s What to change); scripts/tests/graph.test.sh |
 | GRAPH-27 | Covered | scripts/cleat_graph.py (`Walker.remote`, `Walker.scan`); scripts/tests/graph.test.sh |
-| GRAPH-28 | Covered | scripts/cleat_graph.py (`Graph.texts`, `Walker.file_node`, `Walker.invocable`, `render_html`, `write_page`, `plain`, `probe`); scripts/cleat_graph.html (`TEXT_B64`, `plain`, `mentionLines`, `probe`, `sites`); scripts/tests/graph.test.sh |
+| GRAPH-28 | Covered | scripts/cleat_graph.py (`STOPWORDS`, `keywords`, `says`, `matched`, `left_rows` — `rank`, `Browser.return_tag`, `Graph.texts`, `Walker.file_node`, `Walker.invocable`, `render_html`, `write_page`, `plain`, `probe`); scripts/cleat_graph.html (`TEXT_B64`, `STOPWORDS`, `keywords`, `wordAt`, `says`, `matched`, `focusPanel`'s Closest matches, `plain`, `mentionLines`, `probe`, `sites`); scripts/tests/graph.test.sh |
 | GRAPH-29 | Covered | scripts/cleat_graph.html (`drawRadar`, `summarize`, `summarizeLong`, `summarizeAll`, `probeLead`, `islandFix`, `islandAdvice`, `probeLines`, `sitePanel`, `pick`); scripts/tests/graph.test.sh |
 | GRAPH-30 | Covered | scripts/cleat_graph.py (`probe`, `probe_summary`, `probe_public`, `island_fix`, `island_advice`, `rollup` by distance, `Browser.draw` — a hop's own cost, `Browser.probe_prompt`, `Browser.return_tag`, `Browser.reached`, `run`); scripts/cleat (the `--probe` argument); scripts/tests/graph.test.sh, under a pty |
 | GRAPH-32 | Covered | scripts/cleat_graph.py (`REMOTE_ESTIMATE_TOKENS`, `remote_cache_path`, `read_remote_cache`, `measure_url`, `page_text`, `measure_remotes`, `attach_remote_sizes`, `remote_cost`, `Browser.meter`, `run`); scripts/cleat (the `--measure-remote` argument); scripts/cleat_graph.html (`spendOrder`'s online step, `fetchCost`, `siteCost`); scripts/tests/graph.test.sh, against a local server |
-| GRAPH-31 | Covered | scripts/cleat_graph.html (`go`, `restore`, `goBack`, `stepBack`, `crumb`, the `popstate` and `mouseup` handlers); scripts/cleat_graph.py (`Browser.remember`, `Browser.back`, `MOUSE_BACK`, `Browser.loop`, `Browser.mouse`); scripts/tests/graph.test.sh, under a pty |
-| GRAPH-33 | Covered | scripts/cleat_graph.py (`Walker.orphans`, `Walker.orphan`, `Walker.line_at`, `build`, `as_json`, `Browser` — the `ORPHANS` group, `right_tops`, `details`); scripts/cleat_graph.html (`visibleOrphans`, `drawRadar`'s orphan marks, `orphanCard`, `orphansPanel`, `focusPanel`'s Orphans); scripts/tests/graph.test.sh, under a pty |
+| GRAPH-31 | Covered | scripts/cleat_graph.html (`go`, `restore`, `goBack`, `stepBack`, `goHome`, `#home`, `crumb`, the `popstate` and `mouseup` handlers); scripts/cleat_graph.py (`Browser.remember`, `Browser.back`, `MOUSE_BACK`, `Browser.loop`, `Browser.mouse`); scripts/tests/graph.test.sh, under a pty |
+| GRAPH-33 | Covered | scripts/cleat_graph.py (`Walker.orphans`, `Walker.orphan`, `Walker.line_at`, `build`, `as_json`, `Browser` — the `ORPHANS` group, `right_tops`, `details`); scripts/cleat_graph.html (`visibleOrphans`, `drawRadar`'s orphan marks, `quatrefoil`, `orphanCard`, `orphansPanel`, `focusPanel`'s Orphans); scripts/tests/graph.test.sh, under a pty |
 
 ## METRICS — Context metrics
 
@@ -134,6 +134,7 @@ CHECK-12 is retired and not counted.
 | ID        | Status  | Location |
 |-----------|---------|----------|
 | DESIGN-01 | Covered | hooks/hooks.yml; skills/context-tiering/SKILL.md, the one listing entry; guides/ named by path from scripts/cleat (`RUBRIC`, `PLACEMENT_GUIDE`, `TIERING_GUIDE`) |
+| DESIGN-02 | Covered | .claude/rules/view-parity.md, indexed in AGENTS.md (Rules); scripts/cleat_graph.py (`GROUPINGS`, `remote_sites`, `as_json`, `Browser.open_page`); scripts/cleat_graph.html (`sitesPanel`, `goHome`); scripts/tests/graph.test.sh, a check per view |
 
 ## HOOK — Hook dispatch
 
@@ -237,6 +238,10 @@ PACKAGING-03 is retired and not counted.
 | STATE-03 | Covered | scripts/cleat (`_prune_sessions`) |
 
 ## Audit history
+
+### 2026-11-10 — External dependencies, home, and view parity (spec-req)
+
++1 ID (DESIGN-02); GRAPH-09, GRAPH-10, GRAPH-11, GRAPH-17, GRAPH-28, GRAPH-31, and GRAPH-33 amended. A probe takes a whole prompt, looking for its words less the common ones where a word starts, or a quoted phrase as typed, and ranks the skills by how many of its words each says. `just compare-probe` checks that ranking against what a headless `claude -p` invokes. Every view of a command's data offers the same features. The web addresses the files name are a view of their own: a rollup on `g`, or `e` directly, in the terminal browser, a panel on the page opened from the radar or its perimeter, and `sites` in the JSON. Orphans are drawn as the quatrefoil military symbology gives an unknown contact. In the terminal browser, `w` writes the page for what it shows, with its filter and probe term, and opens it. On the page, a home control at the top left returns to the view it opened on. 149/149 Covered.
 
 ### 2026-11-09 — Islands and orphans (spec-req)
 

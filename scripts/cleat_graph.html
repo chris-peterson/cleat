@@ -61,16 +61,23 @@ body {
 }
 .count, .heat-labels { font-variant-numeric: tabular-nums; }
 
-/* Header: the repo's name and where it is; everything else waits in the drawer. */
+/* Header: the repo's name, which like the house icon returns home; everything
+   else waits in the drawer. */
 header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; }
 .masthead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; min-width: 0; }
 h1 { font-size: 24px; line-height: 1.1; font-weight: 700; letter-spacing: -0.025em; margin: 0; }
-.source { font: 12px var(--font-data); color: var(--ink-3); overflow-wrap: anywhere; }
+h1 button { font: inherit; letter-spacing: inherit; color: inherit; border: 0; border-radius: 6px; padding: 0; background: none; }
+h1 button:hover { color: var(--accent); }
 .header-tools { display: flex; gap: 8px; margin-left: auto; }
 #more[aria-expanded=true] { border-color: var(--accent); color: var(--accent); }
 /* Day and night: the button shows the one it switches to. */
 button.icon { width: 32px; height: 32px; padding: 0; display: inline-grid; place-items: center; }
 button.icon svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+/* Home: a house around the radar's launch point, where a reset returns. */
+header { column-gap: 12px; }
+#home .launch { fill: var(--accent); stroke: none; }
+/* Home stays beside the title on a phone; the tools wrap below them instead. */
+#home + .masthead { flex: 1 1 16em; }
 #theme .sun, #theme[data-night=false] .sun, #theme[data-night=true] .moon { display: none; }
 #theme[data-night=true] .sun { display: block; }
 
@@ -150,7 +157,7 @@ button:hover { border-color: var(--accent); color: var(--accent); }
 #sky .ring { fill: none; stroke: var(--sky-ring); }
 #sky .ring-label, #sky .edge-label { font: 10px var(--font-ui); fill: var(--sky-dim); letter-spacing: 0.02em; }
 #sky .horizon { fill: none; stroke: var(--sky-ray); stroke-dasharray: 3 5; }
-#sky .rim { fill: none; stroke: var(--far); stroke-opacity: 0.4; stroke-dasharray: 2 6; }
+#sky .perimeter { fill: none; stroke: var(--far); stroke-opacity: 0.4; stroke-dasharray: 2 6; }
 #sky .edge-label.far { fill: var(--far); fill-opacity: 0.8; }
 #sky .core { fill: var(--sky-ink); opacity: 0.08; }
 #sky .core-label { font: 600 11px var(--font-ui); fill: var(--sky-dim); }
@@ -238,8 +245,17 @@ button:hover { border-color: var(--accent); color: var(--accent); }
   font-weight: 700; color: var(--sky-ink); border-color: var(--sky-ray); background: var(--sky-panel);
 }
 .help:hover { color: var(--range); border-color: var(--range); }
+/* The external dependencies, one click from the radar, beside the walkthrough. */
+.sites-open {
+  position: absolute; top: 52px; right: 12px; height: 30px; padding: 0 12px;
+  color: var(--far); border-color: var(--sky-ray); background: var(--sky-panel);
+}
+.sites-open:hover { color: var(--far); border-color: var(--far); }
+#sky .perimeter-hit { fill: none; stroke: transparent; stroke-width: 12; pointer-events: stroke; cursor: pointer; }
+#sky .edge-label.opens { cursor: pointer; pointer-events: auto; }
+#sky .edge-label.opens:hover { fill-opacity: 1; text-decoration: underline; }
 .key {
-  position: absolute; right: 12px; top: 52px; max-width: min(320px, calc(100% - 100px));
+  position: absolute; right: 12px; top: 92px; max-width: min(320px, calc(100% - 100px));
   background: var(--sky-panel); border: 1px solid var(--sky-ray); border-radius: 10px;
   padding: 6px 10px; font-size: 12px; color: var(--sky-dim);
 }
@@ -274,7 +290,7 @@ button:hover { border-color: var(--accent); color: var(--accent); }
 .tour-nav .quiet { margin-left: auto; border-color: transparent; color: var(--sky-dim); }
 #sky.touring .ring, #sky.touring .ring-label, #sky.touring .owner, #sky.touring .mark,
 #sky.touring .ray, #sky.touring .name, #sky.touring .core, #sky.touring .core-label, #sky.touring .halo,
-#sky.touring .horizon, #sky.touring .rim, #sky.touring .edge-label {
+#sky.touring .horizon, #sky.touring .perimeter, #sky.touring .edge-label {
   opacity: 0.1; transition: opacity 350ms ease-out;
 }
 #sky.touring .ring, #sky.touring .mark, #sky.touring .ray, #sky.touring .name, #sky.touring .halo { opacity: 0.05; }
@@ -368,6 +384,7 @@ mark { background: color-mix(in srgb, var(--range) 35%, transparent); color: inh
 .picks .v { font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
 .picks .why { grid-column: 1 / -1; font-size: 12px; color: var(--ink-3); }
 .picks .why .warn { color: var(--warn); }
+.picks .n.far { color: var(--far); }
 .quiet-note { margin: 0; font-size: 12px; color: var(--ink-3); }
 .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; }
 .stats div { display: grid; }
@@ -418,9 +435,11 @@ mark { background: color-mix(in srgb, var(--range) 35%, transparent); color: inh
 </head>
 <body>
 <header>
+  <button id="home" class="icon" aria-label="Reset the view" title="Reset the view">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.2 12 3.6l9 7.6M5.6 9.4V20.4h12.8V9.4"/><circle class="launch" cx="12" cy="14.8" r="2.9"/></svg>
+  </button>
   <div class="masthead">
-    <h1 id="repo">Context graph</h1>
-    <span class="source" id="source"></span>
+    <h1><button id="repo" title="Reset the view">Context graph</button></h1>
   </div>
   <div class="header-tools">
     <button id="more" aria-expanded="false" aria-controls="drawer">Filters and findings</button>
@@ -482,7 +501,7 @@ mark { background: color-mix(in srgb, var(--range) 35%, transparent); color: inh
       <div id="radar">
         <div class="probe" id="probe-bar">
           <label for="probe">Ask about</label>
-          <input type="search" id="probe" placeholder="what a prompt is about" autocomplete="off" spellcheck="false">
+          <input type="search" id="probe" placeholder="a prompt, or a term" autocomplete="off" spellcheck="false">
           <output id="probe-out" for="probe"></output>
         </div>
         <svg id="sky" role="img" aria-label="What a session can load, by how much context it takes to reach, and what a term lights"></svg>
@@ -504,10 +523,11 @@ mark { background: color-mix(in srgb, var(--range) 35%, transparent); color: inh
             <li><svg viewBox="0 0 16 16" aria-hidden="true"><circle class="mark-lead" cx="8" cy="8" r="6"/></svg><span>Hollow, probing: opened because the line pointing at it names the term</span></li>
             <li><svg viewBox="0 0 16 16" aria-hidden="true"><line class="mark-blind" x1="1" y1="8" x2="15" y2="8"/></svg><span>Dashed ray, probing: the line pointing at it never names the term</span></li>
             <li><svg viewBox="0 0 16 16" aria-hidden="true"><circle class="mark-island" cx="8" cy="8" r="6"/></svg><span>An island, past the horizon: probing, it mentions the term, but no lit link leads there</span></li>
-            <li><svg viewBox="0 0 16 16" aria-hidden="true"><rect class="mark-orphan" x="2.5" y="2.5" width="11" height="11"/></svg><span>An orphan, past the horizon: beside the guidance, and nothing links to it</span></li>
-            <li><svg viewBox="0 0 16 16" aria-hidden="true"><path class="mark-remote" d="M8 1 L15 8 L8 15 L1 8 Z"/></svg><span>At the rim: a remote site, reached only online</span></li>
+            <li><svg viewBox="0 0 16 16" aria-hidden="true"><path class="mark-orphan" d="M 5.72 5.72 A 2.74 2.74 0 1 1 10.28 5.72 A 2.74 2.74 0 1 1 10.28 10.28 A 2.74 2.74 0 1 1 5.72 10.28 A 2.74 2.74 0 1 1 5.72 5.72 Z"/></svg><span>An orphan, past the horizon, marked as an unknown contact: beside the guidance, and nothing links to it</span></li>
+            <li><svg viewBox="0 0 16 16" aria-hidden="true"><path class="mark-remote" d="M8 1 L15 8 L8 15 L1 8 Z"/></svg><span>On the perimeter: a remote site, reached only online</span></li>
           </ul>
         </details>
+        <button class="sites-open" id="sites-open" title="Every web address the files name, by host" hidden>Web addresses</button>
         <button class="help" id="help" aria-label="How to read this view" title="How to read this view">?</button>
         <div class="tour" id="tour" role="dialog" aria-labelledby="tour-title" aria-live="polite" hidden>
           <p class="tour-count" id="tour-count"></p>
@@ -527,6 +547,7 @@ mark { background: color-mix(in srgb, var(--range) 35%, transparent); color: inh
 <script>
 const DATA = /*GRAPH*/null;
 const TEXT_B64 = /*TEXT*/null;
+const STOPWORDS = new Set(/*STOPWORDS*/null);
 
 const TIERS = [
   { id: "launch", label: "Launch" },
@@ -583,7 +604,6 @@ function tok(bytes) {
 }
 const tokensOf = bytes => (bytes || 0) / DATA.bytesPerToken;
 
-$("source").textContent = DATA.directory;
 $("repo").textContent = DATA.directory.split("/").filter(Boolean).pop() || "Context graph";
 document.title = `${$("repo").textContent} context`;
 
@@ -741,12 +761,29 @@ addEventListener("mouseup", ev => {
   else if (ev.button === 4) { ev.preventDefault(); if (depth < trail.length - 1) history.forward(); }
 });
 
+// Home returns to the view the page opened on: the trail's start, the drawer's
+// filters cleared, the drawer closed, and the meter's thumb back at its rest.
+function goHome() {
+  for (const b of document.querySelectorAll("#tiers input")) b.checked = true;
+  for (const o of document.querySelectorAll("#scope option, #marketplace option, #plugin option")) o.selected = false;
+  $("search").value = "";
+  U.budget = null;
+  $("drawer").hidden = true;
+  $("main").classList.remove("drawer-open");
+  $("more").setAttribute("aria-expanded", false);
+  if (depth > 0) history.go(-depth);
+  render();
+}
+$("home").addEventListener("click", goHome);
+$("repo").addEventListener("click", goHome);
+
 function openFile(id, replace) { go(() => { PANEL = { kind: "file", id }; }, replace); }
 function narrowTo(id) { go(() => { focus = id; focusSet = null; PANEL = { kind: "file", id }; }); }
 
 function crumb() {
   const where = PANEL.kind === "plan" ? ["What to change in", PANEL.owner]
     : PANEL.kind === "orphans" ? ["", "Orphans"]
+    : PANEL.kind === "sites" ? ["", "Web addresses"]
     : U.drill ? ["Inside", U.drill]
     : focusSet ? ["", focusSet.label]
     : focus ? ["Pulled in by", nodes.get(focus).label]
@@ -884,11 +921,13 @@ function escapeHtml(s) {
 }
 
 $("details").addEventListener("click", ev => {
+  const site = ev.target.closest("li[data-host]");
+  if (site) { go(() => { PANEL = { kind: "site", host: decodeURIComponent(site.dataset.host) }; }); return; }
   const li = ev.target.closest("li[data-id]");
   if (li) openFile(decodeURIComponent(li.dataset.id));
 });
 $("details").addEventListener("keydown", ev => {
-  if (ev.key === "Enter" && ev.target.matches("li[data-id]")) ev.target.click();
+  if (ev.key === "Enter" && ev.target.matches("li[data-id], li[data-host]")) ev.target.click();
 });
 $("roots").addEventListener("click", ev => {
   const li = ev.target.closest("li[data-id]");
@@ -946,21 +985,40 @@ const textOf = id => {
   if (t === undefined) { t = TEXTS[id] ? plain(TEXTS[id]) : null; lowered.set(id, t); }
   return t;
 };
-function mentionLines(id, term) {
+// What a probe looks for, as the CLI's keywords() finds it: a "quoted phrase"
+// as typed, else each word of the prompt that isn't a stopword.
+function keywords(term) {
+  term = (term || "").trim().toLowerCase();
+  if (term.length > 1 && term[0] === '"' && term.endsWith('"')) return term.slice(1, -1).trim() ? [term.slice(1, -1).trim()] : [];
+  const words = term.split(/\s+/).map(w => w.replace(/^[.,;:!?"'()[\]{}<>`]+|[.,;:!?"'()[\]{}<>`]+$/g, ""));
+  const kept = [...new Set(words.filter(w => w.length > 1 && !STOPWORDS.has(w)))];
+  return kept.length ? kept : term ? [term] : [];
+}
+// Where w starts a word in line, from `from` on, or -1: "ci" finds "ci:" and
+// "cicd" but not "decision", as the CLI's says() does.
+function wordAt(line, w, from) {
+  for (let at = line.indexOf(w, from); at >= 0; at = line.indexOf(w, at + 1)) {
+    if (at === 0 || !/[a-z0-9]/.test(line[at - 1])) return at;
+  }
+  return -1;
+}
+const says = (line, words) => words.some(w => wordAt(line, w, 0) >= 0);
+const matched = (text, words) => words.filter(w => wordAt(text, w, 0) >= 0);
+function mentionLines(id, words) {
   const t = textOf(id);
-  if (!t || !t.includes(term)) return null;
+  if (!t || !says(t, words)) return null;
   const raw = TEXTS[id].split("\n"), low = t.split("\n"), lines = [];
-  for (let i = 0; i < low.length; i++) if (low[i].includes(term)) lines.push(raw[i].trim());
+  for (let i = 0; i < low.length; i++) if (says(low[i], words)) lines.push(raw[i].trim());
   return lines;
 }
 
 function probe(term, keep) {
-  const hits = new Map(), mentions = new Map();
-  for (const id of keep) { const lines = mentionLines(id, term); if (lines) mentions.set(id, lines); }
+  const words = keywords(term), hits = new Map(), mentions = new Map();
+  for (const id of keep) { const lines = mentionLines(id, words); if (lines) mentions.set(id, lines); }
   let frontier = [];
   for (const n of DATA.nodes) {
     if (!keep.has(n.id) || !n.root || !mentions.has(n.id)) continue;
-    hits.set(n.id, { hop: 0, via: null, edge: null, lines: mentions.get(n.id), signposted: true });
+    hits.set(n.id, { hop: 0, via: null, edge: null, lines: mentions.get(n.id), signposted: true, matched: matched(textOf(n.id), words) });
     frontier.push(n.id);
   }
   let hop = 0;
@@ -972,18 +1030,18 @@ function probe(term, keep) {
         if (!keep.has(e.target) || hits.has(e.target)) continue;
         // An entry's invoke edge has no line of its own: the listing entry is
         // the line, and it already mentioned the term.
-        const signposted = !!(e.text && plain(e.text).includes(term))
+        const signposted = !!(e.text && says(plain(e.text), words))
           || (e.kind === "invoke" && nodes.get(id).kind === "entry");
         const lines = mentions.get(e.target) || null;
         if (!signposted && !lines) continue;
-        hits.set(e.target, { hop, via: id, edge: e, lines: lines || [], signposted });
+        hits.set(e.target, { hop, via: id, edge: e, lines: lines || [], signposted, matched: lines ? matched(textOf(e.target), words) : [] });
         next.push(e.target);
       }
     }
     frontier = next;
   }
   const islands = [...mentions.keys()].filter(id => !hits.has(id) && !nodes.get(id).root);
-  return { term, hits, islands, hops: Math.max(0, hop - 1), mentions, remotes: sites(hits.keys(), term) };
+  return { term, words, hits, islands, hops: Math.max(0, hop - 1), mentions, remotes: sites(hits.keys(), term) };
 }
 
 // Why a term doesn't reach an island, as `island_fix` finds it: a lit file
@@ -1006,17 +1064,17 @@ function islandFix(P, id, keep) {
 function islandAdvice(fix, term) {
   if (!fix) return "Nothing links here.";
   const from = escapeHtml(nodes.get(fix.edge.source).label);
-  if (fix.fix === "name") return `${from} is lit, but its line opening ${escapeHtml(nodes.get(fix.opens).label)} never says ${quote(term)}. Say it there, and both light.`;
+  if (fix.fix === "name") return `${from} is lit, but its line opening ${escapeHtml(nodes.get(fix.opens).label)} never says ${quoted(keywords(term))}. Say it there, and both light.`;
   return `${from}${fix.others ? ` and ${fix.others} more link` : " links"} here, and asking about ${quote(term)} never opens ${fix.others ? "them" : "it"}.`;
 }
 
 // One mark per site: the site is the unit of latency and availability, and a
-// host like github.com would otherwise fill the rim.
+// host like github.com would otherwise fill the perimeter.
 function sites(ids, term) {
-  const remotes = new Map();
+  const words = keywords(term), remotes = new Map();
   for (const id of ids) {
     for (const r of nodes.get(id).remotes || []) {
-      if (term && !plain(r.text).includes(term)) continue;
+      if (words.length && !says(plain(r.text), words)) continue;
       const site = remotes.get(r.host) || remotes.set(r.host, { host: r.host, refs: [], sources: [] }).get(r.host);
       site.refs.push({ ...r, from: id });
       if (!site.sources.includes(id)) site.sources.push(id);
@@ -1026,6 +1084,11 @@ function sites(ids, term) {
 }
 
 const quote = term => `“${escapeHtml(term)}”`;
+// The keywords as a sentence names them: “deploy” or “candidate”.
+function quoted(words) {
+  const q = words.map(quote);
+  return q.length === 1 ? q[0] : q.slice(0, -1).join(", ") + " or " + q[q.length - 1];
+}
 
 // ---- the radar ---------------------------------------------------------------
 //
@@ -1034,11 +1097,18 @@ const quote = term => `“${escapeHtml(term)}”`;
 // sits in its parent's wedge, so a branch fans out the way a session expands
 // into it. With a term, only what the probe lit is drawn: files it reaches, at
 // their own distance; the islands, files that mention it but nothing lit leads
-// to, past the horizon; the sites lit lines name, at the rim. Without one, the
+// to, past the horizon; the sites lit lines name, on the perimeter. Without one, the
 // orphans sit past the horizon: files beside the guidance nothing links to. The range ring lights what
 // a session can reach within that much context and dims the rest.
 
 const SVGNS = "http://www.w3.org/2000/svg";
+// An orphan is drawn as the quatrefoil military symbology (APP-6, MIL-STD-2525)
+// gives an unknown contact: four lobes, d from the center, meeting on the diagonals.
+function quatrefoil(x, y, d) {
+  const k = d * 0.6, r = d * 0.721;
+  const arc = (px, py) => `A ${r} ${r} 0 1 1 ${x + px} ${y + py}`;
+  return `M ${x - k} ${y - k} ${arc(k, -k)} ${arc(k, k)} ${arc(-k, k)} ${arc(-k, -k)} Z`;
+}
 const sky = $("sky");
 let marks = new Map(), rays = new Map(), parentOf = new Map(), wedgeEls = new Map();
 let probeResult = null, geometry = null, siteOf = new Map(), halos = new Map(), names = new Map(), beyondNow = new Set();
@@ -1095,7 +1165,7 @@ function drawRadar(keep) {
   if (!shown.length) return;
 
   const R = Math.min(W, H) / 2 - 46, core = Math.max(26, R * 0.12);
-  const inner = R * 0.78, beyondR = R * 0.87, rimR = R * 0.95;
+  const inner = R * 0.78, beyondR = R * 0.87, perimeterR = R * 0.95;
   const kids = new Map(), tops = [];
   for (const n of shown) {
     const p = n.via && shownIds.has(n.via) && !n.root && !beyond.has(n.id) ? n.via : null;
@@ -1153,10 +1223,12 @@ function drawRadar(keep) {
       : islandSet.size ? "horizon: past it, files nothing leads to" : "horizon: past it, orphans nothing links to";
   }
   if (siteMap.size) {
-    el("circle", { class: "rim", r: rimR }, sky);
-    const rim = el("text", { class: "edge-label far", x: 4, y: rimR + 11 }, sky);
-    rim.textContent = "remote: reached only online";
+    el("circle", { class: "perimeter", r: perimeterR }, sky);
+    el("circle", { class: "perimeter-hit", r: perimeterR, "data-sites": "" }, sky);
+    const perimeter = el("text", { class: "edge-label far opens", x: 4, y: perimeterR + 11, "data-sites": "" }, sky);
+    perimeter.textContent = "remote: reached only online";
   }
+  $("sites-open").hidden = !siteMap.size;
   // Wedges by owner, in proportion to what each holds; the repo and user scope
   // first. Drilled into one owner, each of its roots gets the wedge instead.
   const wedgeLayer = el("g", {}, sky);
@@ -1232,7 +1304,7 @@ function drawRadar(keep) {
   }
   for (const key of siteOf.keys()) {
     const th = angle.get(key);
-    pos.set(key, [Math.cos(th) * rimR, Math.sin(th) * rimR]);
+    pos.set(key, [Math.cos(th) * perimeterR, Math.sin(th) * perimeterR]);
   }
   const animate = S.shown !== S.term && !matchMedia("(prefers-reduced-motion: reduce)").matches;
   const delay = n => P ? `animation-delay: ${(P.hits.get(n.id)?.hop ?? P.hops + 1) * 160}ms` : "";
@@ -1264,7 +1336,7 @@ function drawRadar(keep) {
     const cls = ["mark", gated.has(n.id) ? "gated" : "", n.measured ? "" : "unsized", orphan ? "orphan" : past ? "island" : "", quiet ? "quiet" : "",
       lead ? "lead" : "", level >= 3 && !quiet && !past ? "hot" : "", animate && P && (hit || past) ? "ret" : ""].filter(Boolean).join(" ");
     const mark = orphan
-      ? el("rect", { class: cls, x: x - size * 0.8, y: y - size * 0.8, width: size * 1.6, height: size * 1.6 }, markLayer)
+      ? el("path", { class: cls, d: quatrefoil(x, y, size * 0.5) }, markLayer)
       : el("circle", { class: cls, cx: x, cy: y, r: size, style: `fill: var(--star-${level}); ${past || lead ? `stroke: var(--star-${level});` : ""} ${delay(n)}` }, markLayer);
     mark.dataset.id = n.id;
     marks.set(n.id, mark);
@@ -1452,7 +1524,7 @@ function summarizeAll(shown, roots, islandSet, orphanSet, siteMap) {
 // is the line's tooltip.
 function summarize(P) {
   const hop0 = [...P.hits.values()].filter(h => h.hop === 0).length;
-  if (!hop0) return `Nothing loaded mentions ${quote(P.term)}.`;
+  if (!hop0) return `Nothing loaded mentions ${quoted(P.words)}.`;
   const more = P.hits.size - hop0;
   const bits = [`<strong>${hop0}</strong> loaded ${hop0 === 1 ? "file mentions" : "files mention"} it`];
   bits.push(more ? `<strong>${more}</strong> more over ${P.hops === 1 ? "1 hop" : P.hops + " hops"}` : "none leads further");
@@ -1466,7 +1538,7 @@ function summarizeLong(P, roots) {
   const lit = hop0.filter(id => listed(nodes.get(id))).length, waiting = hop0.length - lit;
   const more = P.hits.size - hop0.length;
   const cost = [...P.hits.keys()].reduce((s, id) => s + nodes.get(id).size, 0);
-  const term = quote(P.term);
+  const term = quoted(P.words);
   const parts = [];
   if (!lit) parts.push(`Nothing loaded mentions ${term}.`);
   else {
@@ -1484,12 +1556,16 @@ function summarizeLong(P, roots) {
 }
 
 function highlight(text, term) {
-  if (!term) return escapeHtml(text);
+  const words = keywords(term);
+  if (!words.length) return escapeHtml(text);
   const low = text.toLowerCase();
-  let i = 0, j, html = "";
-  while ((j = low.indexOf(term, i)) >= 0) {
-    html += escapeHtml(text.slice(i, j)) + "<mark>" + escapeHtml(text.slice(j, j + term.length)) + "</mark>";
-    i = j + term.length;
+  let i = 0, html = "";
+  for (;;) {
+    let j = -1, len = 0;
+    for (const w of words) { const at = wordAt(low, w, i); if (at >= 0 && (j < 0 || at < j || (at === j && w.length > len))) { j = at; len = w.length; } }
+    if (j < 0) break;
+    html += escapeHtml(text.slice(i, j)) + "<mark>" + escapeHtml(text.slice(j, j + len)) + "</mark>";
+    i = j + len;
   }
   return html + escapeHtml(text.slice(i));
 }
@@ -1501,10 +1577,10 @@ function probeLead(id) {
   if (!P) return "";
   const hit = P.hits.get(id), lines = P.mentions.get(id) || [];
   const reach = hit
-    ? hit.hop === 0 ? `Loaded at start, and it mentions ${quote(P.term)}.`
+    ? hit.hop === 0 ? `Loaded at start, and it mentions ${quoted(P.words)}.`
       : `Asking about ${quote(P.term)} reaches it at hop ${hit.hop}, from ${escapeHtml(nodes.get(hit.via).label)}${hit.edge.text
         ? `, whose line ${hit.signposted ? "names" : "never names"} the term:` : ", by invoking it."}`
-    : lines.length ? `An island: it mentions ${quote(P.term)}, but no lit link leads here, so a session asking about it would not find this file.` : "";
+    : lines.length ? `An island: it mentions ${quoted(P.words)}, but no lit link leads here, so a session asking about it would not find this file.` : "";
   if (!reach) return "";
   const fix = !hit && lines.length ? islandFix(P, id, visibleIds()) : null;
   const fixLine = fix && fix.edge.text ? `<p class="r">${escapeHtml(fix.edge.file)}, line ${fix.edge.line || "?"}: <code>${escapeHtml(fix.edge.text)}</code></p>` : "";
@@ -1514,7 +1590,7 @@ function probeLead(id) {
 function probeLines(id) {
   const P = probeResult, lines = P ? P.mentions.get(id) || [] : [];
   if (!lines.length) return "";
-  return `<section><h2>Mentions ${quote(P.term)}, ${lines.length} ${lines.length === 1 ? "line" : "lines"}</h2><ul class="refs lines">${lines.slice(0, 12).map(l =>
+  return `<section><h2>Mentions ${quoted(P.words)}, ${lines.length} ${lines.length === 1 ? "line" : "lines"}</h2><ul class="refs lines">${lines.slice(0, 12).map(l =>
     `<li><code>${highlight(l, P.term)}</code></li>`).join("")}${lines.length > 12 ? `<li class="more">and ${lines.length - 12} more</li>` : ""}</ul></section>`;
 }
 
@@ -1556,6 +1632,30 @@ function sitePanel(site) {
     </section>
     <section><h2>Named by</h2><ul class="refs">${site.refs.slice(0, 12).map(r =>
       `<li data-id="${encodeURIComponent(r.from)}"><span class="at">${escapeHtml(nodes.get(r.from).label)}, line ${r.line || "?"} · <a href="${escapeHtml(r.url)}" target="_blank" rel="noopener">${escapeHtml(r.url.replace(/^https?:\/\//, ""))}</a></span><code>${highlight(r.text, S.term)}</code></li>`).join("")}${n > 12 ? `<li class="more">and ${n - 12} more</li>` : ""}</ul></section>`;
+}
+
+// The external dependencies: every site the radar draws, each with what
+// following its addresses costs and the files that send a session there.
+const siteRow = site => {
+  const urls = new Map(site.refs.map(r => [r.url, r]));
+  const cost = [...urls.values()].reduce((t, r) => t + fetchCost(r), 0);
+  return `<li data-host="${encodeURIComponent(site.host)}" tabindex="0"><span class="n far" title="${escapeHtml(site.host)}">${escapeHtml(site.host)}</span><span class="v">~${tok(cost)}</span><span class="why">${urls.size} ${urls.size === 1 ? "address" : "addresses"} on ${site.refs.length} ${site.refs.length === 1 ? "line" : "lines"} of ${site.sources.length} ${site.sources.length === 1 ? "file" : "files"}</span></li>`;
+};
+function openSites() { if (PANEL.kind !== "sites") go(() => { PANEL = { kind: "sites" }; }); }
+$("sites-open").addEventListener("click", openSites);
+function sitesPanel() {
+  const list = [...siteOf.values()];
+  const urls = new Map(list.flatMap(site => site.refs.map(r => [r.url, r])));
+  const cost = [...urls.values()].reduce((t, r) => t + fetchCost(r), 0);
+  const files = new Set(list.flatMap(site => site.sources)).size;
+  $("details").innerHTML = `
+    <section class="headline">
+      <h2>Web addresses${S.term ? ` the lines about ${quoted(keywords(S.term))} name` : ""}</h2>
+      <span class="big">${list.length} ${list.length === 1 ? "host" : "hosts"}</span>
+      <p>${urls.size} ${urls.size === 1 ? "address" : "addresses"} in ${files} ${files === 1 ? "file" : "files"}: what a session reaches only by leaving the machine. Following each once costs ~${tok(cost)}, an estimate, and needs a network that answers.</p>
+    </section>
+    <section><ul class="picks">${list.map(siteRow).join("")}</ul></section>`;
+  $("details").scrollTop = 0;
 }
 
 const U = { budget: null, picked: null, owner: null, drill: null };
@@ -1616,6 +1716,7 @@ sky.addEventListener("click", ev => {
     return;
   }
   if (host) { go(() => { PANEL = { kind: "site", host }; }, PANEL.kind === "site"); return; }
+  if (ev.target.dataset && "sites" in ev.target.dataset) { openSites(); return; }
   if (id) openFile(id, PANEL.kind === "file");
 });
 
@@ -1644,6 +1745,7 @@ function drawPanel() {
   else if (p.kind === "owner") ownerPanel(p.owner);
   else if (p.kind === "plan") drawPlan(p.owner);
   else if (p.kind === "orphans") orphansPanel();
+  else if (p.kind === "sites") sitesPanel();
   else focusPanel();
   crumb();
   drawScorecard();
@@ -1736,19 +1838,27 @@ function focusPanel() {
     const lit = [...P.hits.keys()].map(id => nodes.get(id)).filter(n => n.tier !== "launch" && n.measured)
       .sort((a, b) => b.size - a.size).slice(0, 4);
     const adds = spend.end - spend.start;
+    // A prompt of several words: the skill entries saying the most of them,
+    // the ones a session is likeliest to pick, as the terminal sorts them.
+    const closest = P.words.length > 1 ? [...P.hits].filter(([id, h]) => h.hop === 0 && nodes.get(id).kind === "entry")
+      .sort((a, b) => b[1].matched.length - a[1].matched.length || (nodes.get(a[0]).label < nodes.get(b[0]).label ? -1 : 1)).slice(0, 3) : [];
     $("details").innerHTML = `
       <section class="headline">
         <h2>Asking about ${quote(P.term)}</h2>
         <span class="big">~${tok(adds * DATA.bytesPerToken)} more</span>
         <p>${adds ? `on top of ~${tok(spend.start * DATA.bytesPerToken)} loaded at start, if a session reads everything it lights` : "Nothing it lights costs more than what loads at start."}</p>
       </section>
+      ${closest.length ? `<section><h2>Closest matches</h2><ul class="picks">${closest.map(([id, h]) =>
+        pickRow(nodes.get(id), `${h.matched.length} of ${P.words.length} words`, h.matched.map(quote).join(", "))).join("")}</ul></section>` : ""}
       ${lit.length ? `<section><h2>Heaviest along the way</h2><ul class="picks">${lit.map(n => {
         const hit = P.hits.get(n.id), flags = [];
         if (OVER.has(n.id)) flags.push('<span class="warn">past its ideal</span>');
         if (!hit.signposted) flags.push("its line never names the term");
         return pickRow(n, "~" + tok(n.size), [hit.hop ? `hop ${hit.hop} from ${escapeHtml(nodes.get(hit.via).label)}` : "on a trigger", ...flags].join(" · "));
       }).join("")}</ul></section>` : ""}
-      ${P.islands.length ? `<p class="quiet-note">${P.islands.length} more ${P.islands.length === 1 ? "file mentions" : "files mention"} ${quote(P.term)} past the horizon: ${P.islands.length === 1 ? "an island" : "islands"} no lit link leads to. Select one to see the line that would connect it.</p>` : ""}`;
+      ${P.islands.length ? `<p class="quiet-note">${P.islands.length} more ${P.islands.length === 1 ? "file mentions" : "files mention"} ${quoted(P.words)} past the horizon: ${P.islands.length === 1 ? "an island" : "islands"} no lit link leads to. Select one to see the line that would connect it.</p>` : ""}
+      ${siteOf.size ? `<div class="actions"><button id="all-sites">${siteOf.size} web ${siteOf.size === 1 ? "host" : "hosts"} it reaches</button></div>` : ""}`;
+    if ($("all-sites")) $("all-sites").onclick = () => go(() => { PANEL = { kind: "sites" }; });
     return;
   }
   const launch = shown.filter(n => n.tier === "launch");
@@ -1771,9 +1881,12 @@ function focusPanel() {
     ${orphans.length ? `<section><h2>Orphans</h2><ul class="picks">${orphans.sort((a, b) => b.size - a.size).slice(0, 3).map(o =>
       pickRow(o, "~" + tok(o.size), o.fix ? `name it in ${escapeHtml(o.fix.file)}` : "nothing reached talks about it")).join("")}</ul>
       <div class="actions" style="margin-top: 8px"><button id="all-orphans">All ${orphans.length} orphans</button></div></section>` : ""}
+    ${siteOf.size ? `<section><h2>Off the machine</h2><ul class="picks">${[...siteOf.values()].slice(0, 3).map(siteRow).join("")}</ul>
+      <div class="actions" style="margin-top: 8px"><button id="all-sites">All ${siteOf.size} web ${siteOf.size === 1 ? "host" : "hosts"}</button></div></section>` : ""}
     <p class="quiet-note">Down the deepest path a session spends ~${tok(Math.max(0, ...shown.map(n => (n.reach || 0) + n.size)))}; reading every file would take ~${tok(shown.reduce((s, n) => s + n.size, 0))}. Ask about a term above to see what a prompt opens and spends.</p>`;
   if ($("all-fixes")) $("all-fixes").onclick = () => { if ($("drawer").hidden) setDrawer(true); $("ideal-card").scrollIntoView({ block: "start" }); };
   if ($("all-orphans")) $("all-orphans").onclick = () => go(() => { PANEL = { kind: "orphans" }; });
+  if ($("all-sites")) $("all-sites").onclick = () => go(() => { PANEL = { kind: "sites" }; });
 }
 
 // ---- the walkthrough --------------------------------------------------------
@@ -1858,8 +1971,8 @@ function tourSteps() {
     { title: biggestSite ? "Red diamonds leave the machine" : "Everything here is on this machine",
       text: biggestSite
         ? `${siteOf.size} remote ${siteOf.size === 1 ? "site is" : "sites are"} named from the files shown; ${biggestSite.host} the most, on ${biggestSite.refs.length} ${biggestSite.refs.length === 1 ? "line" : "lines"} of ${biggestSite.sources.length} ${biggestSite.sources.length === 1 ? "file" : "files"}. Each is a network round trip to whatever the site serves that day: slower than a file, different tomorrow, gone offline. Context a session needs belongs beside the file that names it.`
-        : "No file shown sends a session to a web address. When one does, it appears as a red diamond at the rim: a network round trip to whatever the site serves that day.",
-      on: () => biggestSite ? [marks.get("site:" + biggestSite.host), ...(rays.get("site:" + biggestSite.host) || []), ...biggestSite.sources.map(id => marks.get(id)), ...all(".rim, .edge-label.far")].filter(Boolean) : all(".mark.remote, .rim"),
+        : "No file shown sends a session to a web address. When one does, it appears as a red diamond on the perimeter: a network round trip to whatever the site serves that day.",
+      on: () => biggestSite ? [marks.get("site:" + biggestSite.host), ...(rays.get("site:" + biggestSite.host) || []), ...biggestSite.sources.map(id => marks.get(id)), ...all(".perimeter, .edge-label.far")].filter(Boolean) : all(".mark.remote, .perimeter"),
       names: biggestSite ? [{ id: "site:" + biggestSite.host, text: `${biggestSite.host} · ${biggestSite.refs.length} lines` }, ...biggestSite.sources.slice(0, 2).map(id => named(nodes.get(id), nodes.get(id).label))] : [] },
   ];
 }

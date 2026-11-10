@@ -37,20 +37,30 @@
   behind More. A `?` walks through what each mark means with examples from
   your own setup; clicking a plugin's wedge shows its numbers and
   double-clicking drills into it. Esc, the mouse's back button, and the
-  browser's back step back one view at a time. The page
+  browser's back step back one view at a time, and the home button at the
+  top left, or the repo's name beside it, returns to where the page
+  opened. In the terminal browser, `w` opens what it shows as this page. The
+  page
   loads nothing from the network, so it renders offline, and comes in a day
   and a night theme (Alucard and Dracula), following your system until you
   pick: cost runs slate to purple to pink, orange marks a file past its
   ideal, and red is kept for a remote site, in the terminal browser too.
+- `cleat graph` shows its external dependencies: every web address your
+  files name, by host, with what following them costs a session and the files
+  and lines that send it there. Press `e` in the terminal, click Web addresses
+  or the perimeter on the radar, or read `sites` in `--json`.
 - Every `cleat graph` view reports the same three numbers: what launch costs,
   what the deepest path costs, and what every file would cost.
 - Ask the radar about what an agent would be after. Type a term, say
-  `release`, and the loaded files that mention it light up; following their
+  `release`, or a whole prompt, say `deploy this to candidate`, and the
+  loaded files that mention it (any of the prompt's words but the common
+  ones, each where a word starts) light up, the skills saying the most of
+  them first; quote a phrase to look for it as typed; following their
   references lights what an agent wanting more would reach, hop by hop, with
   what reading it all costs. Files that mention the term but that nothing
   lit leads to are islands, past a horizon, and each names the line that
   would connect it. Each remote site a lit line names sits
-  at the rim, one per host, because a trip off the machine is slower, less
+  on the perimeter, one per host, because a trip off the machine is slower, less
   certain, and needs a network: context an agent needs belongs beside the
   file that names it. In the terminal browser, `p` takes the same probe and rolls
   the left pane up by distance, each hop with what reading it costs;
@@ -60,9 +70,10 @@
   or one a skill or rule links into, that nothing links to, so no session
   reads them. Each comes with where to name it (the line already about the
   same thing, or the skill that names only its folder), or the advice to
-  delete it. The radar draws them past the horizon as hollow squares and lists
-  them by owner; the terminal browser lists them under Orphans; `--json`
-  carries them.
+  delete it. The radar draws them past the horizon as hollow quatrefoils,
+  the mark military symbology gives an unknown contact, and lists them by
+  owner; the terminal browser lists them under Orphans; `--json` carries
+  them.
 - The `context-tiering` skill maps what calls what with `cleat graph`.
 - `examples/graph-hotspots.py` reads `cleat graph --json` and prints the
   heaviest branches, the files several roots share, and what each plugin

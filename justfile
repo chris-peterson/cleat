@@ -37,6 +37,12 @@ demo-json dir="." *filters:
 metrics dir=".":
     scripts/cleat metrics {{quote(dir)}}
 
+# what cleat predicts prompts open, against a headless claude -p (spends tokens; ~$0.50 a prompt)
+[group('work on cleat')]
+[positional-arguments]
+compare-probe dir="." *prompts:
+    python3 examples/probe-vs-claude.py "$@"
+
 # run the shell script test suite
 [group('work on cleat')]
 test:

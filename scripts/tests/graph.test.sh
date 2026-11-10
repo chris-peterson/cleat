@@ -119,6 +119,9 @@ check "the URL, trimmed of the comma, with its host and line" \
   "$(q '[(r["url"], r["host"], r["line"]) for r in node("guides/more.md")["remotes"]]')" \
   "[('https://example.com/releases', 'example.com', 1)]"
 check "a file with none carries none" "$(q '"remotes" in node("guides/deploy.md")')" "False"
+check "--json lists each site the shown files name, with the files naming it" \
+  "$(q '[(s["host"], len(s["refs"]), [ids[i] for i in s["sources"]]) for s in g["sites"]]')" \
+  "[('example.com', 1, ['guides/more.md'])]"
 
 echo "== --probe follows a term out from the loaded context =="
 graph_json "$REPO" --probe deploy
@@ -129,6 +132,17 @@ check "with the lines that mention it" "$(q 'g["probe"]["hits"][2]["lines"]')" "
 check "the site a lit line names" "$(q '[(s["host"], len(s["refs"])) for s in g["probe"]["sites"]]')" "[('example.com', 1)]"
 contains "and the summary every view gives" "$(q 'g["probe"]["summary"]')" "Following them lights 3 more over 3 hops"
 contains "counting the roots a session has at launch" "$(q 'g["probe"]["summary"]')" "1 of 7 loaded files"
+graph_json "$REPO" --probe "Please deploy it to production!"
+check "a prompt probes for its words, less the ones that say nothing" "$(q 'g["probe"]["words"]')" "['deploy', 'production']"
+check "and lights what any of them reaches" \
+  "$(q '[h["label"] for h in g["probe"]["hits"]]')" \
+  "['/acme:deploy', 'skills/deploy/SKILL.md', 'guides/deploy.md', 'guides/more.md']"
+contains "the summary names the words" "$(q 'g["probe"]["summary"]')" "mention “deploy” or “production”"
+check "each hit says which of the words it says, to rank by" "$(q 'g["probe"]["hits"][0]["matched"]')" "['deploy']"
+graph_json "$REPO" --probe ploy
+check "a word matches only where a word starts" "$(q '(len(g["probe"]["hits"]), len(g["probe"]["islands"]))')" "(0, 0)"
+graph_json "$REPO" --probe '"deploy in order"'
+check "a quoted phrase is looked for as typed" "$(q '(g["probe"]["words"], [i["label"] for i in g["probe"]["islands"]])')" "(['deploy in order'], ['guides/deploy.md'])"
 graph_json "$REPO" --probe release
 check "a term nothing loaded mentions leaves an island" \
   "$(q '(len(g["probe"]["hits"]), [i["label"] for i in g["probe"]["islands"]])')" "(0, ['guides/more.md'])"
@@ -270,6 +284,8 @@ contains "carries the graph" "$(cat "$page")" '"label":"/acme:deploy"'
 contains "and its insights" "$(cat "$page")" '"title":"Heaviest skill: /acme:deploy"'
 contains "and each reference's line" "$(cat "$page")" '"text":"The [design notes](docs/design.md) are here."'
 absent "with the placeholder filled" "$(cat "$page")" "/*GRAPH*/null"
+absent "and the stopwords the CLI probes with" "$(cat "$page")" "/*STOPWORDS*/null"
+contains "so the page reads a prompt as the CLI does" "$(cat "$page")" 'function keywords(term)'
 contains "the details panel links the file and its folder" "$(cat "$page")" 'function fileLinks(path)'
 contains "double-clicking a file narrows the radar to what it pulls in" "$(cat "$page")" 'sky.addEventListener("dblclick"'
 absent "the page loads no script from outside itself" "$(cat "$page")" '<script src='
@@ -284,6 +300,14 @@ contains "a meter fills with what loads at start, then what a prompt opens" "$(c
 contains "Escape steps back" "$(cat "$page")" 'function stepBack()'
 contains "along one trail, kept in the browser's history" "$(cat "$page")" 'history.pushState({ cleat: depth }'
 contains "that the mouse's back button walks too" "$(cat "$page")" 'ev.button === 3'
+contains "orphans are marked as unknown contacts" "$(cat "$page")" 'el("path", { class: cls, d: quatrefoil(x, y, size * 0.5) }'
+contains "a radar control opens the web addresses" "$(cat "$page")" 'id="sites-open"'
+contains "as does the perimeter" "$(cat "$page")" 'class: "perimeter-hit", r: perimeterR, "data-sites": ""'
+contains "a home control at the top left resets the view" "$(cat "$page")" '<header>
+  <button id="home" class="icon" aria-label="Reset the view"'
+contains "back to the trail's start" "$(cat "$page")" 'if (depth > 0) history.go(-depth);'
+contains "the repo's name returns home too" "$(cat "$page")" '$("repo").addEventListener("click", goHome);'
+absent "the header names no path on disk" "$(cat "$page")" 'id="source"'
 contains "the details panel opens on what to look at first" "$(cat "$page")" 'function focusPanel()'
 contains "and a file's particulars wait behind More" "$(cat "$page")" 'More about this file'
 contains "filters and findings wait in a drawer" "$(cat "$page")" '<aside id="drawer" hidden>'
@@ -294,6 +318,8 @@ contains "with a probe to type a term into" "$(cat "$page")" 'id="probe"'
 absent "and leaves the terms to the reader" "$(cat "$page")" 'class="chip"'
 contains "the meter marks each common context window" "$(cat "$page")" 'const LIMITS = [200000, 1000000];'
 contains "a site panel says what following it costs" "$(cat "$page")" 'function siteCost(site)'
+contains "a web addresses panel lists every site, as the terminal's external rollup does" "$(cat "$page")" 'function sitesPanel()'
+contains "reached from the opening panel" "$(cat "$page")" '<button id="all-sites">All ${siteOf.size} web'
 contains "day and night switch by icon" "$(cat "$page")" '<svg class="moon"'
 contains "that follows references hop by hop" "$(cat "$page")" 'function probe(term, keep)'
 contains "and draws the returns, the horizon, and the remote sites" "$(cat "$page")" 'function drawRadar(keep)'
@@ -413,6 +439,93 @@ contains "p probes for a term and rolls up by distance" "$tui" "ok:probe"
 contains "with the roots waiting on a trigger apart from the loaded ones" "$tui" "ok:no trigger group for a term none of them mention"
 contains "with the remote sites as a group" "$tui" "ok:sites"
 contains "and the probe's summary in the footer" "$tui" "ok:probe summary"
+
+echo "== g, or e directly, reaches a rollup of what a session reaches off the machine =="
+tui="$(python3 - "$CLEAT" "$REPO" <<'PY'
+import os, pty, select, sys, time
+pid, fd = pty.fork()
+if pid == 0:
+    os.environ["TERM"] = "xterm-256color"
+    os.environ["LINES"], os.environ["COLUMNS"] = "30", "160"
+    os.execvp(sys.executable, [sys.executable, sys.argv[1], "graph", sys.argv[2]])
+seen = b""
+def drain(seconds):
+    global seen
+    end = time.time() + seconds
+    while time.time() < end:
+        ready, _, _ = select.select([fd], [], [], 0.1)
+        if ready:
+            try:
+                seen += os.read(fd, 65536)
+            except OSError:
+                return
+# e jumps to the external rollup, g's fourth; d for the footer. Close
+# Insights, and the host sits under vs ideal, Orphans, and the sites group.
+for keys in (b"e", b"d", b" ", b"jjjj", b"q"):
+    drain(0.6)
+    try:
+        os.write(fd, keys)
+    except OSError:
+        print("exited before", keys)
+        break
+drain(1.5)
+_, status = os.waitpid(pid, 0)
+text = seen.decode("utf-8", "replace")
+print("exit", os.waitstatus_to_exitcode(status))
+print(("ok:" if "off the machine, by web address" in text else "fail:") + "title")
+print(("ok:" if "Web addresses (1)" in text and "example.com" in text else "fail:") + "sites")
+print(("ok:" if "1 host, 1 address named on 1 line of 1 file" in text else "fail:") + "footer")
+print(("ok:" if "example.com: the file that sends a session there" in text else "fail:") + "right pane")
+PY
+)"
+contains "exits 0" "$tui" "exit 0"
+contains "titled for what leaves the machine" "$tui" "ok:title"
+contains "a row per host, open from the start" "$tui" "ok:sites"
+contains "the footer sums the hosts, addresses, lines, and files" "$tui" "ok:footer"
+contains "a host's files fill the right pane" "$tui" "ok:right pane"
+
+echo "== w opens what the terminal browser shows as a page =="
+: > "$opened"
+tui="$(BROWSER="$opener" python3 - "$CLEAT" "$REPO" <<'PY'
+import os, pty, select, sys, time
+pid, fd = pty.fork()
+if pid == 0:
+    os.environ["TERM"] = "xterm-256color"
+    os.environ["LINES"], os.environ["COLUMNS"] = "30", "160"
+    os.execvp(sys.executable, [sys.executable, sys.argv[1], "graph", sys.argv[2]])
+seen = b""
+def drain(seconds):
+    global seen
+    end = time.time() + seconds
+    while time.time() < end:
+        ready, _, _ = select.select([fd], [], [], 0.1)
+        if ready:
+            try:
+                seen += os.read(fd, 65536)
+            except OSError:
+                return
+for keys in (b"p", b"deploy\n", b"w", b"q"):
+    drain(0.6)
+    try:
+        os.write(fd, keys)
+    except OSError:
+        print("exited before", keys)
+        break
+drain(1.5)
+_, status = os.waitpid(pid, 0)
+text = seen.decode("utf-8", "replace")
+print("exit", os.waitstatus_to_exitcode(status))
+print(("ok:" if "w page" in text else "fail:") + "key")
+print(("ok:" if "wrote " in text and ".html (" in text else "fail:") + "notice")
+PY
+)"
+contains "exits 0" "$tui" "exit 0"
+contains "the key line offers w" "$tui" "ok:key"
+contains "and the key line says what it wrote" "$tui" "ok:notice"
+url="$(cat "$opened" 2>/dev/null)"
+contains "w opens the page in the browser" "$url" "file://"
+page_w="${url#file://}"
+contains "with the browser's probe term" "$(cat "$page_w" 2>/dev/null)" '"probe":{"term":"deploy"'
 
 echo "== the mouse picks panes and rows, and files are links =="
 tui="$(python3 - "$CLEAT" "$REPO" <<'PY'

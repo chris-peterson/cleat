@@ -45,9 +45,10 @@ scripts/cleat graph ../some-repo --html       # opens a temporary page in your b
 ```
 
 The page is a radar: every file as far out as the context it takes to reach.
-Type a term an agent might be after and see which loaded files speak to it,
-where following their references leads, and which of those references leave
-the machine; `p` does the same in the terminal.
+Type a term an agent might be after, or a whole prompt, and see which loaded
+files speak to it, where following their references leads, and which of those
+references leave the machine; `p` does the same in the terminal, and `w` opens the terminal's
+view as the page.
 
 Append a snapshot of those numbers to the metrics history, to see how they move
 between runs:

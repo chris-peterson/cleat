@@ -110,15 +110,21 @@ shown as the file and line holding it, such as
 Narrow it with `--plugin`, `--marketplace`, `--scope`, or `--tier`. `--json`
 gives the data to a script of your own.
 
-`--html` opens the same graph as a page in your browser, as a radar. Launch
+`--html` opens the same graph as a page in your browser, as a radar; from the
+terminal browser, `w` opens what you're looking at there, filter and probe
+term included. The home button at the page's top left takes you back to
+where it opened. Launch
 sits at the center, and every other file sits as far out as the context a
 session spends to reach it, in a wedge for the plugin or scope it comes from.
 Files that only open on a condition (a glob, a hook, a typed command) are drawn
-dashed. Each web address a file names is a site at the rim, drawn red: a
+dashed. Each web address a file names is a site on the perimeter, drawn red: a
 session reaches it only online, which is slower, less certain, and needs a
-network.
+network. To review those external dependencies on their own, click Web
+addresses on the radar or the perimeter itself, or press `e` in the terminal:
+each host, what following it costs, and the files that send a session there.
 
-Past a horizon sit the **orphans**, as hollow squares: files beside your
+Past a horizon sit the **orphans**, as hollow quatrefoils (the mark military
+symbology gives an unknown contact): files beside your
 guidance that nothing links to, so no session ever reads them. A file counts
 when it sits in a skill's or agent's own folder, or in a folder a skill,
 rule, or instruction file already links into, such as `guides/`. A README is
