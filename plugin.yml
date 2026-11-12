@@ -43,7 +43,7 @@ marketplace:
 
 # → marketplace SPA; keys mirror the SPA's PLUGINS object.
 suite:
-  group: orders
+  group: charts
   # SPEC.md DESIGN-01: hooks wherever one can reach the moment, and a listing
   # entry only for help a user asks for in conversation.
   activations: [agent]
