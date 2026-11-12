@@ -7,7 +7,7 @@ in-repo implementation. Status vocabulary: **Covered** · **Partial** ·
 **Evidence pointers:** file + enclosing symbol. A line number is invalidated by
 any edit above it, and the ledger is read long after that edit.
 
-**Coverage: 149/149 requirements Covered (100%)**
+**Coverage: 159/159 requirements Covered (100%)**
 
 ## CHECK — The check command
 
@@ -115,6 +115,21 @@ CHECK-12 is retired and not counted.
 | GRAPH-32 | Covered | scripts/cleat_graph.py (`REMOTE_ESTIMATE_TOKENS`, `remote_cache_path`, `read_remote_cache`, `measure_url`, `page_text`, `measure_remotes`, `attach_remote_sizes`, `remote_cost`, `Browser.meter`, `run`); scripts/cleat (the `--measure-remote` argument); scripts/cleat_graph.html (`spendOrder`'s online step, `fetchCost`, `siteCost`); scripts/tests/graph.test.sh, against a local server |
 | GRAPH-31 | Covered | scripts/cleat_graph.html (`go`, `restore`, `goBack`, `stepBack`, `goHome`, `#home`, `crumb`, the `popstate` and `mouseup` handlers); scripts/cleat_graph.py (`Browser.remember`, `Browser.back`, `MOUSE_BACK`, `Browser.loop`, `Browser.mouse`); scripts/tests/graph.test.sh, under a pty |
 | GRAPH-33 | Covered | scripts/cleat_graph.py (`Walker.orphans`, `Walker.orphan`, `Walker.line_at`, `build`, `as_json`, `Browser` — the `ORPHANS` group, `right_tops`, `details`); scripts/cleat_graph.html (`visibleOrphans`, `drawRadar`'s orphan marks, `quatrefoil`, `orphanCard`, `orphansPanel`, `focusPanel`'s Orphans); scripts/tests/graph.test.sh, under a pty |
+
+## DEEP — Deep probe
+
+| ID      | Status  | Location |
+|---------|---------|----------|
+| DEEP-01 | Covered | scripts/cleat_graph.py (`Deep`, `Deep.widen`, `Deep.search`, `Deep.ring_one`, `Deep.transcripts`, `Deep.folders`, `Deep.projects_here`, `Graph.held`, `Walker.file_node`, `RINGS`, `run`); scripts/cleat (the `--deep` argument); scripts/tests/deep.test.sh |
+| DEEP-02 | Covered | scripts/cleat_graph.py (`Deep.ring_one`, `mentioning`, `clip`, `text_of`); scripts/tests/deep.test.sh |
+| DEEP-03 | Covered | scripts/cleat_graph.py (`agentsview`, `matches_of`, `Deep.transcripts`, `Deep.transcript_hit`); scripts/tests/deep.test.sh, against a stub agentsview |
+| DEEP-04 | Covered | scripts/cleat_graph.py (`ARTIFACT_PATTERN`, `ARTIFACT_URL`, `Deep.artifacts`); scripts/tests/deep.test.sh, against a stub agentsview |
+| DEEP-05 | Covered | scripts/cleat_graph.py (`Deep.context`, `Deep.look_up`, `Deep.hops`, `Deep.commits`, `Deep.messages`, `Browser.shown_context`, `Browser.follow`, `Browser.back`, `Browser.draw_context`); scripts/cleat_graph.html (`fromServer`, `hopPanel`, the details click handler); scripts/tests/deep.test.sh, under a pty |
+| DEEP-06 | Covered | scripts/cleat_graph.py (`deep_fix`, `deep_advice`); scripts/cleat_graph.html (`deepPanel`, `hopPanel`); scripts/tests/deep.test.sh |
+| DEEP-07 | Covered | scripts/cleat_graph.py (`rollup`'s ring groups, `left_rows`, `Browser.widen`, `Browser.deep_tag`, `Browser.draw`, `deep_summary`, `Deep.public`); scripts/tests/deep.test.sh, under a pty |
+| DEEP-08 | Covered | scripts/cleat_graph.py (`serve`, `render_html`'s serve payload, `run`); scripts/cleat (the `--serve` argument); scripts/cleat_graph.html (`SERVE`, `deeper`, `deepPanel`, `hitRow`); scripts/tests/deep.test.sh, against the live server |
+| DEEP-09 | Covered | scripts/cleat_graph.py (`agentsview`, `DeepError`, `Deep.widen`, `run`, `Browser`'s `deep-error` row); scripts/cleat_graph.html (`deepPanel`); scripts/tests/deep.test.sh |
+| DEEP-10 | Covered | scripts/cleat_graph.py (`run`, `repo_top`); scripts/tests/deep.test.sh |
 
 ## METRICS — Context metrics
 
@@ -238,6 +253,10 @@ PACKAGING-03 is retired and not counted.
 | STATE-03 | Covered | scripts/cleat (`_prune_sessions`) |
 
 ## Audit history
+
+### 2026-11-11 — The deep probe (spec-req)
+
++10 IDs (DEEP-01–10), and the Ring and Deep hit concepts. With `--deep`, a probe looks past what a session loads, ring by ring: the repo's other files and its commits, then the agentsview transcripts of sessions run in the directory, then those of every project, with the claude.ai artifacts those sessions published. Each hit shows its context, the addresses, paths, session ids, and shas it names are hops to follow, and it carries the fix that would put it in ring 0. `cleat graph --serve` answers the page's deep searches on 127.0.0.1 behind a token. 159/159 Covered.
 
 ### 2026-11-10 — External dependencies, home, and view parity (spec-req)
 

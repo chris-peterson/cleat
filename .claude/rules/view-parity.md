@@ -3,6 +3,7 @@ paths:
   - "scripts/cleat"
   - "scripts/cleat_graph.*"
   - "scripts/tests/graph.test.sh"
+  - "scripts/tests/deep.test.sh"
 ---
 
 # Every view has the same features

@@ -1777,6 +1777,13 @@ def main(argv=None):
     graph.add_argument("--probe", metavar="TERM", nargs="?", const="",
                        help="what the loaded context says about TERM and where following "
                             "it leads; with no TERM, everything by distance")
+    graph.add_argument("--deep", metavar="N", nargs="?", const=1, type=int, choices=(1, 2, 3),
+                       help="with --probe TERM, also look past what a session loads, through "
+                            "ring N (default 1): 1, the repo's other files and commits; 2, "
+                            "agentsview transcripts from this directory; 3, from every project")
+    graph.add_argument("--serve", metavar="PORT", nargs="?", const=0, type=int,
+                       help="serve the page on 127.0.0.1 (PORT, or a free one) and answer its "
+                            "deep searches, until ctrl-c")
     graph.add_argument("--measure-remote", action="store_true",
                        help="fetch each web address the files name and measure its text, "
                             "caching each measurement for 30 days; without it, a cached "

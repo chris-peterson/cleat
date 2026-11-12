@@ -151,6 +151,12 @@ Ubiquitous (`The <system> shall …`), State-Driven (`While …`), Event-Driven
 - **Metrics history** — the snapshots `cleat metrics` has taken, kept on the
   machine that took them, since the graph's numbers come mostly from user scope
   and plugins that a CI checkout doesn't have.
+- **Ring** — how far past what a session loads a deep probe looks, numbered
+  outward: ring 0 is the files the probe lights, ring 1 the repo's other files
+  and its commits, ring 2 the transcripts of sessions run in the directory, and
+  ring 3 the transcripts of every project.
+- **Deep hit** — a match in ring 1 or beyond: something that mentions the term
+  but that no file a session loads leads to.
 
 ## Requirements
 
@@ -760,6 +766,78 @@ and the page shall draw them past the horizon in their owner's wedge as hollow
 quatrefoils, the mark military symbology (APP-6, MIL-STD-2525) gives an
 unknown contact, when no term is asked, list the heaviest with what loads at start, list
 them all by owner on request, and give each a card with its fix.
+
+### `DEEP`
+Deep probe
+
+#### `DEEP-01`
+Where `--deep [N]` is passed with `--probe`, `cleat graph` shall look for the
+term in the rings past the `GRAPH-28` probe, nearest first, through ring N
+(1 by default): ring 1, the repo's tracked text files that no node holds, and
+its commit messages; ring 2, the agentsview transcripts of the sessions run in
+the directory the graph is built for or in a directory its settings list under
+`permissions.additionalDirectories`; ring 3, the transcripts of every project.
+
+#### `DEEP-02`
+Ring 1 shall match as `GRAPH-28` does (a prompt's words but the common ones,
+where a word starts; a quoted term as typed) and rank its hits by how many of
+the prompt's words each says. Each file hit shall carry its matching lines;
+each commit hit its short sha, date, and subject.
+
+#### `DEEP-03`
+Rings 2 and 3 shall search through the JSON the `agentsview` CLI prints, never
+its database: a quoted term as typed across messages, tool inputs, and tool
+results, and a prompt by meaning and words together. Each hit shall carry its
+session id, project, date, and the matching text. cleat shall never pass
+agentsview the flag that reveals secrets.
+
+#### `DEEP-04`
+Rings 2 and 3 shall find the claude.ai artifacts published from the sessions
+they search: each recorded Artifact publish whose title, description, or file
+path mentions the term, carrying the artifact's address, its title, and the
+session and date that published it.
+
+#### `DEEP-05`
+Selecting a deep hit shall show its context: a file's lines around each match,
+a commit's message and the files it changed, a transcript's messages around the
+match, and an artifact's title, description, and address. Each web address,
+repo path, session id, and commit sha the context names shall be a next hop,
+and following one shall show its context in turn, each step an entry in the
+`GRAPH-31` trail. A hop already followed shall be shown from what was found,
+not looked up again.
+
+#### `DEEP-06`
+Each deep hit shall carry where to name it so the next session finds it in
+ring 0: the lit file saying the most of the prompt's words, with its first
+line that mentions the term; with no lit file, the repo's own instruction file
+loaded at launch. A file hit is named there by its path; a commit, transcript,
+or artifact hit by the fact or address it holds.
+
+#### `DEEP-07`
+The terminal browser shall widen the probe one ring with `P`, each ring a group
+after the sites giving its hits and what reading them costs, apart from the
+probe's meter. Where `--json` is passed with `--deep`, the output shall carry
+each ring searched with its hits, each with its context, next hops, and fix.
+
+#### `DEEP-08`
+`cleat graph --serve [PORT]` shall write the page, serve it on 127.0.0.1
+alone, print its address, and answer the page's deep searches and drill-ins,
+so the page widens and drills as the terminal browser does. It shall answer
+only requests carrying the random token in the address it prints, so no other
+page in the browser can read the transcripts. Opened without the server, the
+page shall show ring 0 and say the deep rings need `cleat graph --serve`.
+
+#### `DEEP-09`
+If `agentsview` is not on the PATH, exits non-zero, or cannot open its
+archive, then a search of ring 2 or 3 shall stop and give agentsview's own
+message: `cleat graph` shall exit 2 naming it on stderr, and the terminal
+browser and the page shall show it in that ring's place, keeping the rings
+already searched.
+
+#### `DEEP-10`
+If `--deep` is passed without a probe term, or for a directory outside a git
+repo, then `cleat graph` shall exit 2 naming which, since a ring is searched
+for a term and ring 1 is the repo's tracked files.
 
 ### `METRICS`
 Context metrics

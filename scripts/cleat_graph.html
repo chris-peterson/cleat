@@ -421,6 +421,15 @@ mark { background: color-mix(in srgb, var(--range) 35%, transparent); color: inh
 .refs .at { font-size: 12px; color: var(--ink-3); overflow-wrap: anywhere; }
 .refs .at a { color: var(--accent); }
 .refs code { font: 12px/1.5 var(--font-data); color: var(--ink-2); overflow-wrap: anywhere; }
+.context { list-style: none; margin: 0; padding: 0; font: 12px/1.5 var(--font-data); color: var(--ink-3); }
+.context li { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 8px; }
+.context .no { text-align: right; }
+.context li.match { color: var(--ink); }
+.context code { font: inherit; white-space: pre-wrap; overflow-wrap: anywhere; }
+.hops { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 13px; }
+.hops li { cursor: pointer; overflow-wrap: anywhere; color: var(--range); }
+.hops li:hover, .hops li:focus-visible { text-decoration: underline; }
+.hops a { color: var(--far); }
 
 @media (max-width: 1100px) {
   main, main.drawer-open { grid-template-columns: minmax(0, 1fr); }
@@ -548,6 +557,9 @@ mark { background: color-mix(in srgb, var(--range) 35%, transparent); color: inh
 const DATA = /*GRAPH*/null;
 const TEXT_B64 = /*TEXT*/null;
 const STOPWORDS = new Set(/*STOPWORDS*/null);
+// What `cleat graph --serve` hands the page: its token and the rings it can
+// search. Opened as a file, the page has no server, and this is null.
+const SERVE = /*SERVE*/null;
 
 const TIERS = [
   { id: "launch", label: "Launch" },
@@ -921,13 +933,21 @@ function escapeHtml(s) {
 }
 
 $("details").addEventListener("click", ev => {
+  const deeper = ev.target.closest("#deeper");
+  if (deeper) { go(() => { PANEL = { kind: "deep", through: Number(deeper.dataset.through) }; }); return; }
+  const hop = ev.target.closest("li[data-hop]");
+  if (hop) {
+    go(() => { PANEL = { kind: "hop", hop: JSON.parse(decodeURIComponent(hop.dataset.hop)),
+      advice: hop.dataset.advice ? decodeURIComponent(hop.dataset.advice) : null }; });
+    return;
+  }
   const site = ev.target.closest("li[data-host]");
   if (site) { go(() => { PANEL = { kind: "site", host: decodeURIComponent(site.dataset.host) }; }); return; }
   const li = ev.target.closest("li[data-id]");
   if (li) openFile(decodeURIComponent(li.dataset.id));
 });
 $("details").addEventListener("keydown", ev => {
-  if (ev.key === "Enter" && ev.target.matches("li[data-id], li[data-host]")) ev.target.click();
+  if (ev.key === "Enter" && ev.target.matches("li[data-id], li[data-host], li[data-hop]")) ev.target.click();
 });
 $("roots").addEventListener("click", ev => {
   const li = ev.target.closest("li[data-id]");
@@ -1735,6 +1755,88 @@ function chooseOwner(owner) {
 
 // The details panel follows the trail: the mark it names is picked, the owner
 // it names is chosen, and its content drawn.
+// ---- the deep probe ----------------------------------------------------------
+//
+// Past what a session loads: the repo's other files and commits, then the
+// transcripts agentsview keeps. None of it is in the page, so the page asks
+// `cleat graph --serve` for it, and each answer is kept, so a step back shows
+// what was found.
+
+const deepFound = new Map();
+
+function fromServer(path, params) {
+  const key = path + "|" + JSON.stringify(params);
+  if (!deepFound.has(key)) {
+    deepFound.set(key, fetch(`${path}?${new URLSearchParams({ ...params, t: SERVE.token })}`)
+      .then(async r => {
+        const body = await r.json();
+        if (!r.ok) throw new Error(body.error || r.statusText);
+        return body;
+      })
+      .catch(e => { deepFound.delete(key); return { error: e.message }; }));
+  }
+  return deepFound.get(key);
+}
+
+function deeper(through) {
+  if (!SERVE) return `<p class="quiet-note">Past what a session loads lie this repo's other files and commits, then the transcripts agentsview keeps. Looking there needs the page served: run <code>cleat graph --serve --probe ${escapeHtml(JSON.stringify(S.term))}</code>.</p>`;
+  if (through >= SERVE.deepest) return "";
+  return `<div class="actions"><button id="deeper" data-through="${through + 1}">Look deeper: ring ${through + 1}, ${escapeHtml(SERVE.rings[through + 1].toLowerCase())}</button></div>`;
+}
+
+function hitRow(h) {
+  const words = probeResult ? probeResult.words.length : 1;
+  const why = [h.date, words > 1 ? `${h.matched.length} of ${words} words` : "", `${h.lines.length} ${h.lines.length === 1 ? "line" : "lines"}`]
+    .filter(Boolean).join(" · ");
+  return `<li data-hop="${encodeURIComponent(JSON.stringify({ kind: h.kind, target: h.target }))}" data-advice="${encodeURIComponent(h.advice)}" tabindex="0"><span class="n" title="${escapeHtml(h.label)}">${escapeHtml(h.label)}</span><span class="v">~${tok(h.size)}</span><span class="why">${why}</span></li>`;
+}
+
+function deepPanel(p) {
+  const term = S.term;
+  $("details").innerHTML = `<section class="headline"><h2>Asking about ${quote(term)}, past what a session loads</h2><p>Searching ring ${p.through}…</p></section>`;
+  fromServer("/deep", { term, ring: p.through }).then(d => {
+    if (PANEL !== p) return;
+    if (d.error) {
+      $("details").innerHTML = `<section class="headline"><h2>Past what a session loads</h2><p class="warn">${escapeHtml(d.error)}</p></section>`;
+      return;
+    }
+    $("details").innerHTML = `
+      <section class="headline">
+        <h2>Asking about ${quote(term)}, past what a session loads</h2>
+        <p>${escapeHtml(d.summary)} Nothing a session loads leads to any of it.</p>
+        ${d.fix ? `<p>To bring what you find into reach, name it in ${escapeHtml(d.fix.label)}${d.fix.line ? `, beside line ${d.fix.line}` : ""}.</p>` : ""}
+      </section>
+      ${d.rings.map(r => `<section><h2>Ring ${r.ring}: ${escapeHtml(r.label)}</h2>
+        ${r.error ? `<p class="warn">${escapeHtml(r.error)}</p>` : ""}
+        <ul class="picks">${r.hits.map(hitRow).join("")}</ul></section>`).join("")}
+      ${deeper(d.reached)}`;
+  });
+}
+
+function hopPanel(p) {
+  const { kind, target } = p.hop;
+  $("details").innerHTML = `<section><p class="title">${escapeHtml(target)}</p><p class="note">Looking it up…</p></section>`;
+  fromServer("/context", { term: S.term, kind, target }).then(c => {
+    if (PANEL !== p) return;
+    if (c.error) {
+      $("details").innerHTML = `<section><p class="title">${escapeHtml(target)}</p><p class="warn">${escapeHtml(c.error)}</p></section>`;
+      return;
+    }
+    const hop = h => h.kind === "url"
+      ? `<li><a href="${escapeHtml(h.target)}" target="_blank" rel="noopener">${escapeHtml(h.label)}</a></li>`
+      : `<li data-hop="${encodeURIComponent(JSON.stringify({ kind: h.kind, target: h.target }))}" tabindex="0">→ ${escapeHtml(h.label)}</li>`;
+    $("details").innerHTML = `
+      <section>
+        <p class="title">${escapeHtml(c.title)}</p>
+        <p class="note">a ${escapeHtml(c.kind)}, ~${tok(c.size)} to read</p>
+      </section>
+      ${p.advice ? `<div class="vs probe-vs"><p>${escapeHtml(p.advice)}</p></div>` : ""}
+      <section><ol class="context">${c.lines.map(l => `<li class="${l.match ? "match" : ""}"><span class="no">${l.line || ""}</span><code>${l.match ? highlight(l.text, S.term) : escapeHtml(l.text)}</code></li>`).join("")}</ol></section>
+      ${c.hops.length ? `<section><h2>Where it points, ${c.hops.length}</h2><ul class="hops">${c.hops.map(hop).join("")}</ul></section>` : ""}`;
+    $("details").scrollTop = 0;
+  });
+}
+
 function drawPanel() {
   const p = PANEL;
   chooseOwner(U.drill ? null : U.owner);
@@ -1746,6 +1848,8 @@ function drawPanel() {
   else if (p.kind === "plan") drawPlan(p.owner);
   else if (p.kind === "orphans") orphansPanel();
   else if (p.kind === "sites") sitesPanel();
+  else if (p.kind === "deep" && S.term) deepPanel(p);
+  else if (p.kind === "hop" && S.term) hopPanel(p);
   else focusPanel();
   crumb();
   drawScorecard();
@@ -1857,7 +1961,8 @@ function focusPanel() {
         return pickRow(n, "~" + tok(n.size), [hit.hop ? `hop ${hit.hop} from ${escapeHtml(nodes.get(hit.via).label)}` : "on a trigger", ...flags].join(" · "));
       }).join("")}</ul></section>` : ""}
       ${P.islands.length ? `<p class="quiet-note">${P.islands.length} more ${P.islands.length === 1 ? "file mentions" : "files mention"} ${quoted(P.words)} past the horizon: ${P.islands.length === 1 ? "an island" : "islands"} no lit link leads to. Select one to see the line that would connect it.</p>` : ""}
-      ${siteOf.size ? `<div class="actions"><button id="all-sites">${siteOf.size} web ${siteOf.size === 1 ? "host" : "hosts"} it reaches</button></div>` : ""}`;
+      ${siteOf.size ? `<div class="actions"><button id="all-sites">${siteOf.size} web ${siteOf.size === 1 ? "host" : "hosts"} it reaches</button></div>` : ""}
+      ${deeper(0)}`;
     if ($("all-sites")) $("all-sites").onclick = () => go(() => { PANEL = { kind: "sites" }; });
     return;
   }
@@ -2222,6 +2327,8 @@ addEventListener("resize", () => { clearTimeout(resizing); resizing = setTimeout
 trail.push(snapshot());
 history.replaceState({ cleat: 0 }, "");
 render();
+// `--deep N` with `--serve` opens on the rings it names, a step past the probe.
+if (SERVE && SERVE.through && S.term) go(() => { PANEL = { kind: "deep", through: SERVE.through }; });
 </script>
 </body>
 </html>

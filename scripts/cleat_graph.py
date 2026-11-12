@@ -20,6 +20,7 @@ import math
 import os
 import pathlib
 import re
+import subprocess
 import sys
 import tempfile
 import textwrap
@@ -90,6 +91,9 @@ class Graph:
         self.texts = {}
         # the files beside the guidance that nothing links to, from Walker.orphans
         self.orphans = []
+        # every file a node's text comes from, an instruction file's imports
+        # among them: what a deep probe's ring 1 leaves out
+        self.held = set()
 
     def node(self, id, **attrs):
         if id not in self.nodes:
@@ -237,6 +241,8 @@ class Walker:
         scope = scope or self.scope_of(path)
         if id in self.g.nodes:
             return id
+        self.g.held.add(id)
+        self.g.held.update(str(p.resolve()) for p, _t in texts or ())
         if texts is None and measured:
             text = self.h._read(path)
             texts = [(path, text)]
@@ -1663,20 +1669,596 @@ def island_advice(fix, term, nodes):
         "them" if others else "it")
 
 
-def render_html(data, texts):
+# ---- the deep probe --------------------------------------------------------
+
+RINGS = {1: "This repo's other files and commits",
+         2: "Transcripts from this directory",
+         3: "Transcripts from every project"}
+DEEPEST = max(RINGS)
+CONTEXT_LINES = 2
+# A file a hop opens that never says the term shows its opening, as a session
+# reading it from the top would see it.
+OPENING_LINES = 20
+LINE_WINDOW = 160
+SHA = re.compile(r"(?<![0-9a-f])[0-9a-f]{7,40}(?![0-9a-f])")
+SESSION_ID = re.compile(r"(?<![0-9a-f-])[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?![0-9a-f-])")
+
+
+# Rings 2 and 3 take agentsview's best matches, and look for each project
+# among this many recent sessions.
+TRANSCRIPT_LIMIT = 50
+SESSION_LIST_LIMIT = 500
+# A session followed as a hop shows its opening messages: what it was asked.
+OPENING_MESSAGES = 6
+AGENTSVIEW_TIMEOUT = 120
+ARTIFACT_PATTERN = r"claude\.ai/(code/)?artifact/"
+ARTIFACT_URL = re.compile(r"https://claude\.ai/(?:code/)?artifact/[\w-]+")
+
+
+class DeepError(RuntimeError):
+    """What stops a ring's search, in the words of the tool that stopped it."""
+
+
+def agentsview(*args):
+    """What the agentsview CLI prints as JSON for args. Never its reveal flag:
+    a secret in a transcript stays redacted."""
+    command = ["agentsview", *args, "--json"]
+    try:
+        out = subprocess.run(command, capture_output=True, check=False, timeout=AGENTSVIEW_TIMEOUT)
+    except FileNotFoundError:
+        raise DeepError("agentsview is not on the PATH, and rings 2 and 3 search the transcripts it keeps")
+    except subprocess.TimeoutExpired:
+        raise DeepError("agentsview {} took over {}s".format(" ".join(args[:2]), AGENTSVIEW_TIMEOUT))
+    said = (out.stderr or out.stdout).decode("utf-8", "replace").strip()
+    if out.returncode:
+        raise DeepError("agentsview {}: {}".format(" ".join(args[:2]), said))
+    try:
+        return json.loads(out.stdout)
+    except ValueError:
+        raise DeepError("agentsview {} printed no JSON: {}".format(" ".join(args[:2]), said[:200]))
+
+
+def matches_of(found):
+    matches = found.get("matches") if isinstance(found, dict) else None
+    if not isinstance(matches, list):
+        raise DeepError("agentsview session search printed JSON with no matches list")
+    return matches
+
+
+def git(top, *args):
+    try:
+        out = subprocess.run(["git", "-C", str(top), *args], capture_output=True, check=False)
+    except FileNotFoundError:
+        raise DeepError("git is not on the PATH")
+    if out.returncode:
+        raise DeepError("git {}: {}".format(args[0], out.stderr.decode("utf-8", "replace").strip()))
+    return out.stdout.decode("utf-8", "replace")
+
+
+def repo_top(directory):
+    """The work tree directory sits in: ring 1's files and commits."""
+    out = subprocess.run(["git", "-C", str(directory), "rev-parse", "--show-toplevel"],
+                         capture_output=True, check=False)
+    if out.returncode:
+        raise DeepError("{} is not in a git repo, and ring 1 is a repo's tracked files"
+                        .format(directory))
+    return pathlib.Path(out.stdout.decode("utf-8").strip()).resolve()
+
+
+def clip(line, words):
+    """A long line cut to a window around its first match, so it stays in view."""
+    line = line.strip()
+    if len(line) <= LINE_WINDOW:
+        return line
+    found = _starts(tuple(words)).search(line.lower()) if words else None
+    at = found.start() if found else 0
+    lo = max(0, min(at - 60, len(line) - LINE_WINDOW))
+    return ("…" if lo else "") + line[lo:lo + LINE_WINDOW] + ("…" if lo + LINE_WINDOW < len(line) else "")
+
+
+def text_of(path):
+    """A tracked file's text, or None for one that isn't text: it holds a NUL
+    byte, or isn't UTF-8."""
+    data = path.read_bytes()
+    if b"\0" in data[:8192]:
+        return None
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+
+
+def mentioning(text, words):
+    """Each line of text that says one of words, numbered from 1."""
+    low = plain(text).split("\n")
+    raw = text.split("\n")
+    return [{"line": i + 1, "text": clip(raw[i], words)} for i, line in enumerate(low) if says(line, words)]
+
+
+class Deep:
+    """A deep probe of one term from one directory: each ring searched once,
+    each hop's context looked up once, so stepping back shows what was found."""
+
+    def __init__(self, h, g, p, nodes, directory):
+        self.g, self.p, self.nodes = g, p, nodes
+        self.words = p["words"]
+        self.directory = pathlib.Path(directory).resolve()
+        self.top = repo_top(directory)
+        self._projects = None
+        # each artifact the transcripts show published, by address
+        self.published = {}
+        self.rings = {}
+        self.contexts = {}
+        self.fix = deep_fix(h, g, p, nodes)
+
+    def widen(self, through):
+        """Search each ring up to through not searched yet, nearest first. A
+        ring that fails holds its cause, and the rings past it are not searched."""
+        for ring in range(1, through + 1):
+            if ring in self.rings:
+                if self.rings[ring]["error"]:
+                    break
+                continue
+            try:
+                hits = self.search(ring)
+            except DeepError as exc:
+                self.rings[ring] = {"ring": ring, "label": RINGS[ring], "hits": [], "size": 0,
+                                    "error": str(exc)}
+                break
+            for hit in hits:
+                hit["fix"] = self.fix
+                hit["advice"] = deep_advice(hit, self.fix, self.p["term"])
+            self.rings[ring] = {"ring": ring, "label": RINGS[ring], "hits": hits,
+                                "size": sum(h["size"] for h in hits), "error": None}
+        return self.rings
+
+    @property
+    def reached(self):
+        return max(self.rings, default=0)
+
+    def search(self, ring):
+        if ring == 1:
+            return self.ring_one()
+        return self.transcripts(ring)
+
+    # -- rings 2 and 3: the transcripts agentsview keeps ----------------------
+
+    def folders(self):
+        """The directory the graph is built for, and each one its settings add
+        to a session under `permissions.additionalDirectories`."""
+        found = [self.directory]
+        for path, _scope in settings_files(self.directory, config_dir()):
+            extra = (_json_file(path).get("permissions") or {}).get("additionalDirectories") or []
+            for entry in extra if isinstance(extra, list) else ():
+                if isinstance(entry, str):
+                    found.append((self.directory / os.path.expanduser(entry)).resolve())
+        return list(dict.fromkeys(found))
+
+    def projects_here(self):
+        """The agentsview projects of the recent sessions run in folders()."""
+        if self._projects is None:
+            listing = agentsview("session", "list", "--limit", str(SESSION_LIST_LIMIT))
+            sessions = listing.get("sessions") if isinstance(listing, dict) else None
+            if not isinstance(sessions, list):
+                raise DeepError("agentsview session list printed JSON with no sessions list")
+            folders = [str(f) for f in self.folders()]
+            # A recorded cwd may name a folder through a symlink (/var for
+            # /private/var on macOS), so both sides are compared resolved.
+            self._projects = sorted({s["project"] for s in sessions
+                                     if s.get("project") and s.get("cwd")
+                                     and any(os.path.realpath(s["cwd"]) == f
+                                             or os.path.realpath(s["cwd"]).startswith(f + os.sep)
+                                             for f in folders)})
+        return self._projects
+
+    def transcripts(self, ring):
+        """Ring 2, the sessions run here; ring 3, every project's, less ring 2's.
+        A quoted term is looked for as typed in messages and tool calls; a
+        prompt by meaning and words together."""
+        term = self.p["term"]
+        quoted_term = len(self.words) == 1 and term.startswith('"')
+        how = (["--in", "messages,tool_input,tool_result"] if quoted_term else ["--hybrid"])
+        pattern = self.words[0] if quoted_term else " ".join(self.words)
+        scopes = ([["--project", name] for name in self.projects_here()] if ring == 2 else [[]])
+        seen = {h["session"] for r in self.rings.values() for h in r["hits"] if h.get("session")}
+        hits, artifacts = [], []
+        for scope in scopes:
+            found = agentsview("session", "search", pattern, "--limit", str(TRANSCRIPT_LIMIT),
+                               "--context", "1", "--exclude-system", *how, *scope)
+            for m in matches_of(found):
+                if ring == 3 and m.get("session_id") in seen:
+                    continue
+                hits.append(self.transcript_hit(m))
+            artifacts.extend(self.artifacts(scope, seen if ring == 3 else set()))
+        hits.sort(key=lambda h: h.get("date", ""), reverse=True)
+        hits.sort(key=lambda h: -len(h["matched"]))
+        return artifacts + hits
+
+    def transcript_hit(self, m):
+        text = m.get("snippet") or ""
+        session = m.get("session_id") or ""
+        date = (m.get("timestamp") or "")[:10]
+        where = m.get("location") or "message"
+        label = "{} {}: {}".format(date, m.get("project") or "?", clip(text.replace("\n", " "), self.words)[:100])
+        return {"kind": "transcript", "id": "transcript:{}#{}".format(session, m.get("ordinal")),
+                "label": label, "target": "{}#{}".format(session, m.get("ordinal")),
+                "session": session, "project": m.get("project"), "date": date, "where": where,
+                "matched": matched(plain(text), self.words), "lines": mentioning(text, self.words) or
+                [{"line": None, "text": clip(text, self.words)}], "size": len(text.encode("utf-8"))}
+
+    def artifacts(self, scope, skip):
+        """The claude.ai artifacts published from the sessions in scope whose
+        title, description, or file path mentions the term."""
+        found = agentsview("session", "search", ARTIFACT_PATTERN, "--regex", "--in", "tool_result",
+                           "--limit", str(SESSION_LIST_LIMIT), *scope)
+        out, calls = [], {}
+        for m in matches_of(found):
+            session = m.get("session_id") or ""
+            url = ARTIFACT_URL.search(m.get("snippet") or "")
+            if session in skip or url is None:
+                continue
+            if session not in calls:
+                listing = agentsview("session", "tool-calls", session)
+                calls[session] = [c for c in (listing.get("tool_calls") or [])
+                                  if c.get("tool_name") == "Artifact"] if isinstance(listing, dict) else []
+            ordinal = m.get("ordinal") or 0
+            before = [c for c in calls[session] if (c.get("ordinal") or 0) <= ordinal]
+            call = before[-1] if before else None
+            try:
+                given = json.loads(call["input_json"]) if call and call.get("input_json") else {}
+            except ValueError as exc:
+                raise DeepError("agentsview session tool-calls {}: an Artifact call's input does not parse: {}"
+                                .format(session, exc))
+            title = given.get("title") or pathlib.Path(given.get("file_path") or url.group(0)).name
+            text = "\n".join(str(given.get(k) or "") for k in ("title", "description", "file_path"))
+            if not says(plain(text), self.words) or any(h["target"] == url.group(0) for h in out):
+                continue
+            date = (m.get("timestamp") or "")[:10]
+            hit = {"kind": "artifact", "id": "artifact:" + url.group(0), "label": "{} {}".format(date, title),
+                   "target": url.group(0), "session": session, "project": m.get("project"),
+                   "date": date, "title": title, "description": given.get("description") or "",
+                   "file_path": given.get("file_path") or "",
+                   "matched": matched(plain(text), self.words),
+                   "lines": mentioning(text, self.words), "size": 0}
+            self.published[hit["target"]] = hit
+            out.append(hit)
+        return out
+
+    def messages(self, session, *window):
+        listing = agentsview("session", "messages", session, *window)
+        messages = listing.get("messages") if isinstance(listing, dict) else None
+        if not isinstance(messages, list):
+            raise DeepError("agentsview session messages printed JSON with no messages list")
+        lines = []
+        for m in messages:
+            head = "{} {}".format((m.get("timestamp") or "")[:16].replace("T", " "), m.get("role") or "")
+            lines.append({"line": m.get("ordinal"), "text": head, "match": False})
+            for text in (m.get("content") or "").split("\n"):
+                if text.strip():
+                    lines.append({"line": None, "text": clip(text, self.words),
+                                  "match": says(plain(text), self.words)})
+        return lines, "\n".join(m.get("content") or "" for m in messages)
+
+    def ring_one(self):
+        hits = []
+        for rel in git(self.top, "ls-files", "-z").split("\0"):
+            path = (self.top / rel).resolve() if rel else None
+            if path is None or str(path) in self.g.held or not path.is_file():
+                continue
+            text = text_of(path)
+            if text is None:
+                continue
+            lines = mentioning(text, self.words)
+            if not lines:
+                continue
+            hits.append({"kind": "file", "id": "file:" + rel, "label": rel, "target": rel,
+                         "matched": matched(plain(text), self.words), "lines": lines,
+                         "size": len(text.encode("utf-8"))})
+        log = git(self.top, "log", "-z", "--date=short", "--format=%H%x1f%h%x1f%ad%x1f%B")
+        for entry in filter(None, log.split("\0")):
+            sha, short, date, message = entry.split("\x1f", 3)
+            message = message.strip()
+            lines = mentioning(message, self.words)
+            if not lines:
+                continue
+            subject = message.split("\n", 1)[0]
+            hits.append({"kind": "commit", "id": "commit:" + sha, "label": "{} {}".format(short, subject),
+                         "target": sha, "short": short, "date": date, "subject": subject,
+                         "matched": matched(plain(message), self.words), "lines": lines,
+                         "size": len(message.encode("utf-8"))})
+        # Most of the prompt's words first; among equals, files in path order
+        # before commits, newest first.
+        hits.sort(key=lambda h: h.get("date", ""), reverse=True)
+        hits.sort(key=lambda h: (-len(h["matched"]), h["kind"] != "file"))
+        return hits
+
+    def context(self, kind, target):
+        """What following a hit or a hop shows: its title, its lines, and the
+        hops those lines name. Each is looked up once."""
+        key = (kind, target)
+        if key not in self.contexts:
+            self.contexts[key] = self.look_up(kind, target)
+        return self.contexts[key]
+
+    def look_up(self, kind, target):
+        if kind == "file":
+            path = (self.top / target).resolve()
+            if not path.is_relative_to(self.top):
+                raise DeepError("{} is outside {}".format(target, self.top))
+            text = text_of(path) if path.is_file() else None
+            if text is None:
+                raise DeepError("{} is not a text file in {}".format(target, self.top))
+            raw = text.split("\n")
+            low = plain(text).split("\n")
+            at = [i for i, line in enumerate(low) if says(line, self.words)]
+            shown = sorted({j for i in at for j in range(max(0, i - CONTEXT_LINES),
+                                                         min(len(raw), i + CONTEXT_LINES + 1))})
+            if not shown:
+                shown = list(range(min(len(raw), OPENING_LINES)))
+            lines, last = [], None
+            for j in shown:
+                if last is not None and j != last + 1:
+                    lines.append({"line": None, "text": "…"})
+                lines.append({"line": j + 1, "text": clip(raw[j], self.words), "match": j in at})
+                last = j
+            return {"kind": kind, "target": target, "title": target, "lines": lines,
+                    "hops": self.hops([raw[j] for j in shown], path.parent, (kind, target)),
+                    "size": len(text.encode("utf-8"))}
+        if kind == "commit":
+            if not re.fullmatch(r"[0-9a-f]{7,40}", target):
+                raise DeepError("{} is not a commit sha".format(target))
+            shown = git(self.top, "show", "--stat", "--date=short",
+                        "--format=commit %H%nDate:   %ad%n%n%B", target).rstrip("\n").split("\n")
+            lines = [{"line": None, "text": clip(line, self.words),
+                      "match": says(plain(line), self.words)} for line in shown]
+            return {"kind": kind, "target": target, "title": "commit " + target[:7], "lines": lines,
+                    "hops": self.hops(shown, self.top, (kind, target)),
+                    "size": len("\n".join(shown).encode("utf-8"))}
+        if kind == "url":
+            return {"kind": kind, "target": target, "title": target, "lines": [], "hops": [],
+                    "size": 0, "open": target}
+        if kind == "transcript":
+            session, _sep, ordinal = target.partition("#")
+            if not SESSION_ID.fullmatch(session) or not ordinal.isdigit():
+                raise DeepError("{} is not a session id and message".format(target))
+            lines, text = self.messages(session, "--around", ordinal, "--before", "3", "--after", "3")
+            return {"kind": kind, "target": target, "title": "session {}, around message {}".format(session, ordinal),
+                    "lines": lines, "hops": self.hops(text.split("\n"), self.top, ("session", session)) +
+                    [{"kind": "session", "target": session, "label": "session " + session}],
+                    "size": len(text.encode("utf-8"))}
+        if kind == "session":
+            if not SESSION_ID.fullmatch(target):
+                raise DeepError("{} is not a session id".format(target))
+            detail = agentsview("session", "get", target)
+            if not isinstance(detail, dict):
+                raise DeepError("agentsview session get printed JSON that is not a session")
+            head = [{"line": None, "text": "{}: {}".format(k, detail[k]), "match": False}
+                    for k in ("display_name", "project", "cwd", "git_branch", "started_at") if detail.get(k)]
+            lines, text = self.messages(target, "--from", "0", "--limit", str(OPENING_MESSAGES))
+            return {"kind": kind, "target": target, "title": "session " + target, "lines": head + lines,
+                    "hops": self.hops(text.split("\n"), self.top, (kind, target)),
+                    "size": len(text.encode("utf-8"))}
+        if kind == "artifact":
+            hit = self.published.get(target)
+            if hit is None:
+                raise DeepError("{} is not an artifact this probe found".format(target))
+            lines = [{"line": None, "text": "{}: {}".format(k.replace("_", " "), hit[k]),
+                      "match": says(plain(hit[k]), self.words)}
+                     for k in ("title", "description", "file_path") if hit[k]]
+            lines.append({"line": None, "text": "published {} in session {}".format(hit["date"], hit["session"]),
+                          "match": False})
+            return {"kind": kind, "target": target, "title": hit["title"], "lines": lines,
+                    "hops": [{"kind": "url", "target": target, "label": target},
+                             {"kind": "session", "target": hit["session"], "label": "session " + hit["session"]}],
+                    "size": 0}
+        raise DeepError("cleat follows no {} hop".format(kind))
+
+    def hops(self, lines, base, own):
+        """The web addresses, repo files, session ids, and commits lines name,
+        each once and in order: where to look next."""
+        found, seen = [], {own}
+        text = "\n".join(lines)
+        for match in URL.finditer(text):
+            url = match.group(0).rstrip(".,;:!?)>]}\"'`*")
+            if url.lower().startswith(("http://", "https://")) and "." in url.split("/", 3)[2]:
+                found.append(("url", url, url))
+        blanked = URL.sub(lambda m: " " * len(m.group(0)), text)
+        for match in PATH_REF.finditer(blanked):
+            token = match.group(1)
+            for candidate in (base / token, self.top / token.lstrip("/")):
+                try:
+                    path = candidate.resolve()
+                    rel = path.relative_to(self.top).as_posix()
+                except (OSError, ValueError):
+                    continue
+                if path.is_file():
+                    found.append(("file", rel, rel))
+                    break
+        for match in SESSION_ID.finditer(text):
+            found.append(("session", match.group(0), "session " + match.group(0)))
+        shas = [m.group(0) for m in SHA.finditer(blanked)]
+        for sha in self.commits(shas):
+            found.append(("commit", sha, "commit " + sha[:7]))
+        out = []
+        for kind, target, label in found:
+            if (kind, target) not in seen:
+                seen.add((kind, target))
+                out.append({"kind": kind, "target": target, "label": label})
+        return out
+
+    def commits(self, candidates):
+        """The full sha of each candidate naming a commit in the repo."""
+        candidates = list(dict.fromkeys(candidates))
+        if not candidates:
+            return []
+        out = subprocess.run(["git", "-C", str(self.top), "cat-file", "--batch-check=%(objectname) %(objecttype)"],
+                             input="\n".join(candidates).encode("ascii"), capture_output=True, check=False)
+        if out.returncode:
+            raise DeepError("git cat-file: {}".format(out.stderr.decode("utf-8", "replace").strip()))
+        return [line.split()[0] for line in out.stdout.decode("ascii").splitlines()
+                if line.endswith(" commit")]
+
+    def public(self, contexts=True):
+        """The rings as `--json` carries them: each hit with its context and hops."""
+        rings = []
+        for ring in sorted(self.rings):
+            r = dict(self.rings[ring])
+            if contexts:
+                r["hits"] = [dict(h, context=self.context(h["kind"], h["target"])) for h in r["hits"]]
+            rings.append(r)
+        return {"reached": self.reached, "top": str(self.top), "fix": self.fix,
+                "summary": deep_summary(self.rings), "rings": rings}
+
+
+def deep_summary(rings):
+    """The sentence every view gives for the rings searched: each one's hits
+    and what reading them costs, which the probe's meter leaves out."""
+    parts = []
+    for ring in sorted(rings):
+        r = rings[ring]
+        if r["error"]:
+            parts.append("Ring {} could not be searched: {}.".format(ring, r["error"]))
+            continue
+        hits = len(r["hits"])
+        parts.append("Ring {}: {} {}{}.".format(
+            ring, hits, "hit" if hits == 1 else "hits",
+            ", ~{} tokens to read".format(tokens(r["size"])) if hits else ""))
+    return " ".join(parts)
+
+
+def deep_fix(h, g, p, nodes):
+    """Where naming a deep hit puts it in ring 0: the lit file saying the most
+    of the prompt's words, at its first line mentioning the term; with nothing
+    lit, the repo's own instruction file loaded at launch."""
+    lit = sorted((id for id in p["hits"] if id in g.texts and p["hits"][id]["lines"]),
+                 key=lambda id: (-len(p["hits"][id]["matched"]), p["hits"][id]["hop"], id))
+    if lit:
+        id = lit[0]
+        first = p["hits"][id]["lines"][0]
+        raw = h._read(pathlib.Path(nodes[id]["path"])).splitlines()
+        number = next((i + 1 for i, each in enumerate(raw) if each.strip() == first), None)
+        return {"id": id, "label": nodes[id]["label"], "line": number,
+                "text": clip(first, p["words"]), "lit": True}
+    own = sorted((n for n in nodes.values()
+                  if n["kind"] == "instructions" and n["scope"] == "repo" and n["root"]),
+                 key=lambda n: (len(n["path"]), n["path"]))
+    if not own:
+        return None
+    # A CLAUDE.md that imports AGENTS.md beside it is a pointer: the guidance
+    # goes in AGENTS.md, as the write gate says.
+    agents = pathlib.Path(own[0]["path"]).with_name("AGENTS.md")
+    if str(agents.resolve()) in g.held:
+        label = str(pathlib.PurePosixPath(own[0]["label"]).with_name("AGENTS.md"))
+        return {"id": own[0]["id"], "label": label, "line": None, "text": None, "lit": False}
+    return {"id": own[0]["id"], "label": own[0]["label"], "line": None, "text": None, "lit": False}
+
+
+def deep_advice(hit, fix, term):
+    """Where to name a deep hit, as the sentence every view gives."""
+    if fix is None:
+        return "Nothing a session loads mentions “{}”, and the repo has no instruction file to name it in.".format(term)
+    where = ("{}, beside line {}".format(fix["label"], fix["line"]) if fix["line"]
+             else fix["label"])
+    what = {"file": "Name {} in {}".format(hit["target"], where),
+            "commit": "Record what {} says in {}".format(hit.get("short", hit["target"][:7]), where),
+            "artifact": "Name {} in {}".format(hit["target"], where),
+            }.get(hit["kind"], "Record what it holds in {}".format(where))
+    return "{}, and a session asking about “{}” finds it without searching.".format(what, term)
+
+
+def render_html(data, texts, serve=None):
     """The page with the graph inline, and each shown file's text gzipped and
     base64-encoded, so a probe for a term runs in the browser without a
-    server and the page stays a fraction of the size of the text."""
+    server and the page stays a fraction of the size of the text. Given serve,
+    what `cleat graph --serve` tells the page: its token and the deep rings."""
     template = PAGE.read_text(encoding="utf-8")
     payload = json.dumps(data, separators=(",", ":")).replace("</", "<\\/")
-    for placeholder in ("/*GRAPH*/null", "/*TEXT*/null", "/*STOPWORDS*/null"):
+    for placeholder in ("/*GRAPH*/null", "/*TEXT*/null", "/*STOPWORDS*/null", "/*SERVE*/null"):
         if placeholder not in template:
             raise RuntimeError("{} has no {} placeholder".format(PAGE, placeholder))
     packed = base64.b64encode(gzip.compress(
         json.dumps(texts, separators=(",", ":")).encode("utf-8"), mtime=0)).decode("ascii")
     return (template.replace("/*GRAPH*/null", payload, 1)
             .replace("/*TEXT*/null", json.dumps(packed), 1)
-            .replace("/*STOPWORDS*/null", json.dumps(sorted(STOPWORDS)), 1))
+            .replace("/*STOPWORDS*/null", json.dumps(sorted(STOPWORDS)), 1)
+            .replace("/*SERVE*/null", json.dumps(serve).replace("</", "<\\/"), 1))
+
+
+def serve(h, g, nodes, data, texts, directory, port, through):
+    """Serve the page on 127.0.0.1, and answer its deep searches and drill-ins,
+    until interrupted. Only a request carrying the token in the printed
+    address, and naming this host, is answered: the transcripts are private."""
+    import hmac
+    import http.server
+    import secrets
+    import threading
+    import urllib.parse
+
+    token = secrets.token_urlsafe(24)
+    lock = threading.Lock()
+    deeps = {}
+
+    def deep_for(term):
+        if term not in deeps:
+            deeps[term] = Deep(h, g, probe(g, nodes, term), nodes, directory)
+        return deeps[term]
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def send(self, status, body, kind="application/json"):
+            raw = body.encode("utf-8") if isinstance(body, str) else json.dumps(body).encode("utf-8")
+            self.send_response(status)
+            self.send_header("Content-Type", kind + "; charset=utf-8")
+            self.send_header("Content-Length", str(len(raw)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(raw)
+
+        def do_GET(self):
+            url = urllib.parse.urlsplit(self.path)
+            q = {k: v[-1] for k, v in urllib.parse.parse_qs(url.query).items()}
+            if self.headers.get("Host") not in allowed or not hmac.compare_digest(
+                    q.get("t", "").encode("utf-8"), token.encode("utf-8")):
+                return self.send(403, {"error": "this server answers only the address cleat printed"})
+            term = q.get("term", "").strip()
+            try:
+                if url.path == "/":
+                    return self.send(200, page, "text/html")
+                if url.path == "/deep":
+                    ring = int(q.get("ring", "1"))
+                    if not term or ring not in RINGS:
+                        return self.send(400, {"error": "a deep search takes a term and a ring from 1 to {}".format(DEEPEST)})
+                    with lock:
+                        d = deep_for(term)
+                        d.widen(ring)
+                        return self.send(200, d.public(contexts=False))
+                if url.path == "/context":
+                    if not term:
+                        return self.send(400, {"error": "a context takes the probe's term"})
+                    with lock:
+                        return self.send(200, deep_for(term).context(q.get("kind", ""), q.get("target", "")))
+            except (DeepError, RuntimeError, ValueError) as exc:
+                return self.send(502, {"error": str(exc)})
+            return self.send(404, {"error": "no such path"})
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    bound = server.server_address[1]
+    allowed = {"127.0.0.1:{}".format(bound), "localhost:{}".format(bound)}
+    page = render_html(data, texts, {"token": token, "rings": RINGS, "deepest": DEEPEST,
+                                     "through": through or 0})
+    address = "http://127.0.0.1:{}/?t={}".format(bound, token)
+    sys.stderr.write("cleat: serving the page at {}\ncleat: ctrl-c stops it\n".format(address))
+    sys.stderr.flush()
+    webbrowser.open(address)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.server_close()
+    return 0
 
 
 # ---- the terminal browser --------------------------------------------------
@@ -1780,6 +2362,8 @@ class Group:
     def __init__(self, key, label, depth):
         self.key, self.label, self.depth = key, label, depth
         self.groups, self.roots, self.sites = [], [], []
+        # A deep probe's ring, its hits listed in place of roots.
+        self.ring = None
 
     def members(self):
         out = list(self.roots)
@@ -1788,12 +2372,13 @@ class Group:
         return out
 
 
-def rollup(nodes, by, probe=None, sites=None):
+def rollup(nodes, by, probe=None, sites=None, rings=None):
     """[Group] for the left pane. By type: a category per kind of artifact,
     with each plugin a group of its own inside Plugins. By owner: a group per
     scope or plugin. By distance: what the probe lit at each hop from launch,
-    then the islands, then the remote sites. External: every site the nodes
-    name, the one dependency a session reaches off the machine."""
+    then the islands, then the remote sites, then each deep ring searched.
+    External: every site the nodes name, the one dependency a session reaches
+    off the machine."""
     if by == "external":
         if not sites:
             return []
@@ -1827,6 +2412,10 @@ def rollup(nodes, by, probe=None, sites=None):
         if probe["remotes"]:
             group = Group(SITES, "Remote sites", 0)
             group.sites = list(probe["remotes"])
+            groups.append(group)
+        for ring in sorted(rings or ()):
+            group = Group("ring/{}".format(ring), "Ring {}  {}".format(ring, RINGS[ring]), 0)
+            group.ring = rings[ring]
             groups.append(group)
         return groups
     top = {}
@@ -1882,6 +2471,11 @@ def left_rows(groups, expanded, sort, nodes, stats, rank=None):
         order = (lambda id: (-rank.get(id, 0), key(id))) if rank else key
         rows.extend(("root", id, group.depth + 1) for id in sorted(group.roots, key=order))
         rows.extend(("site", host, group.depth + 1) for host in group.sites)
+        if group.ring is not None:
+            ring = group.ring["ring"]
+            if group.ring["error"]:
+                rows.append(("deep-error", ring, group.depth + 1))
+            rows.extend(("deep", ring, i, group.depth + 1) for i in range(len(group.ring["hits"])))
 
     for group in groups:
         visit(group)
@@ -1920,12 +2514,12 @@ def parse_filter(text):
     return filters, words
 
 
-def browse(g, base_filters, term=None, root=None):
+def browse(g, base_filters, term=None, root=None, h=None, deep=None):
     # A bare Esc steps back, so curses waits only as long as an escape
     # sequence's bytes take to arrive, not its default second.
     os.environ.setdefault("ESCDELAY", "25")
     import curses
-    curses.wrapper(lambda screen: Browser(screen, g, base_filters, term, root).run())
+    curses.wrapper(lambda screen: Browser(screen, g, base_filters, term, root, h, deep).run())
 
 
 # The terminal reports the mouse in SGR form, ESC [ < button ; x ; y M (press)
@@ -1943,12 +2537,20 @@ def osc8(uri, text):
 
 
 class Browser:
-    def __init__(self, screen, g, base_filters, term=None, root=None):
+    def __init__(self, screen, g, base_filters, term=None, root=None, h=None, deep=None):
         import curses
         self.curses = curses
         self.s = screen
         self.g = g
         self.root = root
+        self.h = h
+        # How many rings past what a session loads the probe has searched, and
+        # each term's deep probe, so a step back finds what was found.
+        self.through = deep or 0
+        self.deeps = {}
+        self.deep = None
+        # The hops followed from a deep hit, the latest last.
+        self.hops = []
         # What `w` did, shown in place of the key line until the next key.
         self.notice = ""
         self.kinds = {(s, t): k for s, t, k in g.edges}
@@ -1987,7 +2589,20 @@ class Browser:
         self.probe = probe(self.g, self.nodes, self.term) if by == "distance" else None
         self.sites = (self.probe["remotes"] if self.probe is not None
                       else remote_sites(self.nodes, self.nodes) if by == "external" else {})
-        self.groups = rollup(self.nodes, by, self.probe, self.sites)
+        self.deep = None
+        if self.probe is not None and self.term.strip() and self.through:
+            key = (self.term, self.query)
+            if key not in self.deeps:
+                try:
+                    self.deeps[key] = Deep(self.h, self.g, self.probe, self.nodes, self.root)
+                except DeepError as exc:
+                    self.notice = "cleat: {}".format(exc)
+                    self.through = 0
+            self.deep = self.deeps.get(key)
+            if self.deep is not None:
+                self.deep.widen(self.through)
+        self.groups = rollup(self.nodes, by, self.probe, self.sites,
+                             self.deep.rings if self.deep is not None else None)
         self.stats = {}
         for group in self.groups:
             for each in [group] + group.groups:
@@ -2019,11 +2634,58 @@ class Browser:
                 if self.probe is not None and len(self.probe["words"]) > 1 else None)
         self.left = head + left_rows(self.groups, self.left_open, sort, self.nodes, self.stats, rank)
         self.cursor[0] = min(self.cursor[0], max(len(self.left) - 1, 0))
-        self.right = tree_rows(self.nodes, self.right_tops(), sort, self.right_open)
+        self.context = self.shown_context()
+        if self.context is not None:
+            hops = self.context["hops"]
+            self.right = ([("line", line) for line in self.context["lines"]]
+                          + ([("hops",)] if hops else []) + [("hop", hop) for hop in hops])
+        else:
+            self.right = tree_rows(self.nodes, self.right_tops(), sort, self.right_open)
         self.cursor[1] = min(self.cursor[1], max(len(self.right) - 1, 0))
 
     def selected(self):
         return self.left[self.cursor[0]] if self.left else None
+
+    def deep_hit(self, row=None):
+        row = row or self.selected()
+        if row is None or row[0] != "deep" or self.deep is None:
+            return None
+        return self.deep.rings[row[1]]["hits"][row[2]]
+
+    def shown_context(self):
+        """What the right pane shows for a deep hit: the latest hop followed
+        from it, else the hit's own context."""
+        if self.hops:
+            return self.hops[-1]
+        hit = self.deep_hit()
+        return self.look(hit["kind"], hit["target"]) if hit else None
+
+    def look(self, kind, target):
+        try:
+            return self.deep.context(kind, target)
+        except DeepError as exc:
+            return {"kind": kind, "target": target, "title": target, "hops": [], "size": 0,
+                    "lines": [{"line": None, "text": "cleat: {}".format(exc)}], "error": str(exc)}
+
+    def follow(self):
+        """Follow the hop under the right pane's cursor: a web address opens in
+        the default browser; anything else shows its context, a step on the trail."""
+        if self.context is None or not self.right:
+            return
+        row = self.right[self.cursor[1]]
+        if row[0] != "hop":
+            return
+        hop = row[1]
+        if hop["kind"] == "url":
+            opened = webbrowser.open(hop["target"])
+            self.s.clear()
+            self.notice = ("opened {}".format(hop["target"]) if opened
+                           else "no browser opened {}; open it yourself".format(hop["target"]))
+            return
+        self.hops.append(self.look(hop["kind"], hop["target"]))
+        self.cursor[1] = 0
+        self.top[1] = 0
+        self.refresh_rows()
 
     def right_tops(self):
         """What the right pane shows: a root's tree, or a group's heaviest
@@ -2035,7 +2697,9 @@ class Browser:
             return [row[1]]
         if row[0] == "site":
             return [id for id in self.sites[row[1]]["sources"] if id in self.nodes]
-        if row[0] in HEADS:
+        if row[0] in HEADS or row[0] in ("deep", "deep-error"):
+            return []
+        if row[0] == "group" and row[1].ring is not None:
             return []
         if row[0] == "group" and row[1].key == SITES:
             return sorted({id for host in row[1].sites for id in self.sites[host]["sources"]
@@ -2058,6 +2722,12 @@ class Browser:
         row = self.selected()
         if row is None:
             return "nothing matches"
+        if self.context is not None:
+            hop = "hop {}: ".format(len(self.hops)) if self.hops else ""
+            return "{}{}: its context, then where it points".format(hop, self.context["title"])
+        if row[0] == "deep-error" or (row[0] == "group" and row[1].ring is not None):
+            return "{}: what mentions it past what a session loads; select one to see its context".format(
+                RINGS[row[1] if row[0] == "deep-error" else row[1].ring["ring"]])
         if row[0] == "root":
             return "{}: what it opens".format(self.nodes[row[1]]["label"])
         if row[0] == "site":
@@ -2284,10 +2954,13 @@ class Browser:
                 group = row[1]
                 launch, pulls, unmeasured, _, deepest = self.stats[group.key]
                 mark = "▾" if group.key in self.left_open else "▸"
-                count = len(group.roots) + len(group.sites)
+                count = len(group.roots) + len(group.sites) + len(group.ring["hits"] if group.ring else ())
                 # By distance, a group's one number is what reading its files
-                # spends, so the hops add up to what the meter shows.
-                if group.key == SITES:
+                # spends, so the hops add up to what the meter shows. A ring's
+                # is what reading its hits would, which the meter leaves out.
+                if group.ring is not None:
+                    own = group.ring["size"]
+                elif group.key == SITES:
                     own = remote_cost(self.sites[host] for host in group.sites)[0]
                 elif by == "distance":
                     own = sum(self.nodes[id]["size"] for id in group.roots)
@@ -2302,6 +2975,14 @@ class Browser:
                 text = lead + row[1] + "  [{} {}]".format(
                     len(site["refs"]), "line" if len(site["refs"]) == 1 else "lines")
                 attr = self.far
+            elif row[0] == "deep-error":
+                text = "!" + blank[1:] + "  " * row[2] + self.deep.rings[row[1]]["error"]
+                attr = self.warn
+            elif row[0] == "deep":
+                hit = self.deep_hit(row)
+                lead = self.lead(hit["size"], ("", tokens(hit["size"]), "")) + "  " * row[3]
+                text = lead + hit["label"] + self.deep_tag(hit)
+                attr = self.heat_attr(hit["size"]) | c.A_DIM
             else:
                 _kind, id, depth = row
                 n = self.nodes[id]
@@ -2318,10 +2999,15 @@ class Browser:
                 self.link(i + head, len(lead), n["label"], n["path"], split, attr)
             elif row[0] == "orphan":
                 self.link(i + head, len(lead), o["label"], o["path"], split, attr)
+            elif row[0] == "deep" and hit["kind"] == "file":
+                self.link(i + head, len(lead), hit["label"], str(self.deep.top / hit["target"]), split, attr)
 
         self.scroll(1, body)
         sort = SORTS[self.sort]
-        for i, (path, depth, cut) in enumerate(self.right[self.top[1]:self.top[1] + body]):
+        if self.context is not None:
+            self.draw_context(head, body, split, width)
+        for i, (path, depth, cut) in enumerate(() if self.context is not None
+                                               else self.right[self.top[1]:self.top[1] + body]):
             index = self.top[1] + i
             n = self.nodes[path[-1]]
             has_children = any(ch in self.nodes for ch in n["children"])
@@ -2380,15 +3066,17 @@ class Browser:
                 SORT_LABELS[sort], self.query or self.describe_base() or "none")
             if self.probe is not None:
                 footer = " " + probe_summary(self.probe, self.nodes)
+                if self.deep is not None:
+                    footer += " " + deep_summary(self.deep.rings)
             elif by == "external":
                 footer = " " + sites_summary(self.sites.values())
             self.put(height - 3, 0, "─" * width, width)
             self.put(height - 2, 0, footer, width)
             keys = (" ↑↓ move  tab pane  enter/space expand  ←→ collapse/expand  esc back  "
-                    "s sort  g group by  e external  p ask about  / filter  w page  d less  q quit  ·  mouse: click, wheel, back; "
-                    "cmd+click a file or folder to open it")
+                    "s sort  g group by  e external  p ask about  P look deeper  / filter  w page  d less  q quit  ·  "
+                    "mouse: click, wheel, back; cmd+click a file or folder to open it")
         else:
-            keys = (" ↑↓ move  enter open  esc back  p ask about  g group  "
+            keys = (" ↑↓ move  enter open  esc back  p ask about  P deeper  g group  "
                     "s sort ({})  e external  / filter  w page  d details  q quit".format(SORT_LABELS[sort]))
         if self.notice:
             self.put(height - 1, 0, " " + self.notice, width, c.A_BOLD)
@@ -2396,6 +3084,35 @@ class Browser:
             self.put(height - 1, 0, keys, width, c.A_DIM)
         self.s.refresh()
         self.emit_links()
+
+    def draw_context(self, head, body, split, width):
+        """A deep hit's or a hop's context in the right pane: its lines, the
+        ones saying the term bright, then the hops they name."""
+        c = self.curses
+        for i, row in enumerate(self.right[self.top[1]:self.top[1] + body]):
+            chosen = self.top[1] + i == self.cursor[1] and self.pane == 1
+            if row[0] == "line":
+                line = row[1]
+                text = "{:>6}  {}".format(line["line"] or "", line["text"])
+                attr = c.A_BOLD if line.get("match") else c.A_DIM
+            elif row[0] == "hops":
+                text = " Where it points ({}): enter follows".format(len(self.context["hops"]))
+                attr = c.A_BOLD
+            else:
+                hop = row[1]
+                text = "   → {}".format(hop["label"])
+                attr = self.far if hop["kind"] == "url" else self.range
+            if chosen:
+                attr |= c.A_REVERSE
+            self.put(i + head, split + 1, text, width - split - 1, attr)
+
+    def deep_tag(self, hit):
+        """How a deep hit answers the prompt: how many of its words it says,
+        and on how many lines, or a commit's date."""
+        words = len(self.probe["words"])
+        said = "{} of {} words, ".format(len(hit["matched"]), words) if words > 1 else ""
+        when = "{}, ".format(hit["date"]) if hit.get("date") else ""
+        return "  [{}{}{} {}]".format(when, said, len(hit["lines"]), "line" if len(hit["lines"]) == 1 else "lines")
 
     def heat_attr(self, n):
         return self.heat[heat_level(n)]
@@ -2416,9 +3133,16 @@ class Browser:
 
     def selected_path(self):
         """The file under the cursor: the right pane's row, else the left's root."""
-        if self.pane == 1 and self.right:
+        if self.context is not None:
+            if self.pane == 1 or self.hops:
+                return (str(self.deep.top / self.context["target"])
+                        if self.context["kind"] == "file" else None)
+        elif self.pane == 1 and self.right:
             return self.nodes[self.right[self.cursor[1]][0][-1]]["path"]
         row = self.selected()
+        hit = self.deep_hit(row)
+        if hit is not None:
+            return str(self.deep.top / hit["target"]) if hit["kind"] == "file" else None
         if row is not None and row[0] == "site":
             return None
         if row is not None and row[0] == "root":
@@ -2432,7 +3156,23 @@ class Browser:
     def details(self):
         """(when the selected node loads, the line that opens it) for the strip
         under the panes. The reference comes from the row above it in the tree."""
-        if self.pane == 1 and self.right:
+        if self.context is not None and self.pane == 1 and self.right:
+            row = self.right[self.cursor[1]]
+            if row[0] == "hop":
+                return row[1]["label"], ("enter opens it in the browser" if row[1]["kind"] == "url"
+                                         else "enter follows it; esc steps back")
+            if row[0] == "line":
+                return self.context["title"], row[1]["text"]
+            return self.context["title"], "{} places it points".format(len(self.context["hops"]))
+        hit = self.deep_hit()
+        if hit is not None:
+            when = "ring {}, a {}{}: nothing a session loads leads here".format(
+                self.selected()[1], hit["kind"], " of " + hit["date"] if hit.get("date") else "")
+            return when, hit["advice"]
+        row = self.selected()
+        if row is not None and row[0] == "deep-error":
+            return "ring {} could not be searched".format(row[1]), self.deep.rings[row[1]]["error"]
+        if self.pane == 1 and self.right and self.context is None:
             path = self.right[self.cursor[1]][0]
             n = self.nodes[path[-1]]
             if len(path) > 1:
@@ -2514,18 +3254,27 @@ class Browser:
     def remember(self):
         self.trail.append(dict(query=self.query, term=self.term, grouping=self.grouping,
                                cursor=list(self.cursor), top=list(self.top), pane=self.pane,
-                               left_open=set(self.left_open), right_open=set(self.right_open)))
+                               left_open=set(self.left_open), right_open=set(self.right_open),
+                               through=self.through, hops=list(self.hops)))
 
     def back(self):
-        """One step back, as on the page: out of the right pane, else to the
-        view before the last probe, filter, or regroup, else up to the group
-        above the cursor."""
+        """One step back, as on the page: back along the hops followed from a
+        deep hit, else out of the right pane, else to the view before the last
+        probe, filter, regroup, or widening, else up to the group above the
+        cursor."""
+        if self.hops:
+            self.hops.pop()
+            self.cursor[1] = 0
+            self.top[1] = 0
+            self.refresh_rows()
+            return
         if self.pane == 1:
             self.pane = 0
             return
         if self.trail:
             view = self.trail.pop()
             self.query, self.term, self.grouping = view["query"], view["term"], view["grouping"]
+            self.through, self.hops = view["through"], view["hops"]
             self.apply()
             self.cursor, self.top, self.pane = view["cursor"], view["top"], view["pane"]
             self.left_open = view["left_open"]
@@ -2553,6 +3302,25 @@ class Browser:
         self.cursor = [0, 0]
         self.top = [0, 0]
         self.apply()
+
+    def widen(self):
+        """Search the next ring past what a session loads, and open it."""
+        if GROUPINGS[self.grouping] != "distance" or not self.term.strip():
+            self.notice = "P looks past what a session loads: ask about a term with p first"
+            return
+        if self.through >= DEEPEST:
+            self.notice = "every ring is searched: ring {} is the last".format(DEEPEST)
+            return
+        self.remember()
+        self.through += 1
+        self.hops = []
+        self.apply()
+        key = "ring/{}".format(self.through)
+        self.left_open.add(key)
+        self.refresh_rows()
+        self.cursor[0] = next((i for i, r in enumerate(self.left)
+                               if r[0] == "group" and r[1].key == key), self.cursor[0])
+        self.on_select()
 
     def run(self):
         c = self.curses
@@ -2619,6 +3387,8 @@ class Browser:
             elif key == ord("p"):
                 self.probe_prompt()
                 self.on_select()
+            elif key == ord("P"):
+                self.widen()
             elif key == ord("w"):
                 self.open_page()
             elif key in (10, 13, 32, c.KEY_ENTER):
@@ -2717,6 +3487,7 @@ class Browser:
         self.cursor[1] = 0
         self.top[1] = 0
         self.right_open = set()
+        self.hops = []
         row = self.selected()
         if row is not None and row[0] == "root":
             self.right_open.add((row[1],))
@@ -2729,13 +3500,16 @@ class Browser:
                 return
             if row[0] in HEADS:
                 self.left_open ^= {row[0]}
-            elif row[0] in ("insight", "improvement", "orphan"):
+            elif row[0] in ("insight", "improvement", "orphan", "deep"):
                 self.pane = 1
             elif row[0] == "group":
                 self.left_open ^= {row[1].key}
-            else:
+            elif row[0] != "deep-error":
                 self.right_open ^= {(row[1],)}
             self.refresh_rows()
+            return
+        if self.context is not None:
+            self.follow()
             return
         if not self.right:
             return
@@ -2751,6 +3525,14 @@ class Browser:
                 return
             if row[0] in HEADS:
                 (self.left_open.add if expand else self.left_open.discard)(row[0])
+            elif row[0] == "deep-error":
+                if not expand:
+                    self.to_parent_group(row[2])
+            elif row[0] == "deep":
+                if expand:
+                    self.pane = 1
+                else:
+                    self.to_parent_group(row[3])
             elif row[0] in ("insight", "improvement", "orphan"):
                 if expand:
                     self.pane = 1
@@ -2770,6 +3552,12 @@ class Browser:
             else:
                 self.to_parent_group(row[2])
             self.refresh_rows()
+            return
+        if self.context is not None:
+            if expand:
+                self.follow()
+            else:
+                self.back()
             return
         if not self.right:
             return
@@ -2804,7 +3592,11 @@ def run(h, args):
     if not directory.is_dir():
         sys.stderr.write("cleat: not a directory: {}\n".format(directory))
         return 2
-    interactive = not args.json and args.html is None
+    serving = getattr(args, "serve", None)
+    if serving is not None and (args.json or args.html is not None):
+        sys.stderr.write("cleat: --serve serves the page itself; leave out --json and --html\n")
+        return 2
+    interactive = not args.json and args.html is None and serving is None
     if interactive and not (sys.stdin.isatty() and sys.stdout.isatty()):
         sys.stderr.write("cleat: graph browses in a terminal; outside one, pass "
                          "--json or --html\n")
@@ -2812,6 +3604,10 @@ def run(h, args):
     if args.html and pathlib.Path(args.html).is_dir():
         sys.stderr.write("cleat: --html {} is a directory; name the page file, or "
                          "put DIR before --html\n".format(args.html))
+        return 2
+    deep = getattr(args, "deep", None)
+    if deep is not None and not (args.probe or "").strip():
+        sys.stderr.write("cleat: --deep needs a probe term: --probe TERM --deep\n")
         return 2
     filters = {field: set(getattr(args, field) or ()) for field, _ in FILTER_FIELDS}
     try:
@@ -2825,12 +3621,45 @@ def run(h, args):
         cache = measure_remotes(filtered(g, filters)[0], cache, cache_path)
     attach_remote_sizes(g.nodes, cache)
     if interactive:
-        browse(g, filters, args.probe, directory.resolve())
+        if deep is not None:
+            try:
+                repo_top(directory.resolve())
+            except DeepError as exc:
+                sys.stderr.write("cleat: {}\n".format(exc))
+                return 2
+        browse(g, filters, args.probe, directory.resolve(), h, deep)
         return 0
     nodes, edges = filtered(g, filters)
     data = as_json(directory.resolve(), g, nodes, edges, filters)
     if args.probe is not None:
-        data["probe"] = probe_public(g, probe(g, nodes, args.probe), nodes)
+        p = probe(g, nodes, args.probe)
+        data["probe"] = probe_public(g, p, nodes)
+    if serving is not None:
+        if deep is not None:
+            try:
+                repo_top(directory.resolve())
+            except DeepError as exc:
+                sys.stderr.write("cleat: {}\n".format(exc))
+                return 2
+        try:
+            return serve(h, g, nodes, data, {id: g.texts[id] for id in nodes if id in g.texts},
+                         directory.resolve(), serving, deep)
+        except OSError as exc:
+            sys.stderr.write("cleat: cannot serve on 127.0.0.1:{}: {}\n".format(serving, exc))
+            return 2
+    if args.probe is not None:
+        if deep is not None:
+            try:
+                d = Deep(h, g, p, nodes, directory.resolve())
+                d.widen(deep)
+                data["probe"]["deep"] = d.public()
+            except (DeepError, RuntimeError) as exc:
+                sys.stderr.write("cleat: {}\n".format(exc))
+                return 2
+            failed = next((r for r in d.rings.values() if r["error"]), None)
+            if failed:
+                sys.stderr.write("cleat: ring {}: {}\n".format(failed["ring"], failed["error"]))
+                return 2
     if args.html is not None:
         status = write_page(data, args.html, {id: g.texts[id] for id in nodes if id in g.texts})
         if status:

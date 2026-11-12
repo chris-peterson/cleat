@@ -121,6 +121,17 @@
   for a plan of what to change there: a step per kind of fix, largest
   savings first, with the files each one touches, and a starter prompt to copy
   into a coding agent session in that owner's repository.
+- `cleat graph --probe TERM --deep` finds what you half-remember past what a
+  session loads, one ring at a time: this repo's other files and its commit
+  messages, then the transcripts [agentsview](https://github.com/kenn-io/agentsview)
+  keeps from sessions in this directory (`--deep 2`), then from every project
+  (`--deep 3`), with the claude.ai artifacts those sessions published. Select a
+  hit to see its context; the addresses, files, sessions, and commits it names
+  are hops to follow, and Esc steps back. Each hit says where to name it so the
+  next session finds it without searching. In the terminal browser, `P` looks
+  one ring deeper. `cleat graph --serve` serves the page on 127.0.0.1 and
+  answers its deep searches; only the address it prints, with its token, gets
+  an answer.
 
 ## 0.5.0
 

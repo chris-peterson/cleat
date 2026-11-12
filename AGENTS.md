@@ -86,7 +86,7 @@ These load only for matching files:
 
 | Applies to | Rule |
 | --- | --- |
-| `scripts/cleat`, `scripts/cleat_graph.*`, `scripts/tests/graph.test.sh` | [view-parity.md](.claude/rules/view-parity.md) |
+| `scripts/cleat`, `scripts/cleat_graph.*`, `scripts/tests/graph.test.sh`, `scripts/tests/deep.test.sh` | [view-parity.md](.claude/rules/view-parity.md) |
 
 ## Glossary
 
