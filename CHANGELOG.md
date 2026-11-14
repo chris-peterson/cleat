@@ -132,6 +132,14 @@
   one ring deeper. `cleat graph --serve` serves the page on 127.0.0.1 and
   answers its deep searches; only the address it prints, with its token, gets
   an answer.
+- `cleat graph --settings` and `cleat metrics --settings` take the settings a
+  session was started with, as `claude --settings` takes them (inline JSON or a
+  file), so a session [rig](https://github.com/chris-peterson/rig) launches is
+  graphed with the plugins rig turns on. `just demo` and its siblings use
+  rig's `full` rig when rig is installed; `just rig=base demo` picks another.
+- Asking the page about a term drops the wedge of every owner the term never
+  touches, so with dozens of plugins enabled the few it does touch, and their
+  islands, stand out.
 
 ## 0.5.0
 

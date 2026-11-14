@@ -323,6 +323,7 @@ contains "reached from the opening panel" "$(cat "$page")" '<button id="all-site
 contains "day and night switch by icon" "$(cat "$page")" '<svg class="moon"'
 contains "that follows references hop by hop" "$(cat "$page")" 'function probe(term, keep)'
 contains "and draws the returns, the horizon, and the remote sites" "$(cat "$page")" 'function drawRadar(keep)'
+contains "with a wedge only for an owner the term touches" "$(cat "$page")" '(n.root && matched.has(ownerOf(n)))'
 contains "an island's card names the line that would connect it" "$(cat "$page")" 'function islandFix(P, id, keep)'
 contains "the orphans sit past the horizon as their own mark" "$(cat "$page")" 'class="mark-orphan"'
 contains "each with a card saying where to name it" "$(cat "$page")" 'function orphanCard(o)'
@@ -592,6 +593,28 @@ out="$(python3 "$CLEAT" graph --json "$REPO" 2>&1)"
 check "an enabled plugin whose install path is missing" "$?" "2"
 contains "names the plugin" "$out" "off@market"
 printf '%s' "$good_settings" > "$USER_DIR/settings.json"
+
+echo "== --settings lays a session's flag over the settings files =="
+graph_json "$REPO" --settings '{"enabledPlugins": {"acme@market": false}}'
+check "exits 0" "$GRAPH_EXIT" "0"
+check "a plugin the flag turns off is left out" "$(q 'any(n["plugin"] == "acme" for n in g["nodes"])')" "False"
+graph_json "$REPO" --settings '{"enabledPlugins": {"acme@market": ["1.0.0"]}}'
+check "a version list keeps a plugin off, as Claude Code does" "$(q 'any(n["plugin"] == "acme" for n in g["nodes"])')" "False"
+cp "$USER_DIR/settings.json" "$USER_DIR/settings.json.good"
+write "$USER_DIR/settings.json" '{"enabledPlugins": {"acme@market": false}}\n'
+SETTINGS_ON="$(mktemp "$TMP/cleat-settings.XXXXXX")"
+write "$SETTINGS_ON" '{"enabledPlugins": {"acme@market": true},
+ "hooks": {"Stop": [{"hooks": [{"type": "command", "command": "echo bye"}]}]}}\n'
+graph_json "$REPO" --settings "$SETTINGS_ON"
+check "a file the flag names turns one on, as rig does" "$(q 'node("/acme:deploy")["plugin"]')" "acme"
+check "and its hooks register under user scope" "$(q '(node("Stop echo bye")["scope"], node("Stop echo bye")["path"])')" "('user', '--settings')"
+mv "$USER_DIR/settings.json.good" "$USER_DIR/settings.json"
+out="$(python3 "$CLEAT" graph --json "$REPO" --settings '{ not json' 2>&1)"
+check "an inline value that doesn't parse exits 2" "$?" "2"
+contains "names the flag" "$out" "--settings does not parse"
+out="$(python3 "$CLEAT" graph --json "$REPO" --settings "$TMP/cleat-no-such-settings.json" 2>&1)"
+check "a file that isn't there exits 2" "$?" "2"
+contains "names the file" "$out" "cleat-no-such-settings.json"
 
 echo "== --measure-remote measures each web address, and the cache keeps it =="
 SITE="$(mktemp -d "$TMP/cleat-site.XXXXXX")"

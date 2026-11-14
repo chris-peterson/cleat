@@ -1167,11 +1167,14 @@ function drawRadar(keep) {
   const P = probeResult;
   if (!S.term) summary.innerHTML = "";
 
-  // What is drawn: with a term, the roots, the returns, and the islands;
-  // without one, every file shown, and the unreached and the orphans past the
-  // horizon.
+  // What is drawn: with a term, the returns and the islands, with the roots
+  // of each owner holding one, so an owner the term never touches has no
+  // wedge; without one, every file shown, and the unreached and the orphans
+  // past the horizon.
   const orphans = P ? [] : visibleOrphans();
-  const shown = P ? DATA.nodes.filter(n => keep.has(n.id) && (n.root || P.hits.has(n.id) || P.islands.includes(n.id)))
+  const matched = P ? new Set([...P.hits.keys(), ...P.islands].map(id => ownerOf(nodes.get(id)))) : null;
+  const shown = P ? DATA.nodes.filter(n => keep.has(n.id)
+      && (P.hits.has(n.id) || P.islands.includes(n.id) || (n.root && matched.has(ownerOf(n)))))
     : DATA.nodes.filter(n => keep.has(n.id)).concat(orphans);
   const shownIds = new Set(shown.map(n => n.id));
   const islandSet = new Set(P ? P.islands : shown.filter(n => n.reach === null && !n.root && !n.status).map(n => n.id));

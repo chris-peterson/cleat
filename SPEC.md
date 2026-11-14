@@ -422,7 +422,9 @@ its `CLAUDE.md`, rules, skills (those in `skills/` and those the claude.ai
 account syncs under `skills/synced/*/`, a skill in `skills/` shadowing a synced
 one of the same name), commands, and agents (`agents/<name>.md` or
 `agents/<name>/<name>.md`); and each plugin enabled in the user, project, or
-local settings, read from its install path in `installed_plugins.json`.
+local settings, read from its install path in `installed_plugins.json`. Only an
+`enabledPlugins` value of `true` enables a plugin: Claude Code keeps one whose
+value is a version list off.
 
 #### `GRAPH-03`
 Each node shall carry its scope, its marketplace and plugin where it has them,
@@ -677,9 +679,11 @@ term, the probe shall light every node a root reaches, at its hop count along
 its cheapest path, and name every remote site the nodes shown state.
 
 #### `GRAPH-29`
-Given a term, the radar shall draw the roots, the nodes the `GRAPH-28` probe
-lit, each at its own distance, and the islands, the nodes that mention the
-term but that no lit node leads to, past the horizon; a node reached only through a line that
+Given a term, the radar shall draw the nodes the `GRAPH-28` probe lit, each
+at its own distance, and the islands, the nodes that mention the term but that
+no lit node leads to, past the horizon, with the roots of each owner holding
+one; an owner holding neither shall have no wedge, as the terminal browser's
+roll-up by distance and `--json` hold no owner the term never touches; a node reached only through a line that
 never names the term shall have a dashed ray, and one opened for its line
 alone shall be hollow. Each remote site a lit node names on a line mentioning
 the term shall sit on the perimeter, one mark per host, with a ray from each file
@@ -766,6 +770,16 @@ and the page shall draw them past the horizon in their owner's wedge as hollow
 quatrefoils, the mark military symbology (APP-6, MIL-STD-2525) gives an
 unknown contact, when no term is asked, list the heaviest with what loads at start, list
 them all by owner on request, and give each a card with its fix.
+
+#### `GRAPH-34`
+Where `--settings JSON|PATH` is passed, `cleat graph` and `cleat metrics` shall
+read it as `claude --settings` takes it, a JSON object inline or the path of a
+file holding one, and lay it over the settings files at the highest
+precedence: its enabled plugins decide over theirs, its hooks register under
+user scope, and its additional directories widen the `DEEP` rings. A session a
+launcher such as rig starts enables its plugins this way, which the settings
+files never show. If the value does not parse or the file cannot be read, then
+the command shall exit 2 and name the cause on stderr.
 
 ### `DEEP`
 Deep probe

@@ -7,7 +7,7 @@ in-repo implementation. Status vocabulary: **Covered** · **Partial** ·
 **Evidence pointers:** file + enclosing symbol. A line number is invalidated by
 any edit above it, and the ledger is read long after that edit.
 
-**Coverage: 159/159 requirements Covered (100%)**
+**Coverage: 160/160 requirements Covered (100%)**
 
 ## CHECK — The check command
 
@@ -114,6 +114,7 @@ CHECK-12 is retired and not counted.
 | GRAPH-30 | Covered | scripts/cleat_graph.py (`probe`, `probe_summary`, `probe_public`, `island_fix`, `island_advice`, `rollup` by distance, `Browser.draw` — a hop's own cost, `Browser.probe_prompt`, `Browser.return_tag`, `Browser.reached`, `run`); scripts/cleat (the `--probe` argument); scripts/tests/graph.test.sh, under a pty |
 | GRAPH-32 | Covered | scripts/cleat_graph.py (`REMOTE_ESTIMATE_TOKENS`, `remote_cache_path`, `read_remote_cache`, `measure_url`, `page_text`, `measure_remotes`, `attach_remote_sizes`, `remote_cost`, `Browser.meter`, `run`); scripts/cleat (the `--measure-remote` argument); scripts/cleat_graph.html (`spendOrder`'s online step, `fetchCost`, `siteCost`); scripts/tests/graph.test.sh, against a local server |
 | GRAPH-31 | Covered | scripts/cleat_graph.html (`go`, `restore`, `goBack`, `stepBack`, `goHome`, `#home`, `crumb`, the `popstate` and `mouseup` handlers); scripts/cleat_graph.py (`Browser.remember`, `Browser.back`, `MOUSE_BACK`, `Browser.loop`, `Browser.mouse`); scripts/tests/graph.test.sh, under a pty |
+| GRAPH-34 | Covered | scripts/cleat_graph.py (`settings_flag`, `settings_files`, `enabled_plugins`, `Walker.walk`, `build`, `Deep.folders`, `run`, `run_metrics`); scripts/cleat (the `--settings` argument on `graph` and `metrics`); scripts/tests/graph.test.sh, scripts/tests/metrics.test.sh |
 | GRAPH-33 | Covered | scripts/cleat_graph.py (`Walker.orphans`, `Walker.orphan`, `Walker.line_at`, `build`, `as_json`, `Browser` — the `ORPHANS` group, `right_tops`, `details`); scripts/cleat_graph.html (`visibleOrphans`, `drawRadar`'s orphan marks, `quatrefoil`, `orphanCard`, `orphansPanel`, `focusPanel`'s Orphans); scripts/tests/graph.test.sh, under a pty |
 
 ## DEEP — Deep probe
@@ -253,6 +254,14 @@ PACKAGING-03 is retired and not counted.
 | STATE-03 | Covered | scripts/cleat (`_prune_sessions`) |
 
 ## Audit history
+
+### 2026-11-13 — enabledPlugins version lists (spec-req)
+
+GRAPH-02 amended. Only an `enabledPlugins` value of `true` puts a plugin in the graph; a version list, which Claude Code keeps off (2.1.323 names why in `claude plugin list`), no longer reads as enabled. 160/160 Covered.
+
+### 2026-11-12 — A session's --settings (spec-req)
+
++1 ID (GRAPH-34); GRAPH-29 amended. `cleat graph` and `cleat metrics` take `--settings`, laid over the settings files as `claude --settings` is, so the graph covers a session a launcher like rig starts with plugins the settings files leave off. `just demo`, `demo-html`, and `demo-json` start from the `full` rig where rig is installed (`just rig=base demo` for another). Asking the page about a term leaves a wedge only for an owner holding a file it lights or an island, as the terminal's roll-up by distance and `--json` already do. 160/160 Covered.
 
 ### 2026-11-11 — The deep probe (spec-req)
 

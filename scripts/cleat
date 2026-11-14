@@ -1767,6 +1767,9 @@ def main(argv=None):
     graph = sub.add_parser(
         "graph", help="browse what a session can load, and what each path costs")
     graph.add_argument("directory", nargs="?", default=".")
+    graph.add_argument("--settings", metavar="JSON|PATH",
+                       help="settings laid over the settings files, as `claude --settings` "
+                            "takes them: for a session started with that flag, such as by rig")
     graph.add_argument("--json", action="store_true", help="emit the graph as JSON")
     graph.add_argument("--html", metavar="PATH", nargs="?", const="",
                        help="write the graph as an HTML page to PATH; with no PATH, "
@@ -1793,6 +1796,9 @@ def main(argv=None):
     metrics = sub.add_parser(
         "metrics", help="append a snapshot of the context graph's numbers to the history")
     metrics.add_argument("directory", nargs="?", default=".")
+    metrics.add_argument("--settings", metavar="JSON|PATH",
+                         help="settings laid over the settings files, as `claude --settings` "
+                              "takes them")
     metrics.add_argument("--history", metavar="PATH",
                          help="append here instead of $XDG_STATE_HOME/cleat/metrics.yml")
     metrics.set_defaults(func=cmd_metrics)

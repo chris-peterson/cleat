@@ -87,6 +87,8 @@ class Graph:
         self.refs = {}
         # owner label -> the install record's version and commit, per plugin
         self.plugins = {}
+        # what `--settings` laid over the settings files, or None
+        self.overlay = None
         # node id -> its text as a session loads it, for the page's probe
         self.texts = {}
         # the files beside the guidance that nothing links to, from Walker.orphans
@@ -127,22 +129,47 @@ def _json_file(path):
         raise RuntimeError("cannot read {}: {}".format(path, exc)) from exc
 
 
-def settings_files(root, user):
-    """The settings Claude Code merges, lowest precedence first."""
-    return [(path, scope) for path, scope in (
+def settings_flag(value):
+    """What `--settings` names, as Claude Code reads its own flag of that name:
+    a JSON object inline, or the path of a file holding one. None for no flag."""
+    if value is None:
+        return None
+    if value.lstrip().startswith("{"):
+        try:
+            data = json.loads(value)
+        except ValueError as exc:
+            raise RuntimeError("--settings does not parse: {}".format(exc)) from exc
+    else:
+        data = _json_file(pathlib.Path(os.path.expanduser(value)))
+    if not isinstance(data, dict):
+        raise RuntimeError("--settings should be a JSON object")
+    return data
+
+
+def settings_files(root, user, overlay=None):
+    """[(source, scope, settings)] for the settings Claude Code merges, lowest
+    precedence first: the user, project, and local files, then the
+    `--settings` a session was started with, which outranks them all."""
+    out = [(path, scope, _json_file(path)) for path, scope in (
         (user / "settings.json", "user"),
         (root / ".claude" / "settings.json", "repo"),
         (root / ".claude" / "settings.local.json", "repo"),
     ) if path.is_file()]
+    if overlay is not None:
+        out.append(("--settings", "user", overlay))
+    return out
 
 
-def enabled_plugins(root, user):
+def enabled_plugins(root, user, overlay=None):
     """[(key, install path, install record)] for each plugin the merged
     settings enable."""
     enabled = {}
-    for path, _scope in settings_files(root, user):
-        enabled.update(_json_file(path).get("enabledPlugins") or {})
-    keys = sorted(key for key, on in enabled.items() if on)
+    for _source, _scope, settings in settings_files(root, user, overlay):
+        enabled.update(settings.get("enabledPlugins") or {})
+    # Only `true` turns a plugin on. Claude Code keeps one whose entry is a
+    # version list off (2.1.323 says why in `claude plugin list`), so a truthy
+    # list would put a plugin the session never loads in the graph.
+    keys = sorted(key for key, on in enabled.items() if on is True)
     if not keys:
         return []
     record = user / "plugins" / "installed_plugins.json"
@@ -201,10 +228,11 @@ def _manifest_dirs(base, manifest, field, default):
 
 
 class Walker:
-    def __init__(self, h, root):
+    def __init__(self, h, root, overlay=None):
         self.h = h
         self.root = root.resolve()
         self.user = config_dir()
+        self.overlay = overlay
         self.g = Graph()
         self.texts = {}           # node id -> [(path, text)] to scan
         self.names = {}           # invocable name -> [body node id]
@@ -606,7 +634,7 @@ class Walker:
 
     def walk(self):
         h, root, user = self.h, self.root, self.user
-        plugins = enabled_plugins(root, user)
+        plugins = enabled_plugins(root, user, self.overlay)
         plugin_scopes = []
         for key, base, record in plugins:
             name, _, market = key.partition("@")
@@ -644,8 +672,8 @@ class Walker:
             if hooks_file.is_file():
                 self.hooks(_json_file(hooks_file).get("hooks"), hooks_file, scope)
 
-        for path, kind in settings_files(root, user):
-            self.hooks(_json_file(path).get("hooks"), path, repo if kind == "repo" else home)
+        for source, kind, settings in settings_files(root, user, self.overlay):
+            self.hooks(settings.get("hooks"), source, repo if kind == "repo" else home)
 
         while self.pending:
             self.scan(self.pending.pop())
@@ -743,9 +771,10 @@ def owners(nodes):
     return sorted(rows, key=lambda row: -row["reachable"])
 
 
-def build(h, root):
-    walker = Walker(h, pathlib.Path(root))
+def build(h, root, overlay=None):
+    walker = Walker(h, pathlib.Path(root), overlay)
     g = walker.walk()
+    g.overlay = overlay
     g.launch_budget = h.launch_budget(pathlib.Path(root))
     g.tiering_guide = str(h.TIERING_GUIDE)
     compute_costs(g)
@@ -917,7 +946,7 @@ def run_metrics(h, args):
         sys.stderr.write("cleat: not a directory: {}\n".format(directory))
         return 2
     try:
-        g = build(h, directory)
+        g = build(h, directory, settings_flag(args.settings))
         snap = snapshot(h, directory, g, datetime.datetime.now(datetime.timezone.utc))
     except RuntimeError as exc:
         sys.stderr.write("cleat: {}\n".format(exc))
@@ -992,6 +1021,7 @@ def insights(g, nodes):
     measured = [n for n in nodes.values() if n["measured"]]
     roots = [n for n in nodes.values() if n["root"]]
     entries = [n for n in roots if n["kind"] == "entry"]
+
 
     launch = [n for n in nodes.values() if n["tier"] == LAUNCH and n["size"]]
     launch_total = sum(n["size"] for n in launch)
@@ -1827,8 +1857,9 @@ class Deep:
         """The directory the graph is built for, and each one its settings add
         to a session under `permissions.additionalDirectories`."""
         found = [self.directory]
-        for path, _scope in settings_files(self.directory, config_dir()):
-            extra = (_json_file(path).get("permissions") or {}).get("additionalDirectories") or []
+        for _source, _scope, settings in settings_files(self.directory, config_dir(),
+                                                        self.g.overlay):
+            extra = (settings.get("permissions") or {}).get("additionalDirectories") or []
             for entry in extra if isinstance(extra, list) else ():
                 if isinstance(entry, str):
                     found.append((self.directory / os.path.expanduser(entry)).resolve())
@@ -3611,7 +3642,7 @@ def run(h, args):
         return 2
     filters = {field: set(getattr(args, field) or ()) for field, _ in FILTER_FIELDS}
     try:
-        g = build(h, directory)
+        g = build(h, directory, settings_flag(args.settings))
         cache_path = remote_cache_path()
         cache = read_remote_cache(cache_path)
     except RuntimeError as exc:

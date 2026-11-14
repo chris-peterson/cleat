@@ -161,6 +161,13 @@ metrics "$REPO" --history "$HISTORY"
 check "editing a plugin file changes that owner's digest alone" \
   "$(qh '[o["owner"] for o, p in zip(h[-1]["owners"], h[-2]["owners"]) if o["digest"] != p["digest"]]')" "['acme@market']"
 
+echo "== --settings lays a session's flag over the settings files =="
+SIDE="$(mktemp "$TMP/cleat-history.XXXXXX")"
+metrics "$REPO" --history "$SIDE" --settings '{"enabledPlugins": {"acme@market": false}}'
+check "exits 0" "$EXIT" "0"
+check "a plugin the flag turns off has no owner row" \
+  "$(q "$SIDE" '[o["owner"] for o in s["owners"] if o["scope"] == "plugin"]')" "[]"
+
 echo "== the default history is under XDG_STATE_HOME =="
 metrics "$REPO"
 check "exits 0" "$EXIT" "0"
