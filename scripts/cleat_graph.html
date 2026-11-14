@@ -843,7 +843,7 @@ function fileCard(id) {
   $("details").innerHTML = `
     <section>
       <p class="title">${escapeHtml(n.label)}</p>
-      <p class="note">${escapeHtml(ownerOf(n))} · ${escapeHtml(n.when || t.label)}</p>
+      <p class="note">${escapeHtml(ownerOf(n))} · ${escapeHtml(n.when || t.label)}${n.returned ? " · " + escapeHtml(returnedNote(n.returned)) : ""}</p>
     </section>
     <dl class="stats">
       <div><dd>~${tok(n.reach)}</dd><dt>spent to reach it</dt></div>
@@ -871,6 +871,10 @@ function fileCard(id) {
         `<li data-id="${encodeURIComponent(m.id)}"><span class="k">${kind}</span><span class="n" title="${escapeHtml(m.label)}">${escapeHtml(m.label)}</span><span class="v">${m.measured ? "~" + tok(m.closure) : "?"}</span></li>`).join("")}</ul></section>` : ""}
     </div></details>`;
   if ($("focus-node")) $("focus-node").onclick = () => narrowTo(id);
+}
+// A node's return under --returns, worded as the terminal's details strip words it.
+function returnedNote(mark) {
+  return `returned${mark.times > 1 ? " ×" + mark.times : ""} (${mark.how.join(", ")})`;
 }
 // An orphan at a glance: what it would cost, and where to name it, with the
 // line to name it on.

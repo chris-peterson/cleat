@@ -7,7 +7,7 @@ in-repo implementation. Status vocabulary: **Covered** · **Partial** ·
 **Evidence pointers:** file + enclosing symbol. A line number is invalidated by
 any edit above it, and the ledger is read long after that edit.
 
-**Coverage: 160/160 requirements Covered (100%)**
+**Coverage: 161/161 requirements Covered (100%)**
 
 ## CHECK — The check command
 
@@ -115,6 +115,7 @@ CHECK-12 is retired and not counted.
 | GRAPH-32 | Covered | scripts/cleat_graph.py (`REMOTE_ESTIMATE_TOKENS`, `remote_cache_path`, `read_remote_cache`, `measure_url`, `page_text`, `measure_remotes`, `attach_remote_sizes`, `remote_cost`, `Browser.meter`, `run`); scripts/cleat (the `--measure-remote` argument); scripts/cleat_graph.html (`spendOrder`'s online step, `fetchCost`, `siteCost`); scripts/tests/graph.test.sh, against a local server |
 | GRAPH-31 | Covered | scripts/cleat_graph.html (`go`, `restore`, `goBack`, `stepBack`, `goHome`, `#home`, `crumb`, the `popstate` and `mouseup` handlers); scripts/cleat_graph.py (`Browser.remember`, `Browser.back`, `MOUSE_BACK`, `Browser.loop`, `Browser.mouse`); scripts/tests/graph.test.sh, under a pty |
 | GRAPH-34 | Covered | scripts/cleat_graph.py (`settings_flag`, `settings_files`, `enabled_plugins`, `Walker.walk`, `build`, `Deep.folders`, `run`, `run_metrics`); scripts/cleat (the `--settings` argument on `graph` and `metrics`); scripts/tests/graph.test.sh, scripts/tests/metrics.test.sh |
+| GRAPH-35 | Covered | scripts/cleat_graph.py (`read_returns`, `attach_returns`, `returned_note`, `insights` — the returns insight, `as_json`'s `returns`, `Browser.when`, `Browser.details`, `run`); scripts/cleat (the `--returns` argument); scripts/cleat_graph.html (`returnedNote`, the node card's note); scripts/tests/graph.test.sh, under a pty |
 | GRAPH-33 | Covered | scripts/cleat_graph.py (`Walker.orphans`, `Walker.orphan`, `Walker.line_at`, `build`, `as_json`, `Browser` — the `ORPHANS` group, `right_tops`, `details`); scripts/cleat_graph.html (`visibleOrphans`, `drawRadar`'s orphan marks, `quatrefoil`, `orphanCard`, `orphansPanel`, `focusPanel`'s Orphans); scripts/tests/graph.test.sh, under a pty |
 
 ## DEEP — Deep probe
@@ -254,6 +255,10 @@ PACKAGING-03 is retired and not counted.
 | STATE-03 | Covered | scripts/cleat (`_prune_sessions`) |
 
 ## Audit history
+
+### 2026-11-13 — A session's returns (spec-req)
+
++1 ID (GRAPH-35). `cleat graph --returns LOG` reads one session's hook payloads and marks each node the session actually loaded, so the graph's prediction can be checked against a real session: an import counts toward the file importing it, a skill returns as its body, and a load no node predicts is listed as unexpected. A log with no startup load says so, since a plugin's hooks can register after Claude Code loads the startup instructions. 161/161 Covered.
 
 ### 2026-11-13 — enabledPlugins version lists (spec-req)
 

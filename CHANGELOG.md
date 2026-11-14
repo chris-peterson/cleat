@@ -140,6 +140,10 @@
 - Asking the page about a term drops the wedge of every owner the term never
   touches, so with dozens of plugins enabled the few it does touch, and their
   islands, stand out.
+- `cleat graph --returns LOG` checks the graph's prediction against a real
+  session. Give it the session's hook payloads, a JSON object a line, and each
+  node the session actually loaded is marked with how and how often; an
+  insight counts the returns and names any load the graph didn't predict.
 
 ## 0.5.0
 

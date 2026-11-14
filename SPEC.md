@@ -781,6 +781,24 @@ launcher such as rig starts enables its plugins this way, which the settings
 files never show. If the value does not parse or the file cannot be read, then
 the command shall exit 2 and name the cause on stderr.
 
+#### `GRAPH-35`
+Where `--returns LOG` is passed, naming one session's hook payloads as a hook
+receives them, a JSON object a line, `cleat graph` shall mark each node the
+session loaded with how many times, how (each `InstructionsLoaded` load reason,
+a `Skill` tool call, or a typed `/name`), and when it first and last loaded,
+and keep each load no node predicts as unexpected. An instruction file's import
+shall count toward the node of the file importing it, as the walk folds its
+text; a skill shall return as its body, a typed bare name finding the one
+plugin skill it names; a typed `/name` naming no skill is a built-in command,
+not a load. The terminal browser's details strip and the page's node card
+shall say how a selected node returned, `--json` shall carry each node's
+return and a `returns` block (the session, the load count, the nodes returned,
+the unexpected loads, and whether a startup load was observed), and an insight
+in all three shall count the returns, name the unexpected, say where no
+startup load was seen, and Show the nodes returned. If the log cannot be read
+or a line does not parse as a JSON object, then the command shall exit 2 and
+name the cause on stderr.
+
 ### `DEEP`
 Deep probe
 

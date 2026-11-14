@@ -1770,6 +1770,9 @@ def main(argv=None):
     graph.add_argument("--settings", metavar="JSON|PATH",
                        help="settings laid over the settings files, as `claude --settings` "
                             "takes them: for a session started with that flag, such as by rig")
+    graph.add_argument("--returns", metavar="LOG",
+                       help="one session's hook payloads, a JSON object a line: mark each "
+                            "node it loaded, and list each load no node predicts")
     graph.add_argument("--json", action="store_true", help="emit the graph as JSON")
     graph.add_argument("--html", metavar="PATH", nargs="?", const="",
                        help="write the graph as an HTML page to PATH; with no PATH, "

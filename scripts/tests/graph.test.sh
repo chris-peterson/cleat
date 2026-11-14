@@ -616,6 +616,93 @@ out="$(python3 "$CLEAT" graph --json "$REPO" --settings "$TMP/cleat-no-such-sett
 check "a file that isn't there exits 2" "$?" "2"
 contains "names the file" "$out" "cleat-no-such-settings.json"
 
+echo "== --returns marks what one session loaded =="
+# A session's hook payloads, a JSON object a line: the startup file and its
+# import, a rule a touched file pulled in, a skill the model invoked, one typed
+# by its bare name, a built-in command, and a nested file nothing predicts.
+R="$(cd "$REPO" && pwd -P)"
+RETURNS="$(mktemp "$TMP/cleat-returns.XXXXXX")"
+cat > "$RETURNS" <<EOF
+{"ts": "2026-11-13T10:00:00Z", "session_id": "5e55-1", "hook_event_name": "InstructionsLoaded", "file_path": "$R/CLAUDE.md", "load_reason": "session_start", "memory_type": "Project"}
+{"ts": "2026-11-13T10:00:00Z", "session_id": "5e55-1", "hook_event_name": "InstructionsLoaded", "file_path": "$R/AGENTS.md", "load_reason": "include", "parent_file_path": "$R/CLAUDE.md"}
+{"ts": "2026-11-13T10:00:01Z", "session_id": "5e55-1", "hook_event_name": "SessionStart", "source": "startup"}
+
+{"ts": "2026-11-13T10:01:00Z", "session_id": "5e55-1", "hook_event_name": "InstructionsLoaded", "file_path": "$R/.claude/rules/api.md", "load_reason": "path_glob_match", "trigger_file_path": "$R/src/app.ts", "globs": ["src/**/*.ts"]}
+{"ts": "2026-11-13T10:02:00Z", "session_id": "5e55-1", "hook_event_name": "PostToolUse", "tool_name": "Skill", "tool_input": {"skill": "acme:deploy"}}
+{"ts": "2026-11-13T10:03:00Z", "session_id": "5e55-1", "hook_event_name": "UserPromptSubmit", "prompt": "/verify the build"}
+{"ts": "2026-11-13T10:04:00Z", "session_id": "5e55-1", "hook_event_name": "UserPromptSubmit", "prompt": "/clear"}
+{"ts": "2026-11-13T10:05:00Z", "session_id": "5e55-1", "hook_event_name": "InstructionsLoaded", "file_path": "$R/src/CLAUDE.md", "load_reason": "nested_traversal"}
+{"ts": "2026-11-13T10:06:00Z", "session_id": "5e55-1", "hook_event_name": "InstructionsLoaded", "file_path": "$R/CLAUDE.md", "load_reason": "compact"}
+EOF
+graph_json "$REPO" --returns "$RETURNS"
+check "exits 0" "$GRAPH_EXIT" "0"
+claude_id="$(q 'next(n["id"] for n in g["nodes"] if n["label"] == "CLAUDE.md" and n["scope"] == "repo")')"
+check "the startup file returned at start, through its import, and after a compact" \
+  "$(q 'next(n["returned"] for n in g["nodes"] if n["id"] == "'"$claude_id"'")["times"], next(n["returned"] for n in g["nodes"] if n["id"] == "'"$claude_id"'")["how"]')" \
+  "(3, ['session_start', 'include', 'compact'])"
+check "the rule returned on its path match" "$(q 'node(".claude/rules/api.md")["returned"]["how"]')" "['path_glob_match']"
+check "an invoked skill returns as its body" \
+  "$(q '[n["returned"]["how"] for n in g["nodes"] if n["id"].endswith("deploy/SKILL.md")]')" "[['Skill tool']]"
+check "a typed bare name finds its one plugin skill" \
+  "$(q '[n["returned"]["how"] for n in g["nodes"] if n["id"].endswith("verify/SKILL.md")]')" "[['typed']]"
+check "a typed built-in is not a load, and a file no node holds is unexpected" \
+  "$(q '[m["load"].rsplit("/", 2)[-2:] for m in g["returns"]["unexpected"]]')" "[['src', 'CLAUDE.md']]"
+check "the import folds into the file importing it, as the walk folds its text" \
+  "$(q 'any("AGENTS.md" in m["load"] for m in g["returns"]["unexpected"])')" "False"
+check "every load counted, and the startup seen" "$(q '(g["returns"]["loads"], g["returns"]["startupObserved"], g["returns"]["session"])')" "(7, True, '5e55-1')"
+check "an insight leads with the returns, Show narrowing to them" \
+  "$(q '(g["insights"][0]["title"], g["insights"][0]["focus"]["type"], len(g["insights"][0]["focus"]["ids"]))')" \
+  "('Returned this session: 4, 1 unexpected', 'set', 4)"
+graph_json "$REPO" --returns "$RETURNS" --scope user
+check "a filter keeps only the returns it shows" "$(q 'len(g["returns"]["returned"])')" "0"
+grep -v session_start "$RETURNS" > "$RETURNS.late"
+graph_json "$REPO" --returns "$RETURNS.late"
+contains "a log with no startup load says the hook registered too late" "$(q 'g["insights"][0]["text"]')" "registered too late"
+page="$(mktemp "$TMP/cleat-returns-page.XXXXXX").html"
+python3 "$CLEAT" graph "$REPO" --returns "$RETURNS" --html "$page" 2>/dev/null
+contains "the page carries each node's return" "$(cat "$page")" '"returned":{"times":3'
+contains "and words it on the node's card" "$(cat "$page")" 'function returnedNote(mark)'
+contains "with the returns insight" "$(cat "$page")" 'Returned this session: 4'
+tui="$(python3 - "$CLEAT" "$REPO" "$RETURNS" <<'PY'
+import os, pty, select, sys, time
+pid, fd = pty.fork()
+if pid == 0:
+    os.environ["TERM"] = "xterm-256color"
+    os.environ["LINES"], os.environ["COLUMNS"] = "30", "160"
+    os.execvp(sys.executable, [sys.executable, sys.argv[1], "graph", sys.argv[2], "--returns", sys.argv[3]])
+seen = b""
+def drain(seconds):
+    global seen
+    end = time.time() + seconds
+    while time.time() < end:
+        ready, _, _ = select.select([fd], [], [], 0.1)
+        if ready:
+            try:
+                seen += os.read(fd, 65536)
+            except OSError:
+                return
+# d shows the details strip; the returns insight is the first under Insights,
+# and tab moves into the nodes it narrows to.
+for keys in (b"d", b"j", b"\t", b"q"):
+    drain(0.6)
+    os.write(fd, keys)
+drain(1.5)
+os.waitpid(pid, 0)
+text = seen.decode("utf-8", "replace")
+print(("ok:" if "Returned this session: 4, 1 unexpected" in text else "fail:") + "insight")
+print(("ok:" if "returned (" in text else "fail:") + "strip")
+PY
+)"
+contains "the terminal lists the returns insight" "$tui" "ok:insight"
+contains "and its details strip says how a node returned" "$tui" "ok:strip"
+printf '{"hook_event_name": "InstructionsLoaded"}\n{ not json\n' > "$RETURNS.bad"
+out="$(python3 "$CLEAT" graph --json "$REPO" --returns "$RETURNS.bad" 2>&1)"
+check "a line that doesn't parse exits 2" "$?" "2"
+contains "naming the line" "$out" "line 2 does not parse"
+out="$(python3 "$CLEAT" graph --json "$REPO" --returns "$TMP/cleat-no-such-returns" 2>&1)"
+check "a missing log exits 2" "$?" "2"
+contains "naming it" "$out" "cleat-no-such-returns"
+
 echo "== --measure-remote measures each web address, and the cache keeps it =="
 SITE="$(mktemp -d "$TMP/cleat-site.XXXXXX")"
 write "$SITE/page.html" '<html><head><title>t</title><style>p{}</style></head><body><p>Ten words of text on a page about releasing things.</p><script>x()</script></body></html>\n'

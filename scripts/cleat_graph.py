@@ -96,6 +96,9 @@ class Graph:
         # every file a node's text comes from, an instruction file's imports
         # among them: what a deep probe's ring 1 leaves out
         self.held = set()
+        # what one session's hook payloads say it loaded, from attach_returns,
+        # or None
+        self.returns = None
 
     def node(self, id, **attrs):
         if id not in self.nodes:
@@ -1001,7 +1004,102 @@ def as_json(root, g, nodes, edges, filters):
                   for s, t, k in edges],
         "orphans": [o for o in g.orphans if matches(o, filters)],
         "sites": list(remote_sites(nodes, nodes).values()),
+        **({"returns": dict(g.returns, returned=[id for id in g.returns["returned"] if id in nodes])}
+           if g.returns is not None else {}),
     }
+
+
+# ---- returns ---------------------------------------------------------------
+
+def read_returns(path):
+    """One session's hook payloads: a JSON object a line, as a hook receives
+    them on stdin, each optionally carrying the `ts` it arrived at."""
+    try:
+        text = pathlib.Path(path).read_text(encoding="utf-8")
+    except OSError as exc:
+        raise RuntimeError("--returns {}: {}".format(path, exc.strerror or exc))
+    records = []
+    for number, line in enumerate(text.splitlines(), 1):
+        if not line.strip():
+            continue
+        try:
+            record = json.loads(line)
+        except ValueError:
+            raise RuntimeError("--returns {} line {} does not parse".format(path, number))
+        if not isinstance(record, dict):
+            raise RuntimeError("--returns {} line {} is not an object".format(path, number))
+        records.append(record)
+    return records
+
+
+def attach_returns(g, records, source):
+    """Mark each node the session loaded with how and how often, and keep each
+    load no node predicts. An instruction file's import folds into the node of
+    the file importing it, as the walk folds its text; a skill returns as its
+    body. A typed /command naming no skill is a built-in, not a load."""
+    by_path = {}
+    for id, n in g.nodes.items():
+        if n.get("path"):
+            by_path.setdefault(str(n["path"]), id)
+    skills = {}
+    for s, t, k in g.edges:
+        if k == "invoke" and s.startswith("entry:"):
+            skills.setdefault(s.split(":", 3)[3], t)
+    folded = {}  # an import's path -> the node its text folds into
+    loads = []  # (node id or None, what loaded, how, record)
+    session, startup = None, False
+    for r in records:
+        session = session or r.get("session_id")
+        event = r.get("hook_event_name")
+        if event == "InstructionsLoaded":
+            path = str(r.get("file_path") or "")
+            reason = r.get("load_reason") or "?"
+            startup = startup or reason == "session_start"
+            id = by_path.get(path)
+            if id is None and reason == "include":
+                parent = str(r.get("parent_file_path") or "")
+                id = by_path.get(parent) or folded.get(parent)
+                if id is not None:
+                    folded[path] = id
+            loads.append((id, path, reason, r))
+        elif event == "PostToolUse" and r.get("tool_name") == "Skill":
+            name = str((r.get("tool_input") or {}).get("skill") or "").lstrip("/")
+            loads.append((skills.get(name), "/" + name, "Skill tool", r))
+        elif event == "UserPromptSubmit":
+            words = str(r.get("prompt") or "").strip().split()
+            if words and words[0].startswith("/") and len(words[0]) > 1:
+                name = words[0][1:]
+                id = skills.get(name)
+                if id is None:
+                    tail = [q for q in skills if q.split(":")[-1] == name]
+                    id = skills[tail[0]] if len(tail) == 1 else None
+                if id is not None:
+                    loads.append((id, "/" + name, "typed", r))
+    returned, unexpected = {}, {}
+    for id, what, how, r in loads:
+        at = r.get("ts")
+        if id is not None:
+            mark = returned.setdefault(id, {"times": 0, "how": [], "first": at, "last": at})
+        else:
+            mark = unexpected.setdefault(what, {"load": what, "times": 0, "how": [], "first": at, "last": at})
+        mark["times"] += 1
+        mark["last"] = at
+        if how not in mark["how"]:
+            mark["how"].append(how)
+    for id, mark in returned.items():
+        g.nodes[id]["returned"] = mark
+    g.returns = {"source": str(source), "session": session, "loads": len(loads),
+                 "startupObserved": startup, "returned": sorted(returned),
+                 "unexpected": list(unexpected.values())}
+
+
+def returned_note(node):
+    """A node's return, for a line beside when it loads; empty if it didn't."""
+    mark = node.get("returned")
+    if not mark:
+        return ""
+    return "returned{} ({})".format(" ×{}".format(mark["times"]) if mark["times"] > 1 else "",
+                                    ", ".join(mark["how"]))
 
 
 # ---- insights --------------------------------------------------------------
@@ -1022,6 +1120,25 @@ def insights(g, nodes):
     roots = [n for n in nodes.values() if n["root"]]
     entries = [n for n in roots if n["kind"] == "entry"]
 
+    if g.returns is not None:
+        back = [id for id in g.returns["returned"] if id in nodes]
+        missed = g.returns["unexpected"]
+        text = "{} {} returned in session {} ({} {} in all)".format(
+            len(back), "node" if len(back) == 1 else "nodes",
+            (g.returns["session"] or "?")[:8], g.returns["loads"],
+            "load" if g.returns["loads"] == 1 else "loads")
+        if missed:
+            text += "; {} no node predicts: {}".format(
+                len(missed), ", ".join(m["load"] for m in missed[:3]) + (", …" if len(missed) > 3 else ""))
+        if not g.returns["startupObserved"]:
+            text += "; no startup load was observed, so the hook registered too late to see them"
+        if back:
+            out.append(_insight(
+                "Returned this session: {}{}".format(len(back), ", {} unexpected".format(len(missed)) if missed else ""),
+                text + ".",
+                "the --returns hook payloads matched to nodes by path, an import to the file "
+                "importing it, a skill to its body",
+                back, "Returned in session {}".format((g.returns["session"] or "?")[:8])))
 
     launch = [n for n in nodes.values() if n["tier"] == LAUNCH and n["size"]]
     launch_total = sum(n["size"] for n in launch)
@@ -3184,6 +3301,11 @@ class Browser:
             return self.orphans[row[1]]["path"]
         return None
 
+    def when(self, n):
+        """When a node loads, and, with --returns, how the session loaded it."""
+        note = returned_note(n)
+        return n.get("when", "") + (" \u00b7 " + note if note else "")
+
     def details(self):
         """(when the selected node loads, the line that opens it) for the strip
         under the panes. The reference comes from the row above it in the tree."""
@@ -3210,10 +3332,10 @@ class Browser:
                 kind = self.kinds.get((path[-2], path[-1]), "")
                 ref = self.g.refs.get((path[-2], path[-1], kind))
                 if ref:
-                    return n.get("when", ""), "{}:{}  {}".format(
+                    return self.when(n), "{}:{}  {}".format(
                         ref["file"], ref["line"] or "?", ref["text"])
-                return n.get("when", ""), "{} {}".format(kind, self.nodes[path[-2]]["label"])
-            return n.get("when", ""), "a root: the harness opens it"
+                return self.when(n), "{} {}".format(kind, self.nodes[path[-2]]["label"])
+            return self.when(n), "a root: the harness opens it"
         row = self.selected()
         if row is None:
             return "", ""
@@ -3224,9 +3346,9 @@ class Browser:
                     "{}:{}  {}".format(self.nodes[first["source"]]["label"], first["line"] or "?",
                                        first["text"]))
         if row[0] == "root" and self.probe is not None and self.term:
-            return self.nodes[row[1]].get("when", ""), self.reached(row[1])
+            return self.when(self.nodes[row[1]]), self.reached(row[1])
         if row[0] == "root":
-            return self.nodes[row[1]].get("when", ""), "a root: the harness opens it"
+            return self.when(self.nodes[row[1]]), "a root: the harness opens it"
         if row[0] == "insight":
             return self.insights[row[1]]["text"], "how: " + self.insights[row[1]]["query"]
         if row[0] == "improvement":
@@ -3643,6 +3765,8 @@ def run(h, args):
     filters = {field: set(getattr(args, field) or ()) for field, _ in FILTER_FIELDS}
     try:
         g = build(h, directory, settings_flag(args.settings))
+        if getattr(args, "returns", None) is not None:
+            attach_returns(g, read_returns(args.returns), args.returns)
         cache_path = remote_cache_path()
         cache = read_remote_cache(cache_path)
     except RuntimeError as exc:
