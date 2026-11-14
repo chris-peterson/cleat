@@ -109,6 +109,54 @@ Ubiquitous (`The <system> shall …`), State-Driven (`While …`), Event-Driven
 - **Launch budget** — the launch cost past which cleat advises tiering.
 - **Tiering guide** — the file carrying the tiers guidance can load in and the
   order to move it between them. Like the rubric, a file named by path.
+- **Context graph** — every file and listing entry a session started in a
+  directory can load, across the repo, user scope, and enabled plugins, with an
+  edge for each reference that opens one node from another. `cleat cost`
+  measures its launch nodes; the graph carries the rest of the tree.
+- **Load tier** — when a node reaches the agent: *launch*, *on invoke*, *on path
+  match*, *on read* (a guide or reference another node points to), *on run* (a
+  script's output), or *on event* (a hook's output).
+- **Root** — a node the harness opens itself rather than another node pointing
+  to it: a launch file, a listing entry, a path-scoped rule, or a hook
+  registration.
+- **Reach cost** — what a session has paid before a node opens: the sizes along
+  the cheapest path to it from a root, the node itself excluded.
+- **Next cost** — what opening a node one level adds: the sizes of the direct
+  children it pulls in, each once. A skill it invokes counts at its own root,
+  as in the closure cost.
+- **Closure cost** — a node's size plus the size of every node it pulls in,
+  each counted once: what it reads and runs, and a listing entry's own body. A
+  skill that a body invokes counts at its own root, so a popular skill's cost
+  isn't charged to everything that names it. The closure is the branch a split,
+  filter, or decomposition would remove.
+- **Unmeasured** — a node whose size depends on running something, such as a
+  script's output or a hook's.
+- **Depth cost** — a node's reach cost plus its own size: what a session holds
+  once the node is open. The deepest path is the largest depth cost.
+- **Hop count** — the references followed from a root to a node, along the path
+  its reach cost measures.
+- **Depth curve** — `C(b)`, the summed size of every node whose depth cost is at
+  most `b`: what a session can reach within a budget of `b`. It climbs from zero
+  to the every-file total at the deepest path, and a sharp rise in it is one
+  large file opened in a single step.
+- **Ideal** — the budget a node's tier should stay within, each with its
+  source: a listing entry of about 100 tokens, a skill body under 5,000 tokens
+  and 500 lines, references one level below the body, and a table of contents
+  atop any reference over 100 lines, from Anthropic's
+  [Agent Skills overview](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview)
+  and [best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices);
+  and a launch cost within the launch budget, from cleat.
+- **Excess** — how far a node's size passes its ideal, paid every session for
+  an entry or launch, and on each invocation for a body.
+- **Metrics history** — the snapshots `cleat metrics` has taken, kept on the
+  machine that took them, since the graph's numbers come mostly from user scope
+  and plugins that a CI checkout doesn't have.
+- **Ring** — how far past what a session loads a deep probe looks, numbered
+  outward: ring 0 is the files the probe lights, ring 1 the repo's other files
+  and its commits, ring 2 the transcripts of sessions run in the directory, and
+  ring 3 the transcripts of every project.
+- **Deep hit** — a match in ring 1 or beyond: something that mentions the term
+  but that no file a session loads leads to.
 
 ## Requirements
 
@@ -360,6 +408,513 @@ and each piece as JSON on stdout.
 When the launch cost exceeds the budget, the check shall report `launch-cost` as
 an advisory on the largest launch piece, naming the tiering guide by path.
 
+### `GRAPH`
+The context graph
+
+#### `GRAPH-01`
+The system shall provide `cleat graph [DIR]`, building the context graph for a
+session started in `DIR` and defaulting to the current directory.
+
+#### `GRAPH-02`
+The walk shall cover three scopes: the repo, as its `COST-02` launch pieces,
+project skills, commands, and topic rules; user scope under `$HOME/.claude`, as
+its `CLAUDE.md`, rules, skills (those in `skills/` and those the claude.ai
+account syncs under `skills/synced/*/`, a skill in `skills/` shadowing a synced
+one of the same name), commands, and agents (`agents/<name>.md` or
+`agents/<name>/<name>.md`); and each plugin enabled in the user, project, or
+local settings, read from its install path in `installed_plugins.json`. Only an
+`enabledPlugins` value of `true` enables a plugin: Claude Code keeps one whose
+value is a version list off.
+
+#### `GRAPH-03`
+Each node shall carry its scope, its marketplace and plugin where it has them,
+its load tier, and its size in UTF-8 bytes, measured as `COST-04` and `COST-05`
+measure it.
+
+#### `GRAPH-04`
+The graph shall hold an edge for each reference a file states that resolves to
+a node in the graph: *invoke* from a listing entry to the body it loads, and
+from a body to a skill or command it names as `/name` or `plugin:name`; *read*
+for a `${CLAUDE_PLUGIN_ROOT}/` path, a relative markdown link, or a relative
+path; and *run* for a path to a script. Each hook a plugin's hooks file or a
+settings file registers shall be a root of load tier *on event*.
+
+#### `GRAPH-05`
+An `@path` import shall fold into the importing node's size rather than form an
+edge, Claude Code loading it with that file.
+
+#### `GRAPH-06`
+Each node shall carry its reach cost, its next cost, and its closure cost,
+visiting each node once per computation, so a reference cycle neither stalls the
+walk nor inflates a total.
+
+#### `GRAPH-07`
+Where a node is unmeasured, the system shall count it as zero bytes, and each
+total that includes one shall state how many unmeasured nodes it includes.
+
+#### `GRAPH-08`
+Where `--marketplace`, `--plugin`, `--scope`, or `--tier` is passed, each
+repeatable, the output shall hold only the matching nodes and the edges between
+them. Costs shall be computed over the whole graph before filtering, so a
+filter changes what is shown, not what a node costs.
+
+#### `GRAPH-09`
+Where neither `--json` nor `--html` is passed, `cleat graph` shall open a
+two-pane terminal browser in the manner of
+[`dive`](https://github.com/wagoodman/dive), with no prompt before it. The left
+pane rolls the roots up by artifact type (instructions, rules, skills and
+commands and agents, plugins with a group per plugin, and hooks), each group
+collapsed and giving its launch cost and the union of its members' closures;
+a key switches the rollup to a group per scope or plugin, then by distance,
+then to the external dependencies: each web address's host the shown files
+name, most-named first, giving what following its addresses costs, with the
+files that name it in the right pane and a footer counting the hosts,
+addresses, lines, and files; another key opens that rollup directly. The right pane shows
+the tree reachable from a selected root, or the heaviest files a selected group
+pulls in. Each row gives a bar and one cost, the closure cost or the column
+sorted by; a key shows every column, spent, this (size), +next (next cost),
+and all (closure cost), sortable by each, with the full details strip. Spent is the sizes of the rows above it on the path
+shown, or the reach cost for a row with none above it. A node already above a row on its path is
+shown but not expanded. Enter and space toggle a row open or closed. Every row
+is colored by its closure cost against fixed thresholds, so a hotspot reads the
+same in either pane and on the `GRAPH-10` page. A meter across the top draws
+the launch cost against the common context windows, 200,000 and 1,000,000
+tokens, on a square-root scale out to the largest with a mark where each
+smaller one ends, and, with a probe term, what the nodes it lights add beyond
+launch, saying what runs past a window. With the
+columns shown, a footer gives the launch cost, the total reachable, and the
+unmeasured count under the current filter, and the `GRAPH-08` filters apply
+from within.
+
+#### `GRAPH-10`
+Where `--html` is passed, `cleat graph` shall write one HTML file holding the
+graph inline and naming no resource outside itself, so it renders without a
+network, with a search box and the `GRAPH-08` filters as page controls in a
+drawer closed until opened, a
+details panel giving a node's reach cost, size, next cost, closure cost, and
+the path that reaches it, and a day and a night theme switched by a sun and moon icon, following the system's
+preference until the reader picks one. Cost shall be drawn as one ramp from
+slate through purple to pink, a node past its ideal in orange, and a remote
+site in red, so that only what leaves the machine reads as an alarm; the
+terminal browser shall use the nearest of the same colors. Given a `PATH`, it shall write the page there; given
+none, it shall write it to a new temporary file and open that in the default
+browser. In the terminal browser, `w` shall do the same for the nodes it
+shows, with its filter and probe term, and say on its key line what it wrote.
+
+#### `GRAPH-11`
+Where `--json` is passed, `cleat graph` shall emit the nodes, edges, and costs
+as JSON on stdout, the costs in bytes alongside the bytes-per-token ratio the
+other views convert with, and each host the shown nodes name, with its
+references and the nodes holding them.
+
+#### `GRAPH-12`
+If neither `--json` nor `--html` is passed and stdin or stdout is not a
+terminal, then `cleat graph` shall exit 2 naming the two flags.
+
+#### `GRAPH-13`
+If a settings file or `installed_plugins.json` does not parse, or an enabled
+plugin's install path is missing, then `cleat graph` shall exit 2 and name the
+cause on stderr.
+
+#### `GRAPH-14`
+The terminal browser, the page, and the summary `--html` prints shall show each
+cost as an estimated token count, at 2.8 UTF-8 bytes per token, marked as an
+estimate. The ratio is the one Claude Code's `/context` gives instruction files,
+which measure 2.5 to 2.9 bytes per token there.
+
+#### `GRAPH-15`
+The system shall compute insights over the nodes the current filter shows, each
+a finding with its numbers, the query that produced it, and the nodes it
+concerns, and only where the data holds one: the artifact type with the largest
+share of the launch cost; the listing entry with the largest closure; the file
+the most roots pull in, weighted by its size; the largest file; the file with
+the largest reach cost; files byte-identical to another; skill, command, and
+agent bodies naming a typed-only skill outside its own files; and the
+SessionStart hooks, whose output cleat cannot size. The terminal browser shall
+list them first, the page shall show them with a control that narrows the
+canvas to their nodes, and `--json` shall carry them.
+
+#### `GRAPH-16`
+Each node shall say when it loads: at launch; when a file matching its globs is
+read, written, or edited; never, where its globs match no file under `DIR`; only
+when typed; when invoked; on its hook event and matcher; or when a reference to
+it is followed or run. Each edge a file states shall carry where it is stated:
+the file, the line number in that file on disk, and the line's text, cut to a
+window around the reference when long. The terminal browser shall show both for
+the selected row, mark a conditional root with its trigger, and the page shall
+show the condition and every line that opens the node.
+
+#### `GRAPH-17`
+The `--html` page shall open on a radar of the nodes shown: launch at the
+center, each node's distance from it set by its reach cost, its angle by its
+owner (this repo, user scope, or a plugin) and its parent's wedge, its size by
+its own size, and its color by the `GRAPH-09` thresholds, with nodes that grow
+from a conditional root drawn dashed, a node no root reaches and each
+`GRAPH-33` orphan placed past a horizon, and each remote site the shown nodes name on the perimeter, as `GRAPH-29`
+draws it. Its summary shall count the roots a session has at launch (loaded,
+or in the listing) apart from those waiting on a hook, a glob, or a typed name,
+and say that the harness's own prompt, tools, and built-in skills come on top.
+A meter shall draw the common context windows, 200,000 and 1,000,000 tokens,
+on a square-root scale out to the largest with a line where each ends, filled
+first by the launch
+cost, then by each node a session would open next, in order: with a probe
+term, the nodes it lit beyond launch, hop by hop and within a hop by reach
+cost plus size; with none, every reached node by reach cost plus size; it
+shall say what runs past each window. Its thumb, at the launch cost until a term is
+given and at the end of the term's nodes once one is, shall light the nodes
+opened by the time a session has spent that much, dim the rest, and say in
+words what is spent and on what. The details panel shall open on what to
+look at first: with no term, the launch cost, its share by kind (rules, the
+skill listing, instruction files), and the three improvements paid soonest;
+with a term, what the term adds beyond launch and its heaviest nodes, each
+marked where it is past its ideal or was reached through a line that never
+names the term. With no term it shall also give the three most-named remote
+sites. A control on the radar, the perimeter, and its label shall each open
+the external dependencies: every site the radar draws, as the `GRAPH-09` rollup lists them, each giving what
+following its addresses costs and how many lines and files name it, and
+opening its site panel when selected. A selected node's panel shall lead with
+its reach cost, size, and closure cost, and keep the rest of its `GRAPH-10`
+details behind a disclosure.
+Selecting an owner's wedge shall highlight it and give that owner's totals;
+drilling in, by a control or by double-clicking the wedge, shall redraw the
+radar with that owner alone, its roots as the wedges. Escape shall step back
+as `GRAPH-31` says. A control shall walk through what each mark encodes, one at a time,
+using the graph's own numbers.
+
+#### `GRAPH-18`
+Every view shall report the same three totals under the current filter: the
+launch cost; the deepest path, the largest reach cost plus size of any node; and
+every file, the sum of all sizes. `--json` shall carry them overall and per
+owner, the terminal browser's footer and each row of its left pane shall carry
+them with the columns shown, the page's details panel shall name them, and the
+summary `--html` prints shall name them.
+
+#### `GRAPH-19`
+The system shall check the nodes the current filter shows against the ideal:
+`launch`, the launch cost of the repo and of user scope, each against the
+launch budget; `entry`, each listed entry against 100 tokens; `body`, each
+skill, command, and agent body against 5,000 tokens and 500 lines; `nested`, a
+reference file a body reaches by read edges only through another reference;
+and `toc`, a reference file over 100 lines with no table of contents in its
+first 40 lines, a table of contents being a contents heading or three list
+items linking to anchors in the file.
+
+#### `GRAPH-20`
+Each failed check shall be an improvement carrying the check, the node (for
+`launch`, the owner's largest launch piece), its owner, the actual and ideal
+values, the excess, when the excess is paid, the repair, and the ideal's
+source. A `nested` improvement shall be held by the owner of the body that
+reaches it, and name that body. Improvements shall be ranked by when the excess
+is paid, every session first, then each invocation, then each read, and within
+each by excess, then by size.
+
+#### `GRAPH-21`
+The system shall give a scorecard per owner: for each check, the nodes failing
+it out of the nodes it applies to, and the excess paid every session (the
+larger of the `launch` and the `entry` excess, an entry being part of launch)
+and on each invocation, with owners ordered by the excess paid every session, then on
+each invocation.
+
+#### `GRAPH-22`
+The `--html` page shall show the scorecard in its drawer, mark each node
+past its ideal on the radar with a halo, offer a control that narrows the
+radar to those nodes, and list an owner's improvements in its `GRAPH-26`
+plan, with selecting an improvement selecting its node. The terminal browser shall list the improvements in a
+group of its left pane, as it lists insights, giving the selected one's actual
+and ideal values and its repair. `--json` shall carry both.
+
+#### `GRAPH-23`
+The terminal browser and the page shall link each file so it opens from where
+it is shown. The terminal browser shall mark each file's name in both panes as
+an OSC 8 hyperlink to the file, and show the selected file's path in the
+details strip with its folder linked to the folder and its name to the file;
+the page's details panel shall link the folder and the file the same way.
+
+#### `GRAPH-24`
+The terminal browser shall take the mouse: a left click shall pick the pane and
+row under it, a click on the row already picked shall expand or collapse it as
+enter does, a click on the grouping line shall switch the grouping as `g` does,
+and the wheel shall move the cursor in the pane under it. On quitting, it shall
+turn the terminal's mouse reporting off.
+
+#### `GRAPH-25`
+When a node on the radar is double-clicked, the view shall show only what
+that file pulls in, with a control back to every file. The radar shall show a
+key to its marks, saying that a dashed node loads only on a trigger.
+
+#### `GRAPH-26`
+When an owner is selected in the scorecard, or from the radar's owner
+panel, the details panel shall show a plan for that owner: a step per failing
+check, ordered as `GRAPH-20` orders improvements, each naming the change, its
+saving, the ideal and its source, the repair, and each file it applies to; and
+a starter prompt for a coding agent carrying the same steps, where the files
+live, and how to confirm the fixes with `cleat graph`, with a control that
+copies it.
+
+#### `GRAPH-27`
+Each node shall carry the remote references its file states: each `http` or
+`https` URL whose host names a site, with its host, the line number in the
+file on disk, and the line's text. A URL whose host has no dot is an example,
+not a site, and shall not count. `--json` shall carry them.
+
+#### `GRAPH-28`
+The `--html` page shall hold each shown node's text as a session loads it (a
+listing entry's text being the entry itself), gzipped and base64-encoded, so
+a probe runs in the browser with no server and no network. Given a term, the
+probe shall light each root whose text mentions it, then follow each
+reference a lit node states, hop by hop and each node once, to a node the
+reference's line mentions the term in, whose own text mentions it, or that a
+lit listing entry invokes. A term shall be looked for in what a file says
+with its web addresses blanked, so a host's name is not a mention. A term of
+several words is a prompt: a line mentions it where it mentions any of its
+words but the common ones that say nothing about what to load, from one list
+every view reads; a term in double quotes is looked for as typed. A word
+shall match only where a word in the text starts, so a short word is not
+found inside a longer one. Each lit node shall carry which of the prompt's
+words it says: the terminal browser shall order the roots at launch by how
+many and tag each row with the count, the page shall list the three listing
+entries saying the most as the closest matches, and `--json` shall carry
+them. With no
+term, the probe shall light every node a root reaches, at its hop count along
+its cheapest path, and name every remote site the nodes shown state.
+
+#### `GRAPH-29`
+Given a term, the radar shall draw the nodes the `GRAPH-28` probe lit, each
+at its own distance, and the islands, the nodes that mention the term but that
+no lit node leads to, past the horizon, with the roots of each owner holding
+one; an owner holding neither shall have no wedge, as the terminal browser's
+roll-up by distance and `--json` hold no owner the term never touches; a node reached only through a line that
+never names the term shall have a dashed ray, and one opened for its line
+alone shall be hollow. Each remote site a lit node names on a line mentioning
+the term shall sit on the perimeter, one mark per host, with a ray from each file
+that names it. A summary shall give how many loaded files mention the term,
+how many more following them reaches and over how many hops, what reading
+them all costs, how many islands there are, and how many remote
+sites are named on how many lines; with no term, the same for everything
+shown. Selecting a mark shall show in the details panel how the probe reached
+the node and the lines that mention the term, and selecting an island shall
+say why the term does not reach it: where a lit node links a node that links
+the island, that lit node's line, since naming the term there lights both;
+otherwise the node linking the island at the least reach cost, and how many
+others link it. Selecting a site shall show
+each line that names it with its address, since a session reaches a site only
+online, slower, less certain, and only while it is up.
+
+#### `GRAPH-30`
+The terminal browser shall take a probe term with `p`, and `cleat graph` a
+`--probe TERM`, the term optional in both. With a probe, the left pane shall
+roll up by distance: the roots a session has at launch, the roots waiting on
+a trigger, a group per further hop, then the islands, then
+the remote sites, each file's row marked with how many of its
+lines mention the term or that it is an island; the right pane
+shall show what a selected file opens, or the files that name a selected site;
+the details strip shall say how the probe reached the selection, or for an
+island what `GRAPH-29` says of it, and the first line that mentions the term; each group shall give what reading its files
+costs, so the hops add up to what the meter adds; and, with the columns shown,
+the footer shall carry the `GRAPH-29` summary. `g` shall cycle the rollup through type, owner, and distance. Where
+`--json` is passed with `--probe`, the output shall carry the probe: its term,
+hops, summary, each lit node with its hop, the node it was reached from, its
+matching lines, and whether the line names the term, the islands, each with
+what `GRAPH-29` finds and the sentence saying so, and the sites.
+
+#### `GRAPH-31`
+Both views shall step back along one trail. On the page, each step into the
+view (a probe term, a selected node, site, or owner, an owner's plan, a
+drill-in, a narrowing to what a node pulls in, an insight's or the
+scorecard's Show) shall be an entry in the browser's history, refining a term
+in place replacing its entry; Escape, the mouse's back button, the browser's
+back, and a Back control shall each return to the previous entry, and at the
+trail's start Escape shall clear the filters, then close the drawer. A home
+control at the page's top left, and the repo's name beside it, shall each return to the trail's start, clear the
+filters and the search, and close the drawer, in one step. In the
+terminal browser, Escape, backspace, and the mouse's back button shall leave
+the right pane, else return to the view before the latest probe, filter, or
+regroup, else move the cursor to the group above it.
+
+#### `GRAPH-32`
+Following a web address shall count toward the context a probe spends, after
+every file it lights: each distinct address a lit line names once, at an
+estimate of what WebFetch hands back (2,000 tokens), capped by the page's
+measured text where that is smaller, and marked as an estimate wherever it is
+shown. Where `--measure-remote` is passed, `cleat graph` shall fetch each
+address the shown nodes name that has no measurement under 30 days old,
+record the size of its text (markup, scripts, and styles removed) or why it
+could not be fetched, keep both in a cache under `$XDG_CACHE_HOME/cleat/`
+(`~/.cache/cleat/` by default), and say on stderr how many it measured, how
+many failed and why, and where the cache is. Without the flag, it shall read
+the cache and touch no network. A selected site shall give its estimated
+cost, the measured size of its pages as what reading them raw costs, and the
+addresses that could not be fetched. If the cache does not parse, then
+`cleat graph` shall exit 2 naming it.
+
+#### `GRAPH-33`
+`cleat graph` shall find the orphans: the markdown files in a folder the
+guidance uses that no reference reaches. A folder the guidance uses is a
+skill's or an agent's own folder, or one other than its scope's base holding a
+file that a skill, agent, command, rule, or instruction file of the same owner
+links to. A file named for people (a README, changelog, license, contributing
+guide, security policy, or code of conduct), one whose name starts with `_`,
+one a script the graph runs or a hook runs names, and one in a folder a hook's
+script names, shall not be an orphan, since it reaches no agent or reaches one
+through that script. Each orphan shall carry its fix, as a line and a
+sentence: where a file in the skill's folder names the orphan's subfolder but
+not the orphan, that line; otherwise the reached file of the same owner whose
+path holds the orphan's name, else its line naming every word of the
+orphan's file name, else its line naming the most words of that name and the
+orphan's first heading, at least two where there are two; and with none, the
+file linking the most of the orphan's folder to link it from, or to delete it.
+Orphans shall count in no total. `--json` shall carry them, filtered as the
+nodes are; the terminal browser shall list them in an Orphans group under vs
+ideal, the right pane showing the file to name one in and the strip its fix;
+and the page shall draw them past the horizon in their owner's wedge as hollow
+quatrefoils, the mark military symbology (APP-6, MIL-STD-2525) gives an
+unknown contact, when no term is asked, list the heaviest with what loads at start, list
+them all by owner on request, and give each a card with its fix.
+
+#### `GRAPH-34`
+Where `--settings JSON|PATH` is passed, `cleat graph` and `cleat metrics` shall
+read it as `claude --settings` takes it, a JSON object inline or the path of a
+file holding one, and lay it over the settings files at the highest
+precedence: its enabled plugins decide over theirs, its hooks register under
+user scope, and its additional directories widen the `DEEP` rings. A session a
+launcher such as rig starts enables its plugins this way, which the settings
+files never show. If the value does not parse or the file cannot be read, then
+the command shall exit 2 and name the cause on stderr.
+
+#### `GRAPH-35`
+Where `--returns LOG` is passed, naming one session's hook payloads as a hook
+receives them, a JSON object a line, `cleat graph` shall mark each node the
+session loaded with how many times, how (each `InstructionsLoaded` load reason,
+a `Skill` tool call, or a typed `/name`), and when it first and last loaded,
+and keep each load no node predicts as unexpected. An instruction file's import
+shall count toward the node of the file importing it, as the walk folds its
+text; a skill shall return as its body, a typed bare name finding the one
+plugin skill it names; a typed `/name` naming no skill is a built-in command,
+not a load. The terminal browser's details strip and the page's node card
+shall say how a selected node returned, `--json` shall carry each node's
+return and a `returns` block (the session, the load count, the nodes returned,
+the unexpected loads, and whether a startup load was observed), and an insight
+in all three shall count the returns, name the unexpected, say where no
+startup load was seen, and Show the nodes returned. If the log cannot be read
+or a line does not parse as a JSON object, then the command shall exit 2 and
+name the cause on stderr.
+
+### `DEEP`
+Deep probe
+
+#### `DEEP-01`
+Where `--deep [N]` is passed with `--probe`, `cleat graph` shall look for the
+term in the rings past the `GRAPH-28` probe, nearest first, through ring N
+(1 by default): ring 1, the repo's tracked text files that no node holds, and
+its commit messages; ring 2, the agentsview transcripts of the sessions run in
+the directory the graph is built for or in a directory its settings list under
+`permissions.additionalDirectories`; ring 3, the transcripts of every project.
+
+#### `DEEP-02`
+Ring 1 shall match as `GRAPH-28` does (a prompt's words but the common ones,
+where a word starts; a quoted term as typed) and rank its hits by how many of
+the prompt's words each says. Each file hit shall carry its matching lines;
+each commit hit its short sha, date, and subject.
+
+#### `DEEP-03`
+Rings 2 and 3 shall search through the JSON the `agentsview` CLI prints, never
+its database: a quoted term as typed across messages, tool inputs, and tool
+results, and a prompt by meaning and words together. Each hit shall carry its
+session id, project, date, and the matching text. cleat shall never pass
+agentsview the flag that reveals secrets.
+
+#### `DEEP-04`
+Rings 2 and 3 shall find the claude.ai artifacts published from the sessions
+they search: each recorded Artifact publish whose title, description, or file
+path mentions the term, carrying the artifact's address, its title, and the
+session and date that published it.
+
+#### `DEEP-05`
+Selecting a deep hit shall show its context: a file's lines around each match,
+a commit's message and the files it changed, a transcript's messages around the
+match, and an artifact's title, description, and address. Each web address,
+repo path, session id, and commit sha the context names shall be a next hop,
+and following one shall show its context in turn, each step an entry in the
+`GRAPH-31` trail. A hop already followed shall be shown from what was found,
+not looked up again.
+
+#### `DEEP-06`
+Each deep hit shall carry where to name it so the next session finds it in
+ring 0: the lit file saying the most of the prompt's words, with its first
+line that mentions the term; with no lit file, the repo's own instruction file
+loaded at launch. A file hit is named there by its path; a commit, transcript,
+or artifact hit by the fact or address it holds.
+
+#### `DEEP-07`
+The terminal browser shall widen the probe one ring with `P`, each ring a group
+after the sites giving its hits and what reading them costs, apart from the
+probe's meter. Where `--json` is passed with `--deep`, the output shall carry
+each ring searched with its hits, each with its context, next hops, and fix.
+
+#### `DEEP-08`
+`cleat graph --serve [PORT]` shall write the page, serve it on 127.0.0.1
+alone, print its address, and answer the page's deep searches and drill-ins,
+so the page widens and drills as the terminal browser does. It shall answer
+only requests carrying the random token in the address it prints, so no other
+page in the browser can read the transcripts. Opened without the server, the
+page shall show ring 0 and say the deep rings need `cleat graph --serve`.
+
+#### `DEEP-09`
+If `agentsview` is not on the PATH, exits non-zero, or cannot open its
+archive, then a search of ring 2 or 3 shall stop and give agentsview's own
+message: `cleat graph` shall exit 2 naming it on stderr, and the terminal
+browser and the page shall show it in that ring's place, keeping the rings
+already searched.
+
+#### `DEEP-10`
+If `--deep` is passed without a probe term, or for a directory outside a git
+repo, then `cleat graph` shall exit 2 naming which, since a ring is searched
+for a term and ring 1 is the repo's tracked files.
+
+### `METRICS`
+Context metrics
+
+#### `METRICS-01`
+The system shall provide `cleat metrics [DIR]`, building the context graph for
+a session started in `DIR` and defaulting to the current directory, appending
+one snapshot to the metrics history, and printing that snapshot on stdout.
+
+#### `METRICS-02`
+The metrics history shall be a YAML list with one entry per snapshot, kept at
+`$XDG_STATE_HOME/cleat/metrics.yml`, else `~/.local/state/cleat/metrics.yml`.
+Where `--history PATH` is passed, the snapshot shall be appended to `PATH`
+instead.
+
+#### `METRICS-03`
+Each snapshot shall carry the time it was taken, the resolved directory, the
+`HEAD` commit where `DIR` is in a git repo, the bytes-per-token ratio, and the
+`GRAPH-18` totals, with sizes in bytes.
+
+#### `METRICS-04`
+Each snapshot shall carry, per load tier, the node count, summed size, and
+unmeasured count.
+
+#### `METRICS-05`
+Each snapshot shall carry, per hop count, the node count, summed size, and
+unmeasured count, with a node no root reaches counted under `unreached`.
+
+#### `METRICS-06`
+Each snapshot shall carry the depth curve, sampled at a budget of 1,000 tokens
+doubling to the first budget at or past the deepest path; b50 and b90, the
+smallest depth costs at which the curve reaches half and 90% of the every-file
+total; and the largest step, the largest single node with its path and size.
+
+#### `METRICS-07`
+Each snapshot shall carry, per owner, the `GRAPH-18` totals and a digest over
+its nodes' paths and contents, and for a plugin the version and commit its
+`installed_plugins.json` record gives, so a change between snapshots traces to
+the owner that changed.
+
+#### `METRICS-08`
+If the graph cannot be built for a `GRAPH-13` cause, or the metrics history
+cannot be written, then `cleat metrics` shall exit 2, name the cause on
+stderr, and append nothing.
+
 ### `DESIGN`
 Design tenets
 
@@ -368,6 +923,11 @@ cleat shall keep its own share of session context as small as the job allows:
 a hook wherever one can reach the moment, a guide named by path for anything
 long, and a listing entry only for help a user asks for in conversation, which
 no hook can see.
+
+#### `DESIGN-02`
+Every view of one command's data shall offer the same features: what the
+terminal browser shows, the `--html` page and `--json` shall show too, and a
+change adding a feature to one view shall add it to the others.
 
 ### `HOOK`
 Hook dispatch

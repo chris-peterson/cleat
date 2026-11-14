@@ -135,5 +135,12 @@ it can gate CI. It counts the repo's files only. `/context` shows a live
 session's whole context, user scope and plugins included, and `/skill-doctor`
 lists each skill's listing cost next to how often it gets used.
 
+`cleat graph --json` measures below the root: every skill body, guide, and
+script a session can open across the repo, user scope, and enabled plugins,
+with each node's closure cost (what it pulls in) and reach cost (what's paid
+before it opens). Sort its roots by closure cost to find the branches worth
+pushing down or splitting; its `invoke` edges are the callers to check before
+hiding a skill.
+
 Report a pass as two measured numbers, before and after. A cut you didn't
 measure is a guess.

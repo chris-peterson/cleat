@@ -27,9 +27,12 @@ tiers, the order to move things in, and the traps are in
    listing cost next to how often it's used, across every installed source;
    the unused ones are the cheapest to cut.
 
-3. **Map what calls what.** Search every skill, command, agent, and hook body
-   for the names of the others: Skill-tool calls, `/name` references, script
-   paths. Anything another file invokes may be path-scoped but must not get
+3. **Map what calls what.** Run
+   `"${CLAUDE_PLUGIN_ROOT}/scripts/cleat" graph <directory> --json`: its
+   `invoke` edges are the skills and commands each body names, and its roots'
+   `closure` costs rank what each one pulls in below the root. Search the
+   bodies for Skill-tool calls by bare name too, which the graph doesn't read.
+   Anything another file invokes may be path-scoped but must not get
    `disable-model-invocation: true`.
 
 4. **Ask before editing**, in one `AskUserQuestion` carrying the measured

@@ -1,0 +1,2341 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Context Graph</title>
+<style>
+/* One instrument for one repo's context. The radar is the page's one loud
+   thing: launch at its center, every file as far out as the context it takes
+   to reach, colored by what it pulls in. One question drives it, what a prompt
+   about a term opens, and one meter answers it, the context that spends. The
+   details panel says what to look at first; filters and findings wait in a
+   drawer, and every file's particulars behind "More". Esc and the mouse's back
+   button step back along one trail. The page names no resource outside
+   itself, so it renders without a network, which is the point it makes. */
+/* Day is Alucard, night is Dracula. Cost runs slate to purple to pink, so a
+   heavy file reads as heavy, not as broken; orange marks a file past its
+   ideal; red is kept for the one thing that leaves the machine. */
+:root {
+  --bg: #f1f1ee; --surface: #fbfbf9; --ink: #282a36; --ink-2: #4d5066; --ink-3: #7b7e93; --rule: #dcdde6;
+  --accent: #644ac9;
+  --heat-0: #a7a9bf; --heat-1: #8f86d4; --heat-2: #7a66d2; --heat-3: #644ac9; --heat-4: #8f3d96; --heat-5: #a3144d;
+  --far: #cb3a2a; --warn: #a34d14; --range: #036a96;
+  --sky: #f6f6fb; --sky-glow: #e6e8f5; --sky-ink: #282a36; --sky-dim: #6c7086; --sky-ring: #d6d8e6; --sky-ray: #c2c6da;
+  --sky-fade: rgb(246 246 251 / 0.88); --sky-panel: rgb(251 251 253 / 0.94);
+  --star-0: var(--heat-0); --star-1: var(--heat-1); --star-2: var(--heat-2); --star-3: var(--heat-3); --star-4: var(--heat-4); --star-5: var(--heat-5);
+  --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --font-data: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #21222c; --surface: #282a36; --ink: #f8f8f2; --ink-2: #c9cbd8; --ink-3: #8e93b1; --rule: #44475a;
+    --accent: #bd93f9;
+    --heat-0: #6272a4; --heat-1: #7b86c9; --heat-2: #9a8ee6; --heat-3: #bd93f9; --heat-4: #de86e0; --heat-5: #ff79c6;
+    --far: #ff5555; --warn: #ffb86c; --range: #8be9fd;
+    --sky: #1e1f29; --sky-glow: #2b2d3d; --sky-ink: #f8f8f2; --sky-dim: #8e93b1; --sky-ring: #3a3d50; --sky-ray: #4f537a;
+    --sky-fade: rgb(30 31 41 / 0.88); --sky-panel: rgb(40 42 54 / 0.94);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #21222c; --surface: #282a36; --ink: #f8f8f2; --ink-2: #c9cbd8; --ink-3: #8e93b1; --rule: #44475a;
+  --accent: #bd93f9;
+  --heat-0: #6272a4; --heat-1: #7b86c9; --heat-2: #9a8ee6; --heat-3: #bd93f9; --heat-4: #de86e0; --heat-5: #ff79c6;
+  --far: #ff5555; --warn: #ffb86c; --range: #8be9fd;
+  --sky: #1e1f29; --sky-glow: #2b2d3d; --sky-ink: #f8f8f2; --sky-dim: #8e93b1; --sky-ring: #3a3d50; --sky-ray: #4f537a;
+  --sky-fade: rgb(30 31 41 / 0.88); --sky-panel: rgb(40 42 54 / 0.94);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg); color: var(--ink); font: 14px/1.5 var(--font-ui);
+  display: grid; grid-template-rows: auto 1fr;
+  padding-left: max(20px, env(safe-area-inset-left, 0px));
+  padding-right: max(20px, env(safe-area-inset-right, 0px));
+  padding-block: 18px;
+  gap: 18px;
+}
+.count, .heat-labels { font-variant-numeric: tabular-nums; }
+
+/* Header: the repo's name, which like the house icon returns home; everything
+   else waits in the drawer. */
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; }
+.masthead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; min-width: 0; }
+h1 { font-size: 24px; line-height: 1.1; font-weight: 700; letter-spacing: -0.025em; margin: 0; }
+h1 button { font: inherit; letter-spacing: inherit; color: inherit; border: 0; border-radius: 6px; padding: 0; background: none; }
+h1 button:hover { color: var(--accent); }
+.header-tools { display: flex; gap: 8px; margin-left: auto; }
+#more[aria-expanded=true] { border-color: var(--accent); color: var(--accent); }
+/* Day and night: the button shows the one it switches to. */
+button.icon { width: 32px; height: 32px; padding: 0; display: inline-grid; place-items: center; }
+button.icon svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+/* Home: a house around the radar's launch point, where a reset returns. */
+header { column-gap: 12px; }
+#home .launch { fill: var(--accent); stroke: none; }
+/* Home stays beside the title on a phone; the tools wrap below them instead. */
+#home + .masthead { flex: 1 1 16em; }
+#theme .sun, #theme[data-night=false] .sun, #theme[data-night=true] .moon { display: none; }
+#theme[data-night=true] .sun { display: block; }
+
+main { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 18px; min-height: 0; }
+main.drawer-open { grid-template-columns: 272px minmax(0, 1fr) 320px; }
+aside, #details { min-width: 0; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; gap: 22px; padding-right: 4px; }
+.drawer-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.drawer-head strong { font-size: 15px; }
+section h2 { font-size: 13px; font-weight: 600; color: var(--ink); margin: 0 0 8px; letter-spacing: -0.005em; }
+
+input[type=search], select {
+  width: 100%; font: 13px var(--font-ui); color: var(--ink); background: var(--surface);
+  border: 1px solid var(--rule); border-radius: 8px; padding: 8px 10px;
+}
+select[multiple] { min-height: 84px; padding: 4px; }
+input:focus-visible, select:focus-visible, button:focus-visible, .root:focus-visible, .refs li:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+button {
+  font: 500 13px var(--font-ui); color: var(--ink); background: transparent;
+  border: 1px solid var(--rule); border-radius: 999px; padding: 4px 12px; cursor: pointer;
+}
+button:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Insights read as a short list of findings, each with its proof underneath. */
+#insights { display: grid; }
+.insight { display: grid; gap: 3px; padding-block: 10px; border-top: 1px solid var(--rule); }
+.insight:first-child { border-top: 0; padding-top: 0; }
+.insight strong { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+.insight p { margin: 0; font-size: 13px; color: var(--ink-2); }
+.insight .row2 { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; justify-content: space-between; }
+.insight code { font: 12px var(--font-ui); color: var(--ink-3); overflow-wrap: anywhere; }
+.insight button { padding: 2px 10px; font-size: 12px; }
+
+.roots { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; max-height: 38vh; overflow: auto; }
+.root {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 5px 8px;
+  border-radius: 6px; cursor: pointer; font-size: 13px;
+}
+.root:hover, .root[aria-current=true] { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.root span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.root span:last-child { color: var(--ink-2); }
+
+.heat { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 3px; }
+.heat span { height: 8px; border-radius: 999px; }
+.heat-labels { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 3px; font-size: 11px; color: var(--ink-3); margin-top: 4px; }
+.legend-note { font-size: 12px; color: var(--ink-3); margin: 8px 0 0; }
+.tiers { display: grid; gap: 2px; }
+.tiers label { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 2px 0; font-size: 13px; }
+.tiers input { accent-color: var(--accent); }
+.count { margin-left: auto; font-size: 12px; color: var(--ink-3); }
+
+/* The stage holds the radar: the page's one dark, deep surface. */
+.canvas { display: grid; grid-template-rows: auto 1fr; gap: 10px; min-width: 0; min-height: 0; }
+.viewbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; min-height: 30px; }
+.crumb { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 13px; color: var(--ink-2); min-height: 30px; }
+.crumb strong { color: var(--ink); font-weight: 600; overflow-wrap: anywhere; }
+.crumb kbd { font: 11px var(--font-ui); color: var(--ink-3); border: 1px solid var(--rule); border-radius: 4px; padding: 0 4px; }
+.stage { position: relative; min-height: 440px; }
+#radar {
+  position: absolute; inset: 0; border-radius: 14px; overflow: hidden;
+  display: grid; grid-template-rows: auto minmax(0, 1fr) auto;
+  background: radial-gradient(circle at 50% 52%, var(--sky-glow) 0%, var(--sky) 62%);
+  color: var(--sky-ink);
+}
+.probe {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 14px 52px 8px 16px;
+  background: linear-gradient(to bottom, var(--sky-fade), transparent);
+}
+.probe label { font-weight: 600; font-size: 15px; color: var(--sky-ink); }
+.probe input { flex: 0 1 260px; font-size: 15px; background: var(--sky-panel); border-color: var(--sky-ray); color: var(--sky-ink); }
+.probe input::placeholder { color: var(--sky-dim); }
+.probe output { flex: 1 1 240px; min-width: 0; font-size: 13px; color: var(--sky-dim); }
+.probe output strong { color: var(--sky-ink); font-weight: 600; }
+.probe output .far { color: var(--far); }
+#sky { width: 100%; height: 100%; display: block; }
+#sky .ring { fill: none; stroke: var(--sky-ring); }
+#sky .ring-label, #sky .edge-label { font: 10px var(--font-ui); fill: var(--sky-dim); letter-spacing: 0.02em; }
+#sky .horizon { fill: none; stroke: var(--sky-ray); stroke-dasharray: 3 5; }
+#sky .perimeter { fill: none; stroke: var(--far); stroke-opacity: 0.4; stroke-dasharray: 2 6; }
+#sky .edge-label.far { fill: var(--far); fill-opacity: 0.8; }
+#sky .core { fill: var(--sky-ink); opacity: 0.08; }
+#sky .core-label { font: 600 11px var(--font-ui); fill: var(--sky-dim); }
+#sky .owner { font: 600 12px var(--font-ui); fill: var(--sky-dim); cursor: pointer; }
+#sky .owner.chosen { fill: var(--sky-ink); }
+#sky .ray { stroke: var(--sky-ray); stroke-width: 0.7; }
+#sky .ray.blind { stroke-dasharray: 2 3; }
+#sky .ray.on { stroke: var(--sky-ink); stroke-width: 1.6; }
+#sky .ray.far { stroke: var(--far); stroke-opacity: 0.35; stroke-dasharray: 2 3; }
+#sky .ray.far.on { stroke-opacity: 1; stroke-width: 1.4; }
+#sky .mark { stroke: var(--sky); stroke-width: 0.6; cursor: pointer; transition: opacity 160ms ease-out; }
+#sky .mark.hot { filter: url(#glow); }
+#sky .mark.gated { stroke: var(--sky-dim); stroke-dasharray: 2 2; stroke-width: 1.2; }
+#sky .mark.unsized { fill: none !important; stroke: var(--sky-dim); stroke-dasharray: 2 2; }
+#sky .mark.lead { fill: none !important; stroke-width: 1.4; stroke-dasharray: none; }
+#sky .mark.island { fill: none !important; stroke-dasharray: 2 2; stroke-width: 1; }
+#sky .mark.orphan { fill: none !important; stroke: var(--sky-dim); stroke-width: 1.2; }
+#sky .mark.quiet { opacity: 0.25; }
+#sky .mark.remote { fill: var(--far); }
+#sky .mark.dark, #sky .ray.dark, #sky .name.dark { opacity: 0.13; }
+#sky .mark.picked { stroke: var(--sky-ink); stroke-width: 2.4; stroke-dasharray: none; }
+#sky .mark.picked.dark, #sky .ray.on.dark { opacity: 1; }
+#sky .halo { fill: none; stroke: var(--warn); stroke-opacity: 0.85; stroke-width: 1.2; pointer-events: none; }
+#sky .halo.dark, #sky .halo.muted { opacity: 0.07; }
+#sky .mark.muted, #sky .ray.muted, #sky .name.muted { opacity: 0.1; }
+#sky .name { font: 500 11px var(--font-ui); fill: var(--sky-ink); paint-order: stroke; stroke: var(--sky); stroke-width: 3px; pointer-events: none; }
+#sky .name.remote { fill: var(--far); }
+#sky .name.island, #sky .name.orphan { fill: var(--sky-dim); }
+#sky .wedge { fill: transparent; cursor: pointer; }
+#sky .wedge:hover { fill: color-mix(in srgb, var(--sky-ink) 4%, transparent); }
+#sky .wedge.chosen { fill: color-mix(in srgb, var(--sky-ink) 8%, transparent); }
+#sky .pulse { fill: none; stroke: var(--range); stroke-width: 1.5; pointer-events: none; }
+#sky .ret { animation: ret 420ms ease-out both; }
+@keyframes ret { from { opacity: 0; } }
+/* The meter: the context window, filled by what loads at start and then by
+   what a prompt opens, hop by hop. Its thumb is how much a session has spent,
+   and the radar lights what that much opens. */
+.meter {
+  display: grid; gap: 6px; padding: 10px 16px 14px;
+  font-size: 13px; color: var(--sky-dim);
+  background: linear-gradient(to top, var(--sky-fade), transparent);
+}
+.meter-read { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; }
+.meter-read .spent { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; color: var(--sky-ink); font-variant-numeric: tabular-nums; }
+.meter-read .parts { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.meter-read .part { display: inline-flex; align-items: center; gap: 6px; }
+.meter-read .part i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; background-size: 11px 11px; }
+.meter-read .over { color: var(--warn); }
+.meter-track { position: relative; height: 22px; border-radius: 6px; background: color-mix(in srgb, var(--sky-ray) 35%, transparent); }
+.meter-track .seg { position: absolute; top: 0; bottom: 0; border-radius: 6px; overflow: hidden; padding: 0 8px; font: 600 11px/22px var(--font-ui); color: var(--sky); white-space: nowrap; }
+.meter-track .seg + .seg { border-left: 1px solid var(--sky); }
+.meter-track .unspent { position: absolute; top: 0; bottom: 0; right: 0; background: color-mix(in srgb, var(--sky) 62%, transparent); border-radius: 0 6px 6px 0; pointer-events: none; }
+.meter-track input {
+  position: absolute; inset: -6px 0; width: 100%; height: calc(100% + 12px); margin: 0;
+  appearance: none; -webkit-appearance: none; background: transparent; cursor: ew-resize;
+}
+.meter-track input::-webkit-slider-runnable-track { height: 100%; background: transparent; }
+.meter-track input::-moz-range-track { height: 100%; background: transparent; }
+.meter-track input::-webkit-slider-thumb { -webkit-appearance: none; width: 6px; height: 34px; border-radius: 3px; background: var(--sky-ink); border: 2px solid var(--sky); }
+.meter-track input::-moz-range-thumb { width: 4px; height: 30px; border-radius: 3px; background: var(--sky-ink); border: 2px solid var(--sky); }
+.meter-track input:focus-visible { outline: 2px solid var(--range); outline-offset: 4px; border-radius: 6px; }
+.meter-scale { position: relative; height: 14px; font-size: 11px; color: var(--sky-dim); font-variant-numeric: tabular-nums; }
+.meter-scale span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+.meter-scale span:first-child { transform: none; }
+.meter-scale span:last-child { transform: translateX(-100%); }
+.meter-scale .limit-label { color: var(--sky-ink); font-weight: 600; }
+.meter-track .limit { position: absolute; top: -5px; bottom: -5px; width: 2px; margin-left: -1px; background: var(--sky-ink); opacity: 0.55; pointer-events: none; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.owner-files { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
+.owner-files li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; font-size: 13px; cursor: pointer; }
+.owner-files li:hover span:first-child { color: var(--accent); }
+.owner-files span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.owner-files span:last-child { color: var(--ink-2); }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.tip {
+  position: absolute; pointer-events: none; max-width: 300px;
+  background: var(--sky-panel); border: 1px solid var(--sky-ray); border-radius: 10px;
+  padding: 8px 10px; font-size: 12px; color: var(--sky-dim); backdrop-filter: blur(6px);
+}
+.tip strong { display: block; color: var(--sky-ink); font-weight: 600; font-size: 13px; overflow-wrap: anywhere; margin-bottom: 2px; }
+
+/* The walkthrough: one part of the radar at a time, with the rest dimmed. */
+.help {
+  position: absolute; top: 12px; right: 12px; width: 30px; height: 30px; padding: 0;
+  font-weight: 700; color: var(--sky-ink); border-color: var(--sky-ray); background: var(--sky-panel);
+}
+.help:hover { color: var(--range); border-color: var(--range); }
+/* The external dependencies, one click from the radar, beside the walkthrough. */
+.sites-open {
+  position: absolute; top: 52px; right: 12px; height: 30px; padding: 0 12px;
+  color: var(--far); border-color: var(--sky-ray); background: var(--sky-panel);
+}
+.sites-open:hover { color: var(--far); border-color: var(--far); }
+#sky .perimeter-hit { fill: none; stroke: transparent; stroke-width: 12; pointer-events: stroke; cursor: pointer; }
+#sky .edge-label.opens { cursor: pointer; pointer-events: auto; }
+#sky .edge-label.opens:hover { fill-opacity: 1; text-decoration: underline; }
+.key {
+  position: absolute; right: 12px; top: 92px; max-width: min(320px, calc(100% - 100px));
+  background: var(--sky-panel); border: 1px solid var(--sky-ray); border-radius: 10px;
+  padding: 6px 10px; font-size: 12px; color: var(--sky-dim);
+}
+.key summary { cursor: pointer; color: var(--sky-ink); list-style: none; }
+.key summary::-webkit-details-marker { display: none; }
+.key summary::after { content: " ▾"; color: var(--sky-dim); }
+.key[open] summary::after { content: " ▴"; }
+.key ul { list-style: none; margin: 6px 0 2px; padding: 0; display: grid; gap: 4px; }
+.key li { display: grid; grid-template-columns: 18px 1fr; gap: 6px; align-items: center; }
+.key svg { width: 16px; height: 16px; overflow: visible; }
+.key .mark-file { fill: var(--star-3); stroke: var(--sky); }
+.key .mark-gated { fill: var(--star-2); stroke: var(--sky-ink); stroke-dasharray: 2.5 2; stroke-width: 1.5; }
+.key .mark-ring { fill: none; stroke: var(--sky-ring); }
+.key .mark-lead { fill: none; stroke: var(--star-3); stroke-width: 1.5; }
+.key .mark-island { fill: none; stroke: var(--sky-dim); stroke-dasharray: 2 2; stroke-width: 1.5; }
+.key .mark-orphan { fill: none; stroke: var(--sky-dim); stroke-width: 1.5; }
+.key .mark-remote { fill: var(--far); }
+.key .mark-blind { stroke: var(--sky-ray); stroke-width: 1.5; stroke-dasharray: 2 2; }
+.key .mark-range { fill: none; stroke: var(--range); stroke-width: 1.5; }
+.key .mark-halo { fill: var(--star-2); stroke: var(--warn); stroke-width: 1.5; }
+.tour {
+  position: absolute; top: 56px; left: 12px; width: min(360px, calc(100% - 24px));
+  background: var(--sky-panel); border: 1px solid var(--sky-ray); border-radius: 12px;
+  padding: 14px 16px; color: var(--sky-dim); backdrop-filter: blur(8px);
+}
+.tour h3 { margin: 2px 0 6px; font-size: 17px; font-weight: 700; letter-spacing: -0.015em; color: var(--sky-ink); }
+.tour p { margin: 0; font-size: 13px; line-height: 1.55; }
+.tour .tour-count { font-size: 12px; color: var(--sky-dim); }
+.tour-nav { display: flex; gap: 8px; margin-top: 12px; }
+.tour-nav button { color: var(--sky-ink); border-color: var(--sky-ray); }
+.tour-nav button:hover { color: var(--range); border-color: var(--range); }
+.tour-nav .quiet { margin-left: auto; border-color: transparent; color: var(--sky-dim); }
+#sky.touring .ring, #sky.touring .ring-label, #sky.touring .owner, #sky.touring .mark,
+#sky.touring .ray, #sky.touring .name, #sky.touring .core, #sky.touring .core-label, #sky.touring .halo,
+#sky.touring .horizon, #sky.touring .perimeter, #sky.touring .edge-label {
+  opacity: 0.1; transition: opacity 350ms ease-out;
+}
+#sky.touring .ring, #sky.touring .mark, #sky.touring .ray, #sky.touring .name, #sky.touring .halo { opacity: 0.05; }
+#sky.touring .tour-on { opacity: 1 !important; }
+#sky.touring .mark.tour-on { stroke: var(--sky-ink); stroke-width: 1.5; stroke-dasharray: none; }
+#sky.touring .core.tour-on { opacity: 0.35 !important; }
+#sky .tour-name { font: 500 11px var(--font-ui); fill: var(--sky-ink); paint-order: stroke; stroke: var(--sky); stroke-width: 3px; pointer-events: none; }
+#sky .tour-name tspan { fill: var(--range); }
+#sky .tour-pulse { animation: pulse 1.4s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes pulse { 50% { transform: scale(1.7); } }
+.meter.tour-on, .probe.tour-on { box-shadow: inset 0 0 0 1px var(--range); }
+mark { background: color-mix(in srgb, var(--range) 35%, transparent); color: inherit; border-radius: 2px; }
+.lines li { cursor: default; }
+.lines li:hover { border-left-color: var(--rule); }
+.lines .more { border-left: 0; padding-left: 0; font-size: 12px; color: var(--ink-3); }
+
+/* vs ideal lives in the left column as a scorecard, on the sky as halos, and
+   in the details panel as an owner's plan. */
+#ideal-card .legend-note { margin: 0 0 8px; }
+#ideal-card .legend-note button { padding: 1px 9px; font-size: 12px; margin-left: 4px; }
+.ideal-legend { margin-top: 8px; font-size: 12px; color: var(--ink-3); }
+.ideal-legend summary { cursor: pointer; }
+.ideal-legend dl { margin-top: 6px; }
+.checks-legend { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; margin: 0; font-size: 12px; }
+.checks-legend dt { font: 12px var(--font-data); color: var(--ink); }
+.checks-legend dd { margin: 0; color: var(--ink-2); }
+.checks-legend .src { color: var(--ink-3); grid-column: 2; }
+.checks-legend a { color: var(--accent); }
+.table-wrap { overflow-x: auto; }
+.scorecard { border-collapse: collapse; width: 100%; font-size: 12px; }
+.scorecard th, .scorecard td { padding: 4px 3px; border-bottom: 1px solid var(--rule); text-align: right; white-space: nowrap; }
+.scorecard th:first-child, .scorecard td:first-child { padding-left: 0; }
+.scorecard th:last-child, .scorecard td:last-child { padding-right: 0; }
+.scorecard td:first-child { max-width: 92px; overflow: hidden; text-overflow: ellipsis; }
+.scorecard th { font-size: 12px; font-weight: 600; color: var(--ink-3); }
+.scorecard th:first-child, .scorecard td:first-child { text-align: left; }
+.scorecard tbody tr { cursor: pointer; }
+.scorecard tbody tr:hover, .scorecard tbody tr[aria-current=true] { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.scorecard .ok { color: var(--ink-3); }
+.scorecard .bad { color: var(--warn); font-weight: 600; }
+.scorecard .na { color: var(--ink-3); opacity: 0.5; }
+.plan { display: grid; gap: 14px; }
+.plan h3 { font-size: 17px; font-weight: 700; letter-spacing: -0.015em; margin: 0; }
+.plan-head { display: flex; align-items: start; justify-content: space-between; gap: 8px; }
+.plan-lead { margin: 0; color: var(--ink-2); font-size: 14px; line-height: 1.55; }
+.plan-steps { margin: 0; padding-left: 1.4em; display: grid; gap: 16px; }
+.plan-steps > li::marker { font-weight: 700; color: var(--accent); }
+.plan-steps h4 { margin: 0 0 3px; font-size: 14px; font-weight: 600; }
+.plan-steps > li > p { margin: 0 0 6px; font-size: 13px; color: var(--ink-2); line-height: 1.5; }
+.plan-steps a { color: var(--accent); }
+.plan-files { list-style: none; margin: 0; padding: 0; display: grid; }
+.plan-files li {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 12px;
+  padding: 5px 6px; border-top: 1px solid var(--rule); font-size: 13px; cursor: pointer;
+}
+.plan-files li:hover, .plan-files li:focus-visible { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.plan-files .f { font: 12px var(--font-data); overflow-wrap: anywhere; }
+.plan-files .x { color: var(--warn); font-weight: 600; white-space: nowrap; }
+.plan-files .r { grid-column: 1 / -1; font-size: 12px; color: var(--ink-3); overflow-wrap: anywhere; }
+.starter { display: grid; gap: 6px; padding: 14px; border-radius: 12px; background: var(--sky); color: var(--sky-dim); }
+.starter-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.starter h4 { margin: 0; font-size: 14px; color: var(--sky-ink); }
+.starter p { margin: 0; font-size: 12px; }
+.starter button { color: var(--sky-ink); border-color: var(--sky-ray); background: transparent; }
+.starter button:hover { color: var(--range); border-color: var(--range); }
+.starter pre {
+  margin: 0; max-height: 360px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere;
+  font: 12px/1.55 var(--font-data); color: var(--sky-ink);
+}
+.vs { display: grid; gap: 4px; padding-left: 10px; border-left: 2px solid var(--warn); font-size: 13px; }
+.vs.probe-vs { border-left-color: var(--range); }
+.vs p { margin: 0; }
+.vs .r { color: var(--ink-2); font-size: 12px; }
+
+/* The details panel opens on what to look at first: what loads at start, or
+   what a prompt spends, and the few files that matter most for it. */
+.headline { display: grid; gap: 4px; }
+.headline h2 { margin: 0; }
+.headline .big { font-size: 30px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.headline p { margin: 0; font-size: 13px; color: var(--ink-2); }
+.mix { display: flex; height: 10px; border-radius: 999px; overflow: hidden; gap: 2px; margin-top: 6px; }
+.mix span { min-width: 3px; }
+.mix-key { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 2px; font-size: 12px; color: var(--ink-2); }
+.mix-key li { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+.mix-key i { width: 10px; height: 10px; border-radius: 3px; }
+.mix-key span:last-child { color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.picks { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.picks li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; padding: 7px 8px; margin: 0 -8px; border-radius: 8px; cursor: pointer; }
+.picks li:hover, .picks li:focus-visible { background: color-mix(in srgb, var(--accent) 9%, transparent); }
+.picks .n { font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.picks .v { font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.picks .why { grid-column: 1 / -1; font-size: 12px; color: var(--ink-3); }
+.picks .why .warn { color: var(--warn); }
+.picks .n.far { color: var(--far); }
+.quiet-note { margin: 0; font-size: 12px; color: var(--ink-3); }
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; }
+.stats div { display: grid; }
+.stats dd { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; order: 0; }
+.stats dt { font-size: 12px; color: var(--ink-3); order: 1; }
+.more-info { border-top: 1px solid var(--rule); padding-top: 10px; }
+.more-info > summary { cursor: pointer; font-size: 13px; color: var(--ink-2); }
+.more-info[open] > summary { margin-bottom: 14px; }
+.more-info > div { display: flex; flex-direction: column; gap: 18px; }
+
+/* The selected file: what it costs, when it loads, and the lines that open it. */
+#details .empty { color: var(--ink-3); }
+.title { font-size: 17px; font-weight: 700; letter-spacing: -0.015em; overflow-wrap: anywhere; margin: 0; line-height: 1.25; }
+.note { font-size: 13px; color: var(--ink-3); margin: 2px 0 0; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0; }
+.kv dt { color: var(--ink-3); font-size: 13px; }
+.kv dd { margin: 0; font-size: 13px; overflow-wrap: anywhere; }
+.kv dd.path-value { font: 12px var(--font-data); }
+.kv dd.path-value a { color: var(--ink-3); text-decoration: none; }
+.kv dd.path-value a:last-child { color: var(--accent); }
+.kv dd.path-value a:hover { text-decoration: underline; }
+.path { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; font: 12px var(--font-data); }
+.path li { overflow-wrap: anywhere; }
+.path .via { color: var(--ink-3); }
+.edges { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
+.edges li { display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; gap: 8px; font-size: 13px; cursor: pointer; }
+.edges li:hover .n { color: var(--accent); }
+.edges .k { color: var(--ink-3); }
+.edges .n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.edges .v { color: var(--ink-2); }
+.refs { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.refs li { display: grid; gap: 3px; cursor: pointer; padding-left: 10px; border-left: 2px solid var(--rule); }
+.refs li:hover { border-left-color: var(--accent); }
+.refs .at { font-size: 12px; color: var(--ink-3); overflow-wrap: anywhere; }
+.refs .at a { color: var(--accent); }
+.refs code { font: 12px/1.5 var(--font-data); color: var(--ink-2); overflow-wrap: anywhere; }
+.context { list-style: none; margin: 0; padding: 0; font: 12px/1.5 var(--font-data); color: var(--ink-3); }
+.context li { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 8px; }
+.context .no { text-align: right; }
+.context li.match { color: var(--ink); }
+.context code { font: inherit; white-space: pre-wrap; overflow-wrap: anywhere; }
+.hops { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 13px; }
+.hops li { cursor: pointer; overflow-wrap: anywhere; color: var(--range); }
+.hops li:hover, .hops li:focus-visible { text-decoration: underline; }
+.hops a { color: var(--far); }
+
+@media (max-width: 1100px) {
+  main, main.drawer-open { grid-template-columns: minmax(0, 1fr); }
+  #details { grid-column: 1 / -1; }
+}
+@media (max-width: 760px) {
+  body { height: auto; }
+  .stage { min-height: 70vh; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<header>
+  <button id="home" class="icon" aria-label="Reset the view" title="Reset the view">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.2 12 3.6l9 7.6M5.6 9.4V20.4h12.8V9.4"/><circle class="launch" cx="12" cy="14.8" r="2.9"/></svg>
+  </button>
+  <div class="masthead">
+    <h1><button id="repo" title="Reset the view">Context graph</button></h1>
+  </div>
+  <div class="header-tools">
+    <button id="more" aria-expanded="false" aria-controls="drawer">Filters and findings</button>
+    <button id="theme" class="icon">
+      <svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/></svg>
+      <svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
+    </button>
+  </div>
+</header>
+<main id="main">
+  <aside id="drawer" hidden>
+    <div class="drawer-head"><strong>Filters and findings</strong><button id="drawer-close">Close</button></div>
+    <section>
+      <h2><label for="search">Find</label></h2>
+      <input type="search" id="search" placeholder="skill, guide, or file name">
+    </section>
+    <section id="insights-card">
+      <h2>Insights</h2>
+      <div id="insights"></div>
+    </section>
+    <section id="ideal-card">
+      <h2>vs ideal</h2>
+      <p class="legend-note" id="ideal-lead"></p>
+      <div class="table-wrap"><table class="scorecard" id="scorecard"></table></div>
+      <details class="ideal-legend"><summary>The ideal, per tier</summary><dl class="checks-legend" id="checks-legend"></dl></details>
+    </section>
+    <section>
+      <h2>Costliest roots</h2>
+      <ul class="roots" id="roots"></ul>
+    </section>
+    <section>
+      <h2>Everything below a node, ~tokens</h2>
+      <div class="heat" id="heat"></div>
+      <div class="heat-labels" id="heat-labels"></div>
+      <p class="legend-note">Estimated at ~2.8 bytes per token. Node size is the file itself. A hollow node runs a script or hook, so its cost is unknown.</p>
+    </section>
+    <section>
+      <h2>Load tier</h2>
+      <div class="tiers" id="tiers"></div>
+    </section>
+    <section>
+      <h2><label for="scope">Scope</label></h2>
+      <select id="scope" multiple></select>
+    </section>
+    <section>
+      <h2><label for="marketplace">Marketplace</label></h2>
+      <select id="marketplace" multiple></select>
+    </section>
+    <section>
+      <h2><label for="plugin">Plugin</label></h2>
+      <select id="plugin" multiple></select>
+    </section>
+  </aside>
+  <div class="canvas">
+    <div class="viewbar">
+      <div class="crumb" id="crumb"></div>
+    </div>
+    <div class="stage">
+      <div id="radar">
+        <div class="probe" id="probe-bar">
+          <label for="probe">Ask about</label>
+          <input type="search" id="probe" placeholder="a prompt, or a term" autocomplete="off" spellcheck="false">
+          <output id="probe-out" for="probe"></output>
+        </div>
+        <svg id="sky" role="img" aria-label="What a session can load, by how much context it takes to reach, and what a term lights"></svg>
+        <div class="meter" id="meter">
+          <div class="meter-read" id="meter-read" aria-live="polite"></div>
+          <div class="meter-track" id="meter-track">
+            <input type="range" id="budget" min="0" step="1" aria-label="Context spent">
+          </div>
+          <div class="meter-scale" id="meter-scale" aria-hidden="true"></div>
+        </div>
+        <div class="tip" id="tip" hidden></div>
+        <details class="key" id="key">
+          <summary>Legend</summary>
+          <ul>
+            <li><svg viewBox="0 0 16 16" aria-hidden="true"><circle class="mark-file" cx="8" cy="8" r="6"/></svg><span>A file: size is its cost, color what it pulls in</span></li>
+            <li><svg viewBox="0 0 16 16" aria-hidden="true"><circle class="mark-ring" cx="8" cy="8" r="7"/></svg><span>Distance: context spent to reach it</span></li>
+            <li><svg viewBox="0 0 16 16" aria-hidden="true"><circle class="mark-gated" cx="8" cy="8" r="6"/></svg><span>Dashed: loads only on a trigger (a typed command, a file its globs match, a hook)</span></li>
+            <li><svg viewBox="0 0 16 16" aria-hidden="true"><circle class="mark-halo" cx="8" cy="8" r="4"/><circle class="mark-range" cx="8" cy="8" r="7.5"/></svg><span>Haloed: past the ideal for its tier; the scorecard says by how much</span></li>
+            <li><svg viewBox="0 0 16 16" aria-hidden="true"><circle class="mark-lead" cx="8" cy="8" r="6"/></svg><span>Hollow, probing: opened because the line pointing at it names the term</span></li>
+            <li><svg viewBox="0 0 16 16" aria-hidden="true"><line class="mark-blind" x1="1" y1="8" x2="15" y2="8"/></svg><span>Dashed ray, probing: the line pointing at it never names the term</span></li>
+            <li><svg viewBox="0 0 16 16" aria-hidden="true"><circle class="mark-island" cx="8" cy="8" r="6"/></svg><span>An island, past the horizon: probing, it mentions the term, but no lit link leads there</span></li>
+            <li><svg viewBox="0 0 16 16" aria-hidden="true"><path class="mark-orphan" d="M 5.72 5.72 A 2.74 2.74 0 1 1 10.28 5.72 A 2.74 2.74 0 1 1 10.28 10.28 A 2.74 2.74 0 1 1 5.72 10.28 A 2.74 2.74 0 1 1 5.72 5.72 Z"/></svg><span>An orphan, past the horizon, marked as an unknown contact: beside the guidance, and nothing links to it</span></li>
+            <li><svg viewBox="0 0 16 16" aria-hidden="true"><path class="mark-remote" d="M8 1 L15 8 L8 15 L1 8 Z"/></svg><span>On the perimeter: a remote site, reached only online</span></li>
+          </ul>
+        </details>
+        <button class="sites-open" id="sites-open" title="Every web address the files name, by host" hidden>Web addresses</button>
+        <button class="help" id="help" aria-label="How to read this view" title="How to read this view">?</button>
+        <div class="tour" id="tour" role="dialog" aria-labelledby="tour-title" aria-live="polite" hidden>
+          <p class="tour-count" id="tour-count"></p>
+          <h3 id="tour-title"></h3>
+          <p id="tour-text"></p>
+          <div class="tour-nav">
+            <button id="tour-back">Back</button>
+            <button id="tour-next">Next</button>
+            <button id="tour-close" class="quiet">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="details"></div>
+</main>
+<script>
+const DATA = /*GRAPH*/null;
+const TEXT_B64 = /*TEXT*/null;
+const STOPWORDS = new Set(/*STOPWORDS*/null);
+// What `cleat graph --serve` hands the page: its token and the rings it can
+// search. Opened as a file, the page has no server, and this is null.
+const SERVE = /*SERVE*/null;
+
+const TIERS = [
+  { id: "launch", label: "Launch" },
+  { id: "on invoke", label: "On invoke" },
+  { id: "on read", label: "On read" },
+  { id: "on path match", label: "On path match" },
+  { id: "on run", label: "On run (unmeasured)" },
+  { id: "on event", label: "On event (unmeasured)" },
+];
+// The terminal browser's thresholds, so a hotspot reads the same in both.
+const HEAT_TOKENS = [1000, 4000, 10000, 30000, 70000];
+const heatLevel = bytes => HEAT_TOKENS.filter(limit => (bytes || 0) / DATA.bytesPerToken >= limit).length;
+const TIER = Object.fromEntries(TIERS.map(t => [t.id, t]));
+const nodes = new Map(DATA.nodes.map(n => [n.id, n]));
+// The files beside the guidance that nothing links to: never in a session's
+// context, so in no total, but drawn past the horizon and opened like a file.
+for (const o of DATA.orphans) nodes.set(o.id, o);
+const out = new Map(), inc = new Map();
+for (const e of DATA.edges) {
+  (out.get(e.source) || out.set(e.source, []).get(e.source)).push(e);
+  (inc.get(e.target) || inc.set(e.target, []).get(e.target)).push(e);
+}
+const $ = id => document.getElementById(id);
+
+// Day or night: the system's preference until the reader picks one, which this
+// browser then remembers. Every color is a token, so a switch needs no redraw.
+const THEME_KEY = "cleat-theme";
+function applyTheme(choice) {
+  if (choice) document.documentElement.dataset.theme = choice;
+  else delete document.documentElement.dataset.theme;
+  const night = choice ? choice === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  $("theme").dataset.night = night;
+  const label = night ? "Switch to day" : "Switch to night";
+  $("theme").setAttribute("aria-label", label);
+  $("theme").title = label;
+}
+let themeChoice = null;
+try { themeChoice = localStorage.getItem(THEME_KEY); } catch (err) { themeChoice = null; }
+applyTheme(themeChoice);
+$("theme").addEventListener("click", () => {
+  const next = $("theme").dataset.night === "true" ? "light" : "dark";
+  try { localStorage.setItem(THEME_KEY, next); } catch (err) { /* a private window forgets; the page still switches */ }
+  applyTheme(next);
+});
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => applyTheme(themeChoice));
+
+// A byte count as an estimated token count: 640, 4.4k, 1.2M.
+function tok(bytes) {
+  if (bytes === null || bytes === undefined) return "—";
+  const n = bytes / DATA.bytesPerToken;
+  if (n < 1000) return n.toFixed(0);
+  if (n < 1e6) return (n / 1000).toFixed(1) + "k";
+  return (n / 1e6).toFixed(1) + "M";
+}
+const tokensOf = bytes => (bytes || 0) / DATA.bytesPerToken;
+
+$("repo").textContent = DATA.directory.split("/").filter(Boolean).pop() || "Context graph";
+document.title = `${$("repo").textContent} context`;
+
+const tierCounts = {};
+for (const n of DATA.nodes) tierCounts[n.tier] = (tierCounts[n.tier] || 0) + 1;
+$("tiers").innerHTML = TIERS.map(t => `
+  <label><input type="checkbox" id="tier-${t.id.replace(/ /g, "-")}" value="${t.id}" checked>
+  ${t.label}<span class="count">${tierCounts[t.id] || 0}</span></label>`).join("");
+
+$("heat").innerHTML = HEAT_TOKENS.concat([null]).map((_, i) => `<span style="background: var(--heat-${i})"></span>`).join("");
+$("heat-labels").innerHTML = ["0", ...HEAT_TOKENS.map(n => n / 1000 + "k")].map(s => `<span>${s}</span>`).join("");
+
+function fillSelect(id, values) {
+  $(id).innerHTML = values.map(v => `<option value="${v}">${v}</option>`).join("");
+  $(id).size = Math.min(6, Math.max(3, values.length));
+}
+const uniq = key => [...new Set(DATA.nodes.map(n => n[key]).filter(Boolean))].sort();
+fillSelect("scope", uniq("scope"));
+fillSelect("marketplace", uniq("marketplace"));
+fillSelect("plugin", uniq("plugin"));
+
+let focus = null;
+// An insight's Show: a fixed set of nodes and the label the breadcrumb gives it.
+let focusSet = null;
+
+function selected(id) { return [...$(id).selectedOptions].map(o => o.value); }
+function visibleIds() {
+  const tiers = new Set([...document.querySelectorAll("#tiers input:checked")].map(i => i.value));
+  const want = { scope: selected("scope"), marketplace: selected("marketplace"), plugin: selected("plugin") };
+  const q = $("search").value.trim().toLowerCase();
+  const keep = new Set();
+  for (const n of DATA.nodes) {
+    if (!tiers.has(n.tier)) continue;
+    if (Object.entries(want).some(([k, v]) => v.length && !v.includes(n[k]))) continue;
+    if (q && !(n.label + " " + (n.plugin || "")).toLowerCase().includes(q)) continue;
+    keep.add(n.id);
+  }
+  if (focus) {
+    const pulled = pulls(focus);
+    for (const id of [...keep]) if (!pulled.has(id)) keep.delete(id);
+  }
+  if (focusSet) {
+    for (const id of [...keep]) if (!focusSet.ids.has(id)) keep.delete(id);
+  }
+  if (U.drill) {
+    for (const id of [...keep]) if (ownerOf(nodes.get(id)) !== U.drill) keep.delete(id);
+  }
+  return keep;
+}
+
+// The orphans the filters keep: a narrowed view (a file's closure, an
+// insight's files) holds only what links reach, so it keeps none.
+function visibleOrphans() {
+  if (focus || focusSet) return [];
+  const tiers = new Set([...document.querySelectorAll("#tiers input:checked")].map(i => i.value));
+  const want = { scope: selected("scope"), marketplace: selected("marketplace"), plugin: selected("plugin") };
+  const q = $("search").value.trim().toLowerCase();
+  return DATA.orphans.filter(o => tiers.has(o.tier)
+    && !Object.entries(want).some(([k, v]) => v.length && !v.includes(o[k]))
+    && !(q && !(o.label + " " + (o.plugin || "")).toLowerCase().includes(q))
+    && !(U.drill && ownerOf(o) !== U.drill));
+}
+
+// What a node pulls in: its reads and runs, and an entry's body. A body's
+// invoke edges hand off to another root, so they stop the walk, as the CLI's
+// closure cost does.
+function pulls(id) {
+  const seen = new Set([id]), stack = [id];
+  while (stack.length) {
+    const cur = stack.pop();
+    for (const e of out.get(cur) || []) {
+      if (e.kind === "invoke" && nodes.get(cur).kind !== "entry") continue;
+      if (!seen.has(e.target)) { seen.add(e.target); stack.push(e.target); }
+    }
+  }
+  return seen;
+}
+
+function render() {
+  const keep = visibleIds();
+  const shown = DATA.nodes.filter(n => keep.has(n.id));
+  roots(shown);
+  drawRadar(keep);
+  drawPanel();
+}
+
+function roots(shown) {
+  const list = shown.filter(n => n.root).sort((a, b) => b.closure - a.closure).slice(0, 30);
+  $("roots").innerHTML = list.map(n => `<li class="root" tabindex="0" data-id="${encodeURIComponent(n.id)}"
+    ${focus === n.id ? 'aria-current="true"' : ""}><span title="${n.label}">${n.label}</span><span>${tok(n.closure)}</span></li>`).join("");
+}
+
+// ---- the trail ---------------------------------------------------------------
+//
+// Every step into the view (asking about a term, selecting a file, an owner,
+// its plan, drilling in, narrowing to what a file pulls in) is a step on one
+// trail, kept in the browser's history. Esc, the mouse's back button, the
+// browser's back, and the Back button all walk it backward the same way.
+
+// What the details panel shows: the focus summary, a file, a site, an owner's
+// totals, or an owner's plan.
+let PANEL = { kind: "focus" };
+const trail = [];
+let depth = 0;
+
+function snapshot() {
+  return { term: S.term, focus, focusSet: focusSet && { label: focusSet.label, ids: [...focusSet.ids] },
+    drill: U.drill, owner: U.owner, panel: { ...PANEL } };
+}
+// What a step changes that needs the sky redrawn, rather than restyled.
+const skyKey = () => JSON.stringify([S.term, focus, focusSet && focusSet.label, U.drill]);
+
+function go(change, replace) {
+  const before = skyKey();
+  change();
+  if (replace && depth > 0) {
+    trail[depth] = snapshot();
+    history.replaceState({ cleat: depth }, "");
+  } else {
+    trail.length = depth + 1;
+    depth += 1;
+    trail.push(snapshot());
+    history.pushState({ cleat: depth }, "");
+  }
+  if (skyKey() !== before) { U.budget = null; render(); } else drawPanel();
+}
+
+function restore(snap) {
+  const before = skyKey();
+  S.term = snap.term;
+  $("probe").value = snap.term;
+  focus = snap.focus;
+  focusSet = snap.focusSet && { label: snap.focusSet.label, ids: new Set(snap.focusSet.ids) };
+  U.drill = snap.drill;
+  U.owner = snap.owner;
+  PANEL = { ...snap.panel };
+  if (skyKey() !== before) { U.budget = null; render(); } else drawPanel();
+}
+
+addEventListener("popstate", ev => {
+  const i = ev.state && ev.state.cleat;
+  if (typeof i !== "number" || !trail[i]) return;
+  depth = i;
+  restore(trail[i]);
+});
+
+function goBack() {
+  if (depth > 0) history.back();
+}
+
+// The mouse's back and forward buttons walk the trail in every browser, and at
+// its start stay on the page rather than leave it.
+addEventListener("mouseup", ev => {
+  if (ev.button === 3) { ev.preventDefault(); goBack(); }
+  else if (ev.button === 4) { ev.preventDefault(); if (depth < trail.length - 1) history.forward(); }
+});
+
+// Home returns to the view the page opened on: the trail's start, the drawer's
+// filters cleared, the drawer closed, and the meter's thumb back at its rest.
+function goHome() {
+  for (const b of document.querySelectorAll("#tiers input")) b.checked = true;
+  for (const o of document.querySelectorAll("#scope option, #marketplace option, #plugin option")) o.selected = false;
+  $("search").value = "";
+  U.budget = null;
+  $("drawer").hidden = true;
+  $("main").classList.remove("drawer-open");
+  $("more").setAttribute("aria-expanded", false);
+  if (depth > 0) history.go(-depth);
+  render();
+}
+$("home").addEventListener("click", goHome);
+$("repo").addEventListener("click", goHome);
+
+function openFile(id, replace) { go(() => { PANEL = { kind: "file", id }; }, replace); }
+function narrowTo(id) { go(() => { focus = id; focusSet = null; PANEL = { kind: "file", id }; }); }
+
+function crumb() {
+  const where = PANEL.kind === "plan" ? ["What to change in", PANEL.owner]
+    : PANEL.kind === "orphans" ? ["", "Orphans"]
+    : PANEL.kind === "sites" ? ["", "Web addresses"]
+    : U.drill ? ["Inside", U.drill]
+    : focusSet ? ["", focusSet.label]
+    : focus ? ["Pulled in by", nodes.get(focus).label]
+    : S.term ? ["Asking about", `“${S.term}”`]
+    : null;
+  const back = depth > 0 ? `<button id="back" title="Esc, or the mouse's back button">← Back</button>` : "";
+  $("crumb").innerHTML = where
+    ? `${back}${where[0] ? `<span>${escapeHtml(where[0])}</span>` : ""}<strong>${escapeHtml(where[1])}</strong>`
+    : `${back}<span>Everything a session here can load. Select a file or a wedge; <kbd>Esc</kbd> steps back.</span>`;
+  if ($("back")) $("back").onclick = goBack;
+}
+
+$("insights").innerHTML = DATA.insights.length
+  ? DATA.insights.map((x, i) => `<div class="insight"><strong>${escapeHtml(x.title)}</strong><p>${escapeHtml(x.text)}</p>
+      <div class="row2"><code>${escapeHtml(x.query)}</code><button data-insight="${i}">Show</button></div></div>`).join("")
+  : "<p class=\"legend-note\">Nothing stands out under these filters.</p>";
+$("insights").addEventListener("click", ev => {
+  const b = ev.target.closest("[data-insight]");
+  if (!b) return;
+  const f = DATA.insights[Number(b.dataset.insight)].focus;
+  if (f.type === "node") narrowTo(f.id);
+  else go(() => { focus = null; focusSet = { ids: new Set(f.ids), label: f.label }; PANEL = { kind: "file", id: f.ids[0] }; });
+});
+
+function chain(id) {
+  const path = [];
+  for (let cur = id; cur; cur = nodes.get(cur).via) {
+    path.unshift(cur);
+    if (path.length > 40) break;
+  }
+  return path;
+}
+
+// A file at a glance: what it costs three ways, when it loads, and how the
+// prompt reached it; everything else behind More.
+function fileCard(id) {
+  const n = nodes.get(id);
+  if (n.status) { orphanCard(n); return; }
+  const path = chain(id);
+  const t = TIER[n.tier];
+  const edges = (out.get(id) || []).map(e => ({ m: nodes.get(e.target), kind: e.kind })).filter(x => x.m)
+    .sort((a, b) => b.m.closure - a.m.closure);
+  const opened = (inc.get(id) || []).filter(e => e.text);
+  const over = IDEAL.improvements.filter(x => x.id === id);
+  $("details").innerHTML = `
+    <section>
+      <p class="title">${escapeHtml(n.label)}</p>
+      <p class="note">${escapeHtml(ownerOf(n))} · ${escapeHtml(n.when || t.label)}${n.returned ? " · " + escapeHtml(returnedNote(n.returned)) : ""}</p>
+    </section>
+    <dl class="stats">
+      <div><dd>~${tok(n.reach)}</dd><dt>spent to reach it</dt></div>
+      <div><dd>${n.measured ? "~" + tok(n.size) : "?"}</dd><dt>the file itself</dt></div>
+      <div><dd>~${tok(n.closure)}</dd><dt>with all it pulls in</dt></div>
+    </dl>
+    ${probeLead(id)}
+    ${over.map(x => `<div class="vs"><p>${escapeHtml(x.text)}</p><p class="r">Fix: ${escapeHtml(x.repair)}.</p></div>`).join("")}
+    <div class="actions">${edges.length && focus !== id ? '<button id="focus-node">Show what this pulls in</button>' : ""}</div>
+    <details class="more-info"${MORE.open ? " open" : ""}><summary>More about this file</summary><div>
+      <dl class="kv">
+        <dt>Loads</dt><dd>${escapeHtml(n.when || t.label)}</dd>
+        <dt>Opening it adds</dt><dd>${(out.get(id) || []).length ? "~" + tok(n.next) : "nothing"}</dd>
+        ${n.closureUnmeasured ? `<dt>Unmeasured</dt><dd>${n.closureUnmeasured} below it</dd>` : ""}
+        <dt>Pointed to by</dt><dd>${(inc.get(id) || []).length}</dd>
+        ${n.note ? `<dt>Note</dt><dd>${escapeHtml(n.note)}</dd>` : ""}
+        <dt>File</dt><dd class="path-value">${fileLinks(n.path)}</dd>
+      </dl>
+      ${probeLines(id)}
+      ${opened.length ? `<section><h2>Opened by</h2><ul class="refs">${opened.map(e =>
+        `<li data-id="${encodeURIComponent(e.source)}"><span class="at">${e.kind === "run" ? "Runs" : e.kind === "invoke" ? "Invoked" : "Read"} from ${escapeHtml(e.file)}, line ${e.line || "?"}</span><code>${escapeHtml(e.text)}</code></li>`).join("")}</ul></section>` : ""}
+      ${path.length > 1 ? `<section><h2>Cheapest path here</h2><ol class="path">${path.map((p, i) =>
+        `<li class="${i < path.length - 1 ? "via" : ""}">${"  ".repeat(i)}${escapeHtml(nodes.get(p).label)} <span class="via">~${tok(nodes.get(p).size)}</span></li>`).join("")}</ol></section>` : ""}
+      ${edges.length ? `<section><h2>Opens</h2><ul class="edges">${edges.map(({ m, kind }) =>
+        `<li data-id="${encodeURIComponent(m.id)}"><span class="k">${kind}</span><span class="n" title="${escapeHtml(m.label)}">${escapeHtml(m.label)}</span><span class="v">${m.measured ? "~" + tok(m.closure) : "?"}</span></li>`).join("")}</ul></section>` : ""}
+    </div></details>`;
+  if ($("focus-node")) $("focus-node").onclick = () => narrowTo(id);
+}
+// A node's return under --returns, worded as the terminal's details strip words it.
+function returnedNote(mark) {
+  return `returned${mark.times > 1 ? " ×" + mark.times : ""} (${mark.how.join(", ")})`;
+}
+// An orphan at a glance: what it would cost, and where to name it, with the
+// line to name it on.
+function orphanCard(o) {
+  const fix = o.fix;
+  $("details").innerHTML = `
+    <section>
+      <p class="title">${escapeHtml(o.label)}</p>
+      <p class="note">${escapeHtml(ownerOf(o))} · an orphan: ${o.status === "folder" ? "named only as a folder" : "nothing links to it"}</p>
+    </section>
+    <dl class="stats">
+      <div><dd>~${tok(o.size)}</dd><dt>the file itself</dt></div>
+      <div><dd>${o.lines}</dd><dt>lines</dt></div>
+      <div><dd>0</dd><dt>links to it</dt></div>
+    </dl>
+    <div class="vs probe-vs"><p>${escapeHtml(o.advice)}</p>
+      ${fix ? `<p class="r">${escapeHtml(fix.file)}, line ${fix.line || "?"}: <code>${escapeHtml(fix.text)}</code></p>` : ""}</div>
+    <div class="actions">${fix && nodes.has(fix.id) ? `<button id="orphan-home">Open ${escapeHtml(nodes.get(fix.id).label)}</button>` : ""}</div>
+    <details class="more-info"${MORE.open ? " open" : ""}><summary>More about this file</summary><div>
+      <dl class="kv">
+        <dt>Sits beside</dt><dd>${escapeHtml(o.holder)}</dd>
+        ${o.topic && o.topic.length ? `<dt>About</dt><dd>${escapeHtml(o.topic.join(", "))}</dd>` : ""}
+        <dt>File</dt><dd class="path-value">${fileLinks(o.path)}</dd>
+      </dl>
+    </div></details>`;
+  if ($("orphan-home")) $("orphan-home").onclick = () => openFile(fix.id);
+}
+
+// Every orphan the filters keep, by owner, each with where to name it.
+function orphansPanel() {
+  const list = visibleOrphans();
+  const owners = new Map();
+  for (const o of list.slice().sort((a, b) => b.size - a.size)) (owners.get(ownerOf(o)) || owners.set(ownerOf(o), []).get(ownerOf(o))).push(o);
+  $("details").innerHTML = `
+    <section class="headline">
+      <h2>Orphans</h2>
+      <span class="big">${list.length}</span>
+      <p>${list.length === 1 ? "file sits" : "files sit"} beside the guidance with nothing linking to ${list.length === 1 ? "it" : "them"}, ~${tok(list.reduce((t, o) => t + o.size, 0))} no session reads. Name each where it belongs, or delete it.</p>
+    </section>
+    ${[...owners].map(([owner, os]) => `<section><h2>${escapeHtml(owner)}</h2><ul class="picks">${os.map(o =>
+      `<li data-id="${encodeURIComponent(o.id)}" tabindex="0"><span class="n" title="${escapeHtml(o.label)}">${escapeHtml(o.label)}</span><span class="v">~${tok(o.size)}</span><span class="why">${o.fix ? `name it in ${escapeHtml(o.fix.file)}${o.fix.line ? ", line " + o.fix.line : ""}` : "nothing reached talks about it"}</span></li>`).join("")}</ul></section>`).join("")}`;
+}
+
+// Whether More is open carries from one file to the next, so a reader who
+// wants the particulars keeps them.
+const MORE = { open: false };
+$("details").addEventListener("toggle", ev => { if (ev.target.matches("details.more-info")) MORE.open = ev.target.open; }, true);
+
+// The folder and the file as links: the page opens from a file, so a file: URL
+// shows the file, and the folder's listing, in the browser.
+function fileLinks(path) {
+  const cut = path.lastIndexOf("/") + 1;
+  const url = p => "file://" + encodeURI(p).replace(/[?#]/g, encodeURIComponent);
+  return `<a href="${url(path.slice(0, cut))}" title="Open the folder">${escapeHtml(path.slice(0, cut))}</a>`
+    + `<a href="${url(path)}" title="Open the file">${escapeHtml(path.slice(cut))}</a>`;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+
+$("details").addEventListener("click", ev => {
+  const deeper = ev.target.closest("#deeper");
+  if (deeper) { go(() => { PANEL = { kind: "deep", through: Number(deeper.dataset.through) }; }); return; }
+  const hop = ev.target.closest("li[data-hop]");
+  if (hop) {
+    go(() => { PANEL = { kind: "hop", hop: JSON.parse(decodeURIComponent(hop.dataset.hop)),
+      advice: hop.dataset.advice ? decodeURIComponent(hop.dataset.advice) : null }; });
+    return;
+  }
+  const site = ev.target.closest("li[data-host]");
+  if (site) { go(() => { PANEL = { kind: "site", host: decodeURIComponent(site.dataset.host) }; }); return; }
+  const li = ev.target.closest("li[data-id]");
+  if (li) openFile(decodeURIComponent(li.dataset.id));
+});
+$("details").addEventListener("keydown", ev => {
+  if (ev.key === "Enter" && ev.target.matches("li[data-id], li[data-host], li[data-hop]")) ev.target.click();
+});
+$("roots").addEventListener("click", ev => {
+  const li = ev.target.closest("li[data-id]");
+  if (li) narrowTo(decodeURIComponent(li.dataset.id));
+});
+$("roots").addEventListener("keydown", ev => {
+  if (ev.key === "Enter") ev.target.click();
+});
+let pending;
+$("search").addEventListener("input", () => { clearTimeout(pending); pending = setTimeout(render, 200); });
+for (const id of ["scope", "marketplace", "plugin"]) $(id).addEventListener("change", render);
+$("tiers").addEventListener("change", render);
+
+function setDrawer(open) {
+  $("drawer").hidden = !open;
+  $("main").classList.toggle("drawer-open", open);
+  $("more").setAttribute("aria-expanded", open);
+  render();
+}
+$("more").addEventListener("click", () => setDrawer($("drawer").hidden));
+$("drawer-close").addEventListener("click", () => setDrawer(false));
+
+// ---- the probe ---------------------------------------------------------------
+//
+// Each file's text travels with the page, gzipped, so a term is looked up here
+// with no server and no network. A probe lights the roots whose text mentions
+// the term, then follows each reference a lit file states, hop by hop, into
+// files the pointing line or the file itself mentions the term in, the way an
+// agent after more on a topic follows the links in front of it. The CLI's
+// probe() in cleat_graph.py is the same walk.
+
+let TEXTS = null, TEXT_ERROR = null;
+const lowered = new Map();
+(async () => {
+  try {
+    if (typeof DecompressionStream !== "function") throw new Error("this browser has no DecompressionStream");
+    const bytes = Uint8Array.from(atob(TEXT_B64), c => c.charCodeAt(0));
+    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+    TEXTS = JSON.parse(await new Response(stream).text());
+  } catch (err) {
+    TEXT_ERROR = `The probe needs each file's text, which this page could not unpack: ${err.message}.`;
+  }
+  render();
+})();
+
+const S = { term: (DATA.probe && DATA.probe.term) || "", shown: null, examples: null };
+$("probe").value = S.term;
+
+const URL_RE = /\b[a-z][a-z0-9+.-]*:\/\/\S+/gi;
+// What a file says, lowercased, its web addresses blanked at their own length:
+// a term is looked for in the words, not in where they link.
+const plain = text => text.toLowerCase().replace(URL_RE, m => " ".repeat(m.length));
+const textOf = id => {
+  let t = lowered.get(id);
+  if (t === undefined) { t = TEXTS[id] ? plain(TEXTS[id]) : null; lowered.set(id, t); }
+  return t;
+};
+// What a probe looks for, as the CLI's keywords() finds it: a "quoted phrase"
+// as typed, else each word of the prompt that isn't a stopword.
+function keywords(term) {
+  term = (term || "").trim().toLowerCase();
+  if (term.length > 1 && term[0] === '"' && term.endsWith('"')) return term.slice(1, -1).trim() ? [term.slice(1, -1).trim()] : [];
+  const words = term.split(/\s+/).map(w => w.replace(/^[.,;:!?"'()[\]{}<>`]+|[.,;:!?"'()[\]{}<>`]+$/g, ""));
+  const kept = [...new Set(words.filter(w => w.length > 1 && !STOPWORDS.has(w)))];
+  return kept.length ? kept : term ? [term] : [];
+}
+// Where w starts a word in line, from `from` on, or -1: "ci" finds "ci:" and
+// "cicd" but not "decision", as the CLI's says() does.
+function wordAt(line, w, from) {
+  for (let at = line.indexOf(w, from); at >= 0; at = line.indexOf(w, at + 1)) {
+    if (at === 0 || !/[a-z0-9]/.test(line[at - 1])) return at;
+  }
+  return -1;
+}
+const says = (line, words) => words.some(w => wordAt(line, w, 0) >= 0);
+const matched = (text, words) => words.filter(w => wordAt(text, w, 0) >= 0);
+function mentionLines(id, words) {
+  const t = textOf(id);
+  if (!t || !says(t, words)) return null;
+  const raw = TEXTS[id].split("\n"), low = t.split("\n"), lines = [];
+  for (let i = 0; i < low.length; i++) if (says(low[i], words)) lines.push(raw[i].trim());
+  return lines;
+}
+
+function probe(term, keep) {
+  const words = keywords(term), hits = new Map(), mentions = new Map();
+  for (const id of keep) { const lines = mentionLines(id, words); if (lines) mentions.set(id, lines); }
+  let frontier = [];
+  for (const n of DATA.nodes) {
+    if (!keep.has(n.id) || !n.root || !mentions.has(n.id)) continue;
+    hits.set(n.id, { hop: 0, via: null, edge: null, lines: mentions.get(n.id), signposted: true, matched: matched(textOf(n.id), words) });
+    frontier.push(n.id);
+  }
+  let hop = 0;
+  while (frontier.length) {
+    hop += 1;
+    const next = [];
+    for (const id of frontier) {
+      for (const e of out.get(id) || []) {
+        if (!keep.has(e.target) || hits.has(e.target)) continue;
+        // An entry's invoke edge has no line of its own: the listing entry is
+        // the line, and it already mentioned the term.
+        const signposted = !!(e.text && says(plain(e.text), words))
+          || (e.kind === "invoke" && nodes.get(id).kind === "entry");
+        const lines = mentions.get(e.target) || null;
+        if (!signposted && !lines) continue;
+        hits.set(e.target, { hop, via: id, edge: e, lines: lines || [], signposted, matched: lines ? matched(textOf(e.target), words) : [] });
+        next.push(e.target);
+      }
+    }
+    frontier = next;
+  }
+  const islands = [...mentions.keys()].filter(id => !hits.has(id) && !nodes.get(id).root);
+  return { term, words, hits, islands, hops: Math.max(0, hop - 1), mentions, remotes: sites(hits.keys(), term) };
+}
+
+// Why a term doesn't reach an island, as `island_fix` finds it: a lit file
+// linking a file that links the island, whose line never names the term
+// ("name": naming it there lights both), or else the file that links it most
+// cheaply, which the term never opens ("behind").
+function islandFix(P, id, keep) {
+  const into = cur => (inc.get(cur) || []).filter(e => keep.has(e.source));
+  const reachKey = e => nodes.get(e.source).reach;
+  const referrers = into(id).sort((a, b) => (reachKey(a) === null) - (reachKey(b) === null)
+    || (reachKey(a) || 0) - (reachKey(b) || 0) || (a.source < b.source ? -1 : 1));
+  for (const r of referrers) {
+    const lit = into(r.source).filter(e => P.hits.has(e.source)).sort((a, b) => (a.source < b.source ? -1 : 1))[0];
+    if (lit) return { fix: "name", edge: lit, opens: r.source };
+  }
+  if (!referrers.length) return null;
+  return { fix: "behind", edge: referrers[0], others: new Set(referrers.map(e => e.source)).size - 1 };
+}
+
+function islandAdvice(fix, term) {
+  if (!fix) return "Nothing links here.";
+  const from = escapeHtml(nodes.get(fix.edge.source).label);
+  if (fix.fix === "name") return `${from} is lit, but its line opening ${escapeHtml(nodes.get(fix.opens).label)} never says ${quoted(keywords(term))}. Say it there, and both light.`;
+  return `${from}${fix.others ? ` and ${fix.others} more link` : " links"} here, and asking about ${quote(term)} never opens ${fix.others ? "them" : "it"}.`;
+}
+
+// One mark per site: the site is the unit of latency and availability, and a
+// host like github.com would otherwise fill the perimeter.
+function sites(ids, term) {
+  const words = keywords(term), remotes = new Map();
+  for (const id of ids) {
+    for (const r of nodes.get(id).remotes || []) {
+      if (words.length && !says(plain(r.text), words)) continue;
+      const site = remotes.get(r.host) || remotes.set(r.host, { host: r.host, refs: [], sources: [] }).get(r.host);
+      site.refs.push({ ...r, from: id });
+      if (!site.sources.includes(id)) site.sources.push(id);
+    }
+  }
+  return new Map([...remotes].sort((a, b) => b[1].refs.length - a[1].refs.length));
+}
+
+const quote = term => `“${escapeHtml(term)}”`;
+// The keywords as a sentence names them: “deploy” or “candidate”.
+function quoted(words) {
+  const q = words.map(quote);
+  return q.length === 1 ? q[0] : q.slice(0, -1).join(", ") + " or " + q[q.length - 1];
+}
+
+// ---- the radar ---------------------------------------------------------------
+//
+// Radius is reach cost: how much a session has spent by the time a file opens.
+// Angle is the owner (this repo, user scope, a plugin), and inside it each file
+// sits in its parent's wedge, so a branch fans out the way a session expands
+// into it. With a term, only what the probe lit is drawn: files it reaches, at
+// their own distance; the islands, files that mention it but nothing lit leads
+// to, past the horizon; the sites lit lines name, on the perimeter. Without one, the
+// orphans sit past the horizon: files beside the guidance nothing links to. The range ring lights what
+// a session can reach within that much context and dims the rest.
+
+const SVGNS = "http://www.w3.org/2000/svg";
+// An orphan is drawn as the quatrefoil military symbology (APP-6, MIL-STD-2525)
+// gives an unknown contact: four lobes, d from the center, meeting on the diagonals.
+function quatrefoil(x, y, d) {
+  const k = d * 0.6, r = d * 0.721;
+  const arc = (px, py) => `A ${r} ${r} 0 1 1 ${x + px} ${y + py}`;
+  return `M ${x - k} ${y - k} ${arc(k, -k)} ${arc(k, k)} ${arc(-k, k)} ${arc(-k, -k)} Z`;
+}
+const sky = $("sky");
+let marks = new Map(), rays = new Map(), parentOf = new Map(), wedgeEls = new Map();
+let probeResult = null, geometry = null, siteOf = new Map(), halos = new Map(), names = new Map(), beyondNow = new Set();
+const wedgeOf = n => U.drill ? n.label : ownerOf(n);
+
+// vs ideal names an owner as `owner_label` does: a plugin with its marketplace.
+const ownerLabel = n => n.scope === "plugin" ? `${n.plugin}@${n.marketplace || ""}`
+  : ({ repo: "this repo", user: "user scope" })[n.scope] || n.scope;
+const ownerOf = n => n.scope === "plugin" ? n.plugin : n.scope === "repo" ? "this repo" : n.scope === "user" ? "user scope" : "elsewhere";
+// Conditional roots and what grows from them: they open only on a trigger.
+const gatedRoot = n => n.root && (n.tier !== "launch" || n.trigger === "typed only" || n.trigger === "retired");
+// A root a session has at launch: loaded, or in the listing. A hook, a
+// path-scoped rule, and a typed-only skill wait on a trigger instead.
+const listed = n => n.root && n.tier === "launch" && n.trigger !== "typed only";
+const markSize = n => n.measured ? Math.min(16, 2 + Math.sqrt(tokensOf(n.size)) / 9) : 2.5;
+
+function el(name, attrs, parent) {
+  const node = document.createElementNS(SVGNS, name);
+  for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+  parent.appendChild(node);
+  return node;
+}
+
+function drawRadar(keep) {
+  const box = sky.getBoundingClientRect();
+  const W = Math.max(box.width, 320), H = Math.max(box.height, 320);
+  sky.setAttribute("viewBox", `${-W / 2} ${-H / 2} ${W} ${H}`);
+  sky.replaceChildren();
+  marks = new Map(); rays = new Map(); parentOf = new Map(); wedgeEls = new Map(); siteOf = new Map(); names = new Map();
+  const roots = DATA.nodes.filter(n => keep.has(n.id) && n.root);
+  const summary = $("probe-out");
+  probeResult = null;
+  if (S.term && TEXT_ERROR) summary.textContent = TEXT_ERROR;
+  else if (S.term && !TEXTS) summary.textContent = "Unpacking the files’ text…";
+  else if (S.term) probeResult = probe(S.term, keep);
+  const P = probeResult;
+  if (!S.term) summary.innerHTML = "";
+
+  // What is drawn: with a term, the returns and the islands, with the roots
+  // of each owner holding one, so an owner the term never touches has no
+  // wedge; without one, every file shown, and the unreached and the orphans
+  // past the horizon.
+  const orphans = P ? [] : visibleOrphans();
+  const matched = P ? new Set([...P.hits.keys(), ...P.islands].map(id => ownerOf(nodes.get(id)))) : null;
+  const shown = P ? DATA.nodes.filter(n => keep.has(n.id)
+      && (P.hits.has(n.id) || P.islands.includes(n.id) || (n.root && matched.has(ownerOf(n)))))
+    : DATA.nodes.filter(n => keep.has(n.id)).concat(orphans);
+  const shownIds = new Set(shown.map(n => n.id));
+  const islandSet = new Set(P ? P.islands : shown.filter(n => n.reach === null && !n.root && !n.status).map(n => n.id));
+  const orphanSet = new Set(orphans.map(o => o.id));
+  const beyond = new Set([...islandSet, ...orphanSet]);
+  beyondNow = beyond;
+  const siteMap = P ? P.remotes : sites(DATA.nodes.filter(n => keep.has(n.id)).map(n => n.id), "");
+  const strip = html => html.replace(/<[^>]+>/g, "");
+  if (P) { summary.innerHTML = summarize(P); summary.title = strip(summarizeLong(P, roots)); }
+  else summary.title = strip(summarizeAll(shown.filter(n => !orphanSet.has(n.id)), roots, islandSet, orphanSet, siteMap));
+  if (!shown.length) return;
+
+  const R = Math.min(W, H) / 2 - 46, core = Math.max(26, R * 0.12);
+  const inner = R * 0.78, beyondR = R * 0.87, perimeterR = R * 0.95;
+  const kids = new Map(), tops = [];
+  for (const n of shown) {
+    const p = n.via && shownIds.has(n.via) && !n.root && !beyond.has(n.id) ? n.via : null;
+    if (p) { parentOf.set(n.id, p); (kids.get(p) || kids.set(p, []).get(p)).push(n.id); }
+    else if (!orphanSet.has(n.id)) tops.push(n.id);
+  }
+  // A site hangs off the first file that names it, so it sits in that file's
+  // wedge, and a ray from each of its sources runs out to it.
+  for (const [host, site] of siteMap) {
+    const key = "site:" + host, src = site.sources[0];
+    siteOf.set(key, site);
+    (kids.get(src) || kids.set(src, []).get(src)).push(key);
+  }
+  const weight = new Map();
+  const weigh = id => {
+    if (weight.has(id)) return weight.get(id);
+    weight.set(id, 1);
+    const w = 1 + (kids.get(id) || []).reduce((s, c) => s + weigh(c), 0);
+    weight.set(id, w);
+    return w;
+  };
+  tops.forEach(weigh);
+
+  const inReach = shown.filter(n => !beyond.has(n.id));
+  const maxReach = Math.max(1, ...inReach.map(n => tokensOf(n.reach)));
+  const reachR = t => core + (inner - core) * Math.sqrt(Math.min(1, t / maxReach));
+  const radius = n => beyond.has(n.id) ? beyondR
+    : n.root ? (gatedRoot(n) ? core : core * 0.55)
+    : reachR(tokensOf(n.reach));
+  geometry = { core, inner, maxReach, reachR };
+
+  const defs = el("defs", {}, sky);
+  const glow = el("filter", { id: "glow", x: "-100%", y: "-100%", width: "300%", height: "300%" }, defs);
+  el("feGaussianBlur", { stdDeviation: "3", result: "blur" }, glow);
+  const merge = el("feMerge", {}, glow);
+  el("feMergeNode", { in: "blur" }, merge);
+  el("feMergeNode", { in: "SourceGraphic" }, merge);
+  el("circle", { class: "core", r: core }, sky);
+  const coreLabel = el("text", { class: "core-label", y: core + 14, "text-anchor": "middle" }, sky);
+  coreLabel.textContent = "loaded at start";
+
+  // Context rings at round token counts.
+  for (const mark of [1000, 5000, 10000, 25000, 50000, 100000, 200000]) {
+    if (mark > maxReach) break;
+    const r = reachR(mark);
+    el("circle", { class: "ring", r }, sky);
+    const label = el("text", { class: "ring-label", x: 4, y: -r - 3 }, sky);
+    label.textContent = `${mark / 1000}k tokens`;
+  }
+  if (beyond.size) {
+    const r = (inner + beyondR) / 2;
+    el("circle", { class: "horizon", r }, sky);
+    const h = el("text", { class: "edge-label", x: 4, y: r + 11 }, sky);
+    h.textContent = P ? "horizon: past it, islands no lit link leads to"
+      : islandSet.size ? "horizon: past it, files nothing leads to" : "horizon: past it, orphans nothing links to";
+  }
+  if (siteMap.size) {
+    el("circle", { class: "perimeter", r: perimeterR }, sky);
+    el("circle", { class: "perimeter-hit", r: perimeterR, "data-sites": "" }, sky);
+    const perimeter = el("text", { class: "edge-label far opens", x: 4, y: perimeterR + 11, "data-sites": "" }, sky);
+    perimeter.textContent = "remote: reached only online";
+  }
+  $("sites-open").hidden = !siteMap.size;
+  // Wedges by owner, in proportion to what each holds; the repo and user scope
+  // first. Drilled into one owner, each of its roots gets the wedge instead.
+  const wedgeLayer = el("g", {}, sky);
+  const owners = new Map();
+  for (const id of tops) {
+    const o = wedgeOf(nodes.get(id));
+    (owners.get(o) || owners.set(o, []).get(o)).push(id);
+  }
+  const order = [...owners.keys()].sort((a, b) =>
+    (b === "this repo") - (a === "this repo") || (b === "user scope") - (a === "user scope")
+    || owners.get(b).reduce((s, id) => s + weight.get(id), 0) - owners.get(a).reduce((s, id) => s + weight.get(id), 0));
+  const total = order.reduce((s, o) => s + Math.max(owners.get(o).reduce((t, id) => t + weight.get(id), 0), 6), 0);
+  const angle = new Map(), boxes = [], spans = new Map();
+  const closureOf = key => nodes.has(key) ? nodes.get(key).closure : 0;
+  const place = (id, a0, a1) => {
+    angle.set(id, (a0 + a1) / 2);
+    const children = (kids.get(id) || []).slice().sort((a, b) => closureOf(b) - closureOf(a));
+    const sum = children.reduce((s, c) => s + weight.get(c), 0);
+    let a = a0;
+    for (const c of children) { const span = (a1 - a0) * weight.get(c) / sum; place(c, a, a + span); a += span; }
+  };
+  // Claim a label's box; false when one already placed overlaps it.
+  const claim = (x, y, w, anchor) => {
+    const b = anchor === "end" ? [x - w, y - 12, x, y + 4] : anchor === "middle" ? [x - w / 2, y - 12, x + w / 2, y + 4] : [x, y - 12, x + w, y + 4];
+    if (boxes.some(o => b[0] < o[2] && o[0] < b[2] && b[1] < o[3] && o[1] < b[3])) return false;
+    boxes.push(b);
+    return true;
+  };
+  for (const t of sky.querySelectorAll(".edge-label")) claim(+t.getAttribute("x"), +t.getAttribute("y"), t.textContent.length * 5.2, "start");
+  let a = -Math.PI / 2;
+  for (const o of order) {
+    const ids = owners.get(o).sort((x, y) => nodes.get(y).closure - nodes.get(x).closure);
+    const w = ids.reduce((s, id) => s + weight.get(id), 0);
+    const span = 2 * Math.PI * Math.max(w, 6) / total;
+    let b = a;
+    for (const id of ids) { const s = span * weight.get(id) / w; place(id, b, b + s); b += s; }
+    spans.set(o, [a, span]);
+    // An annulus sector under the wedge, so the whole slice answers a click.
+    if (!U.drill) {
+      const arc = (r, th) => `${Math.cos(th) * r} ${Math.sin(th) * r}`;
+      const large = span > Math.PI ? 1 : 0;
+      const wedge = el("path", { class: "wedge", d: `M ${arc(core, a)} L ${arc(R + 30, a)} A ${R + 30} ${R + 30} 0 ${large} 1 ${arc(R + 30, a + span)} L ${arc(core, a + span)} A ${core} ${core} 0 ${large} 0 ${arc(core, a)} Z` }, wedgeLayer);
+      wedge.dataset.owner = o;
+      wedgeEls.set(o, wedge);
+    }
+    // An owner's name sits outside its wedge, unless a name already placed
+    // would overlap it; the wedge itself still answers a click.
+    if (span > 0.12) {
+      const mid = a + span / 2, x = Math.cos(mid) * (R + 18), y = Math.sin(mid) * (R + 18);
+      const anchor = Math.abs(x) < 20 ? "middle" : x > 0 ? "start" : "end";
+      const text = o.length > 28 ? o.slice(0, 27) + "…" : o;
+      if (claim(x, y + 4, text.length * 6.5, anchor)) {
+        const label = el("text", { class: "owner", x, y: y + 4, "text-anchor": anchor }, sky);
+        label.textContent = text;
+        if (!U.drill) { label.dataset.owner = o; wedgeEls.set(o + "\u0000label", label); }
+      }
+    }
+    a += span;
+  }
+
+  // The orphans spread evenly across their owner's wedge, past the horizon;
+  // they link nowhere, so they take no part in sizing it.
+  const orphansOf = new Map();
+  for (const o of orphans) (orphansOf.get(wedgeOf(o)) || orphansOf.set(wedgeOf(o), []).get(wedgeOf(o))).push(o.id);
+  for (const [owner, ids] of orphansOf) {
+    const [a0, span] = spans.get(owner) || [0, 2 * Math.PI];
+    ids.forEach((id, i) => angle.set(id, a0 + span * (i + 0.5) / ids.length));
+  }
+  const pos = new Map();
+  for (const n of shown) {
+    const r = radius(n), th = angle.get(n.id);
+    pos.set(n.id, [Math.cos(th) * r, Math.sin(th) * r]);
+  }
+  for (const key of siteOf.keys()) {
+    const th = angle.get(key);
+    pos.set(key, [Math.cos(th) * perimeterR, Math.sin(th) * perimeterR]);
+  }
+  const animate = S.shown !== S.term && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const delay = n => P ? `animation-delay: ${(P.hits.get(n.id)?.hop ?? P.hops + 1) * 160}ms` : "";
+  const rayLayer = el("g", {}, sky), markLayer = el("g", {}, sky), nameLayer = el("g", {}, sky);
+  for (const [id, p] of parentOf) {
+    const [x1, y1] = pos.get(p), [x2, y2] = pos.get(id);
+    const blind = P && !P.hits.get(id).signposted;
+    rays.set(id, [el("line", { class: "ray" + (blind ? " blind" : "") + (animate && P ? " ret" : ""), x1, y1, x2, y2, style: delay(nodes.get(id)) }, rayLayer)]);
+  }
+  for (const [key, site] of siteOf) {
+    const [x2, y2] = pos.get(key);
+    rays.set(key, site.sources.filter(src => pos.has(src)).map(src => {
+      const [x1, y1] = pos.get(src);
+      return el("line", { class: "ray far" + (animate && P ? " ret" : ""), x1, y1, x2, y2, style: P ? `animation-delay: ${(P.hops + 2) * 160}ms` : "" }, rayLayer);
+    }));
+  }
+  const gated = new Set();
+  for (const n of shown) {
+    let cur = n.id;
+    while (parentOf.has(cur)) cur = parentOf.get(cur);
+    if (gatedRoot(nodes.get(cur))) gated.add(n.id);
+  }
+  for (const n of shown.slice().sort((x, y) => y.size - x.size)) {
+    const [x, y] = pos.get(n.id);
+    const hit = P && P.hits.get(n.id);
+    const past = beyond.has(n.id), orphan = orphanSet.has(n.id), quiet = P && !hit && !past, lead = hit && !hit.lines.length && hit.hop > 0;
+    const size = quiet ? Math.min(markSize(n), 2.2) : past ? Math.min(markSize(n), 9) : markSize(n);
+    const level = heatLevel(n.closure);
+    const cls = ["mark", gated.has(n.id) ? "gated" : "", n.measured ? "" : "unsized", orphan ? "orphan" : past ? "island" : "", quiet ? "quiet" : "",
+      lead ? "lead" : "", level >= 3 && !quiet && !past ? "hot" : "", animate && P && (hit || past) ? "ret" : ""].filter(Boolean).join(" ");
+    const mark = orphan
+      ? el("path", { class: cls, d: quatrefoil(x, y, size * 0.5) }, markLayer)
+      : el("circle", { class: cls, cx: x, cy: y, r: size, style: `fill: var(--star-${level}); ${past || lead ? `stroke: var(--star-${level});` : ""} ${delay(n)}` }, markLayer);
+    mark.dataset.id = n.id;
+    marks.set(n.id, mark);
+  }
+  // A file past the ideal for its tier wears a halo; the scorecard says by how much.
+  halos = new Map();
+  for (const n of shown) {
+    if (!OVER.has(n.id) || beyond.has(n.id)) continue;
+    const [x, y] = pos.get(n.id);
+    halos.set(n.id, el("circle", { class: "halo", cx: x, cy: y, r: +marks.get(n.id).getAttribute("r") + 3.5 }, markLayer));
+  }
+  for (const [key, site] of siteOf) {
+    const [x, y] = pos.get(key), d = Math.min(10, 4 + Math.sqrt(site.refs.length) * 1.2);
+    const mark = el("path", { class: "mark remote" + (animate && P ? " ret" : ""), d: `M${x} ${y - d} L${x + d} ${y} L${x} ${y + d} L${x - d} ${y} Z`, style: P ? `animation-delay: ${(P.hops + 2) * 160}ms` : "" }, markLayer);
+    mark.dataset.host = site.host;
+    marks.set(key, mark);
+  }
+  // Name what matters most, skipping a name that would land on one already
+  // placed: the sites, then the strongest returns or the heaviest files, then
+  // a few of what lies past the horizon.
+  const name = (key, text, cls, dx) => {
+    const [x, y] = pos.get(key), w = Math.min(text.length, 32) * 6 + 8;
+    const b = [x + dx, y - 12, x + dx + w, y + 6];
+    if (boxes.some(o => b[0] < o[2] && o[0] < b[2] && b[1] < o[3] && o[1] < b[3])) return;
+    boxes.push(b);
+    const t = el("text", { class: "name " + cls, x: x + dx + 3, y: y + 3 }, nameLayer);
+    t.textContent = text.length > 32 ? "…" + text.slice(-31) : text;
+    names.set(key, t);
+  };
+  for (const [key, site] of [...siteOf].slice(0, 10)) name(key, site.host, "remote", 8);
+  const strength = n => P ? (P.hits.get(n.id)?.lines.length || 0) : n.closure;
+  const named = shown.filter(n => !beyond.has(n.id) && (!P || (P.hits.has(n.id) && P.hits.get(n.id).lines.length)))
+    .sort((x, y) => strength(y) - strength(x)).slice(0, P ? 10 : 8);
+  for (const n of named) name(n.id, n.label, "", markSize(n));
+  for (const n of shown.filter(n => beyond.has(n.id)).sort((x, y) => strength(y) - strength(x) || y.size - x.size).slice(0, 4)) name(n.id, n.label, orphanSet.has(n.id) ? "orphan" : "island", markSize(n));
+
+  if (animate && P) {
+    const pulse = el("circle", { class: "pulse", r: core }, sky);
+    const grow = el("animate", { attributeName: "r", from: core, to: R, dur: "0.9s", fill: "freeze" }, pulse);
+    el("animate", { attributeName: "opacity", from: "0.9", to: "0", dur: "0.9s", fill: "freeze" }, pulse);
+    grow.addEventListener("endEvent", () => pulse.remove());
+  }
+  S.shown = S.term;
+
+  spend = spendOrder(keep, P, shown, beyond);
+  drawMeter();
+  // At first, the meter sits on what loads at start; a prompt runs it out to
+  // everything the prompt opens.
+  if (U.budget === null) U.budget = P ? Math.min(spend.end, WINDOW) : spend.start;
+  lightTo(U.budget);
+  if (tour.step >= 0) showStep(tour.step);
+}
+
+// ---- the meter -----------------------------------------------------------------
+//
+// What a session spends, in the order it spends it: what loads at start, then
+// with a prompt each file the probe lit, hop by hop and cheapest first within
+// a hop; with none, every reachable file cheapest first. Each file gets the
+// running total at which it opens, and the thumb lights the files opened by
+// then. The track runs to the largest context window, on a square-root scale
+// so what loads at start stays legible beside it, with a line at each common
+// window, so what does not fit one reads as such.
+const LIMITS = [200000, 1000000];
+const WINDOW = LIMITS[LIMITS.length - 1];
+let spend = null;
+
+function spendOrder(keep, P, shown, beyond) {
+  const start = [...keep].map(id => nodes.get(id)).filter(n => n.tier === "launch")
+    .reduce((s, n) => s + tokensOf(n.size), 0);
+  const cost = n => tokensOf((n.reach || 0) + n.size);
+  const later = (P ? [...P.hits.keys()].map(id => nodes.get(id)) : shown.filter(n => !beyond.has(n.id) && n.reach !== null))
+    .filter(n => n.tier !== "launch")
+    .sort((a, b) => (P ? P.hits.get(a.id).hop - P.hits.get(b.id).hop : 0) || cost(a) - cost(b));
+  const at = new Map(), steps = [];
+  for (const n of keep) if (nodes.get(n).tier === "launch") at.set(n, start);
+  let total = start;
+  for (const n of later) {
+    total += tokensOf(n.size);
+    at.set(n.id, total);
+    const step = P ? P.hits.get(n.id).hop : 1;
+    const last = steps[steps.length - 1];
+    if (last && last.step === step) { last.to = total; last.files += 1; }
+    else steps.push({ step, from: last ? last.to : start, to: total, files: 1 });
+  }
+  // Going online comes last: each web address a lit line names, fetched once,
+  // at what WebFetch is estimated to hand back.
+  const online = { addresses: 0, measured: 0 };
+  if (P && P.remotes.size) {
+    const from = total, seen = new Set();
+    for (const [host, site] of P.remotes) {
+      for (const r of site.refs) {
+        if (seen.has(r.url)) continue;
+        seen.add(r.url);
+        online.addresses += 1;
+        if (r.bytes !== undefined) online.measured += 1;
+        total += tokensOf(fetchCost(r));
+      }
+      at.set("site:" + host, total);
+    }
+    steps.push({ step: "online", from, to: total, files: online.addresses });
+  }
+  return { start, end: total, at, steps, online, launchFiles: [...keep].filter(id => nodes.get(id).tier === "launch").length };
+}
+
+const stepLabel = s => !S.term ? "opening the rest, cheapest first" : s.step === "online" ? "online" : s.step === 0 ? "on a trigger" : s.step === 1 ? "1 hop" : `${s.step} hops`;
+// Online is hatched: part or all of it is an estimate, not a measurement.
+const stepColor = (s, i) => s.step === "online"
+  ? "repeating-linear-gradient(135deg, var(--far) 0 4px, color-mix(in srgb, var(--far) 45%, var(--sky)) 4px 8px)"
+  : S.term
+  ? `color-mix(in srgb, var(--range) ${Math.max(35, 95 - i * 15)}%, var(--sky))`
+  : "color-mix(in srgb, var(--sky-ray) 80%, transparent)";
+const onlineNote = o => o.measured === o.addresses ? "measured" : o.measured ? `${o.measured} of ${o.addresses} measured, the rest estimated` : "estimated";
+const share = t => Math.sqrt(Math.max(0, Math.min(t, WINDOW)) / WINDOW);
+const pct = t => `${share(t) * 100}%`;
+// The slider runs on the track's scale, so the thumb sits where the bar shows it.
+const SLIDER_STEPS = 1000;
+const fromSlider = v => (v / SLIDER_STEPS) ** 2 * WINDOW;
+const limitLabel = t => t >= 1e6 ? `${t / 1e6}M` : `${t / 1000}k`;
+
+function drawMeter() {
+  const track = $("meter-track"), input = $("budget");
+  for (const s of track.querySelectorAll(".seg, .unspent, .limit")) s.remove();
+  const seg = (from, to, color, title, label) => {
+    if (from >= WINDOW) return;
+    const d = document.createElement("div");
+    d.className = "seg";
+    if (label && share(to) - share(from) > 0.07) d.textContent = label;
+    d.style.left = pct(from);
+    d.style.width = `calc(${pct(to)} - ${pct(from)})`;
+    d.style.background = color;
+    d.title = title;
+    track.insertBefore(d, input);
+  };
+  seg(0, spend.start, "var(--accent)", `Loaded at start: ~${tok(spend.start * DATA.bytesPerToken)} tokens`, "start");
+  spend.steps.forEach((s, i) => seg(s.from, s.to, stepColor(s, i), s.step === "online"
+    ? `online: ${s.files} web ${s.files === 1 ? "address" : "addresses"}, ~${tok((s.to - s.from) * DATA.bytesPerToken)}, ${onlineNote(spend.online)}`
+    : `${stepLabel(s)}: ${s.files} files, ~${tok((s.to - s.from) * DATA.bytesPerToken)}`, S.term ? stepLabel(s) : ""));
+  const rest = document.createElement("div");
+  rest.className = "unspent";
+  track.insertBefore(rest, input);
+  for (const limit of LIMITS) {
+    const line = document.createElement("div");
+    line.className = "limit";
+    line.style.left = pct(limit);
+    line.title = `A ${limitLabel(limit)}-token context window ends here`;
+    track.insertBefore(line, input);
+  }
+  input.max = SLIDER_STEPS;
+  $("meter-scale").innerHTML = [0, 10000, 50000, 100000].map(t => `<span style="left: ${pct(t)}">${t ? t / 1000 + "k" : "0"}</span>`).join("")
+    + LIMITS.map(t => `<span class="limit-label" style="left: ${pct(t)}">${limitLabel(t)} window</span>`).join("");
+}
+
+function meterRead(budget, open) {
+  const P = probeResult, part = (color, text) => `<span class="part"><i style="background: ${color}"></i>${text}</span>`;
+  const atStart = budget <= spend.start;
+  const parts = [part("var(--accent)", `loaded at start ~${tok(spend.start * DATA.bytesPerToken)}, ${spend.launchFiles} files`)];
+  const local = spend.steps.filter(s => s.step !== "online"), web = spend.steps.find(s => s.step === "online");
+  if (P && local.length) parts.push(part(stepColor(local[0], 0), `“${escapeHtml(P.term)}” opens ~${tok((local[local.length - 1].to - spend.start) * DATA.bytesPerToken)} more over ${P.hops || 1} ${P.hops > 1 ? "hops" : "hop"}`));
+  if (P && web) parts.push(part(stepColor(web), `~${tok((web.to - web.from) * DATA.bytesPerToken)} online, ${web.files} ${web.files === 1 ? "address" : "addresses"} (${onlineNote(spend.online)})`));
+  else if (P && !web) parts.push(`<span>nothing loaded leads anywhere about “${escapeHtml(P.term)}”</span>`);
+  else parts.push(`<span>drag to open more, cheapest first, or ask about a term</span>`);
+  const past = LIMITS.filter(t => spend.end > t);
+  const overflow = past.length ? `<span class="over">${past.map(t => `~${tok((spend.end - t) * DATA.bytesPerToken)} past ${limitLabel(t)}`).join(", ")}</span>` : "";
+  return `<span class="spent">~${tok(budget * DATA.bytesPerToken)} spent</span>`
+    + `<span>${atStart ? "before you type a word" : `${open} files open`}</span>`
+    + `<span class="parts">${parts.join("")}${overflow}</span>`;
+}
+
+function summarizeAll(shown, roots, islandSet, orphanSet, siteMap) {
+  const launch = roots.filter(n => n.tier === "launch").reduce((s, n) => s + n.size, 0);
+  const every = shown.reduce((s, n) => s + n.size, 0);
+  const deepest = Math.max(0, ...shown.map(n => (n.reach || 0) + n.size));
+  const named = [...siteMap.values()].reduce((s, site) => s + site.refs.length, 0);
+  const loaded = roots.filter(listed).length, waiting = roots.length - loaded;
+  const parts = [`<strong>${loaded}</strong> files are loaded or listed at launch, ~${tok(launch)} tokens before the harness adds its own prompt, tools, and built-in skills${waiting ? `; ${waiting} more wait on a trigger` : ""}. ${shown.length - roots.length} further files lie within reach: the deepest path ~${tok(deepest)}, every file ~${tok(every)}.`];
+  if (islandSet.size) parts.push(`<strong>${islandSet.size}</strong> ${islandSet.size === 1 ? "file is an island" : "files are islands"}: nothing leads there.`);
+  if (orphanSet.size) parts.push(`<strong>${orphanSet.size}</strong> ${orphanSet.size === 1 ? "file sits" : "files sit"} beside the guidance with nothing linking to ${orphanSet.size === 1 ? "it" : "them"}: orphans.`);
+  parts.push(siteMap.size
+    ? `<span class="far"><strong>${siteMap.size}</strong> remote ${siteMap.size === 1 ? "site" : "sites"}</span>, named on ${named} ${named === 1 ? "line" : "lines"}: each a trip off the machine.`
+    : "Everything here is on this machine.");
+  return parts.join(" ");
+}
+
+// The line beside the prompt: what it lights, at a glance. The full sentence
+// is the line's tooltip.
+function summarize(P) {
+  const hop0 = [...P.hits.values()].filter(h => h.hop === 0).length;
+  if (!hop0) return `Nothing loaded mentions ${quoted(P.words)}.`;
+  const more = P.hits.size - hop0;
+  const bits = [`<strong>${hop0}</strong> loaded ${hop0 === 1 ? "file mentions" : "files mention"} it`];
+  bits.push(more ? `<strong>${more}</strong> more over ${P.hops === 1 ? "1 hop" : P.hops + " hops"}` : "none leads further");
+  if (P.islands.length) bits.push(`${P.islands.length} ${P.islands.length === 1 ? "island" : "islands"}`);
+  if (P.remotes.size) bits.push(`<span class="far">${P.remotes.size} ${P.remotes.size === 1 ? "site" : "sites"}</span>`);
+  return bits.join(" · ");
+}
+
+function summarizeLong(P, roots) {
+  const hop0 = [...P.hits.keys()].filter(id => P.hits.get(id).hop === 0);
+  const lit = hop0.filter(id => listed(nodes.get(id))).length, waiting = hop0.length - lit;
+  const more = P.hits.size - hop0.length;
+  const cost = [...P.hits.keys()].reduce((s, id) => s + nodes.get(id).size, 0);
+  const term = quoted(P.words);
+  const parts = [];
+  if (!lit) parts.push(`Nothing loaded mentions ${term}.`);
+  else {
+    parts.push(`<strong>${lit}</strong> of ${roots.filter(listed).length} loaded files mention ${term}${waiting ? `, and ${waiting} waiting on a trigger` : ""}.`);
+    parts.push(more
+      ? `Following them lights <strong>${more}</strong> more over ${P.hops === 1 ? "1 hop" : P.hops + " hops"}; reading all ${P.hits.size} costs ~${tok(cost)} tokens.`
+      : "None of them points anywhere further about it.");
+  }
+  if (P.islands.length) parts.push(`<strong>${P.islands.length}</strong> ${P.islands.length === 1 ? "file mentions it but is an island" : "files mention it but are islands"}: no lit link leads there.`);
+  const named = [...P.remotes.values()].reduce((s, site) => s + site.refs.length, 0);
+  parts.push(P.remotes.size
+    ? `<span class="far"><strong>${P.remotes.size}</strong> remote ${P.remotes.size === 1 ? "site" : "sites"}</span>, named on ${named} ${named === 1 ? "line" : "lines"}: each a trip off the machine.`
+    : "Everything it reaches is on this machine.");
+  return parts.join(" ");
+}
+
+function highlight(text, term) {
+  const words = keywords(term);
+  if (!words.length) return escapeHtml(text);
+  const low = text.toLowerCase();
+  let i = 0, html = "";
+  for (;;) {
+    let j = -1, len = 0;
+    for (const w of words) { const at = wordAt(low, w, i); if (at >= 0 && (j < 0 || at < j || (at === j && w.length > len))) { j = at; len = w.length; } }
+    if (j < 0) break;
+    html += escapeHtml(text.slice(i, j)) + "<mark>" + escapeHtml(text.slice(j, j + len)) + "</mark>";
+    i = j + len;
+  }
+  return html + escapeHtml(text.slice(i));
+}
+
+// For the probe, the file card says how the prompt reached this file up
+// front, and keeps the lines that mention the term under More.
+function probeLead(id) {
+  const P = probeResult;
+  if (!P) return "";
+  const hit = P.hits.get(id), lines = P.mentions.get(id) || [];
+  const reach = hit
+    ? hit.hop === 0 ? `Loaded at start, and it mentions ${quoted(P.words)}.`
+      : `Asking about ${quote(P.term)} reaches it at hop ${hit.hop}, from ${escapeHtml(nodes.get(hit.via).label)}${hit.edge.text
+        ? `, whose line ${hit.signposted ? "names" : "never names"} the term:` : ", by invoking it."}`
+    : lines.length ? `An island: it mentions ${quoted(P.words)}, but no lit link leads here, so a session asking about it would not find this file.` : "";
+  if (!reach) return "";
+  const fix = !hit && lines.length ? islandFix(P, id, visibleIds()) : null;
+  const fixLine = fix && fix.edge.text ? `<p class="r">${escapeHtml(fix.edge.file)}, line ${fix.edge.line || "?"}: <code>${escapeHtml(fix.edge.text)}</code></p>` : "";
+  return `<div class="vs probe-vs"><p>${reach}</p>${hit && hit.edge?.text ? `<p class="r"><code>${highlight(hit.edge.text, P.term)}</code></p>` : ""}${!hit && lines.length ? `<p class="r">${islandAdvice(fix, P.term)}</p>${fixLine}` : ""}</div>`;
+}
+
+function probeLines(id) {
+  const P = probeResult, lines = P ? P.mentions.get(id) || [] : [];
+  if (!lines.length) return "";
+  return `<section><h2>Mentions ${quoted(P.words)}, ${lines.length} ${lines.length === 1 ? "line" : "lines"}</h2><ul class="refs lines">${lines.slice(0, 12).map(l =>
+    `<li><code>${highlight(l, P.term)}</code></li>`).join("")}${lines.length > 12 ? `<li class="more">and ${lines.length - 12} more</li>` : ""}</ul></section>`;
+}
+
+// What WebFetch is estimated to hand back for one address: for most fetches
+// an answer about the page rather than the page, so the estimate, capped by a
+// measured page smaller than it.
+const fetchCost = r => r.bytes !== undefined ? Math.min(r.bytes, DATA.remoteEstimate) : DATA.remoteEstimate;
+
+// What following a site's addresses puts in context, and what reading its
+// pages raw would, where measured.
+function siteCost(site) {
+  const urls = new Map();
+  for (const r of site.refs) urls.set(r.url, r);
+  const rows = [...urls.values()];
+  const measured = rows.filter(r => r.bytes !== undefined);
+  const fetched = rows.reduce((s, r) => s + fetchCost(r), 0);
+  const raw = measured.reduce((s, r) => s + r.bytes, 0);
+  const failed = rows.filter(r => r.error);
+  const parts = [`~${tok(fetched)} through WebFetch, an estimate: for most fetches it hands back an answer about the page rather than the page.`];
+  parts.push(measured.length
+    ? `Read raw, ${measured.length === rows.length ? "its" : `${measured.length} of its ${rows.length}`} ${measured.length === 1 ? "page is" : "pages are"} ~${tok(raw)} of text (measured ${measured.map(r => r.measured).sort().pop()}).`
+    : "<code>cleat graph --measure-remote</code> measures what reading each page raw would cost, and keeps it for 30 days.");
+  if (failed.length) parts.push(`${failed.length} could not be fetched (${escapeHtml(failed[0].error)}): a session following ${failed.length === 1 ? "it" : "them"} may come back empty.`);
+  return parts.join(" ");
+}
+
+function sitePanel(site) {
+  const n = site.refs.length, files = site.sources.length;
+  $("details").innerHTML = `
+    <section>
+      <p class="title">${escapeHtml(site.host)}</p>
+      <p class="note">remote site, named on ${n} ${n === 1 ? "line" : "lines"} of ${files} ${files === 1 ? "file" : "files"}</p>
+    </section>
+    <section>
+      <dl class="kv">
+        <dt>Context</dt><dd>${siteCost(site)}</dd>
+        <dt>Costs</dt><dd>A network round trip, and whatever the site serves that day: slower than a file, different tomorrow, gone offline. Context a session needs belongs beside the file that names it.</dd>
+      </dl>
+    </section>
+    <section><h2>Named by</h2><ul class="refs">${site.refs.slice(0, 12).map(r =>
+      `<li data-id="${encodeURIComponent(r.from)}"><span class="at">${escapeHtml(nodes.get(r.from).label)}, line ${r.line || "?"} · <a href="${escapeHtml(r.url)}" target="_blank" rel="noopener">${escapeHtml(r.url.replace(/^https?:\/\//, ""))}</a></span><code>${highlight(r.text, S.term)}</code></li>`).join("")}${n > 12 ? `<li class="more">and ${n - 12} more</li>` : ""}</ul></section>`;
+}
+
+// The external dependencies: every site the radar draws, each with what
+// following its addresses costs and the files that send a session there.
+const siteRow = site => {
+  const urls = new Map(site.refs.map(r => [r.url, r]));
+  const cost = [...urls.values()].reduce((t, r) => t + fetchCost(r), 0);
+  return `<li data-host="${encodeURIComponent(site.host)}" tabindex="0"><span class="n far" title="${escapeHtml(site.host)}">${escapeHtml(site.host)}</span><span class="v">~${tok(cost)}</span><span class="why">${urls.size} ${urls.size === 1 ? "address" : "addresses"} on ${site.refs.length} ${site.refs.length === 1 ? "line" : "lines"} of ${site.sources.length} ${site.sources.length === 1 ? "file" : "files"}</span></li>`;
+};
+function openSites() { if (PANEL.kind !== "sites") go(() => { PANEL = { kind: "sites" }; }); }
+$("sites-open").addEventListener("click", openSites);
+function sitesPanel() {
+  const list = [...siteOf.values()];
+  const urls = new Map(list.flatMap(site => site.refs.map(r => [r.url, r])));
+  const cost = [...urls.values()].reduce((t, r) => t + fetchCost(r), 0);
+  const files = new Set(list.flatMap(site => site.sources)).size;
+  $("details").innerHTML = `
+    <section class="headline">
+      <h2>Web addresses${S.term ? ` the lines about ${quoted(keywords(S.term))} name` : ""}</h2>
+      <span class="big">${list.length} ${list.length === 1 ? "host" : "hosts"}</span>
+      <p>${urls.size} ${urls.size === 1 ? "address" : "addresses"} in ${files} ${files === 1 ? "file" : "files"}: what a session reaches only by leaving the machine. Following each once costs ~${tok(cost)}, an estimate, and needs a network that answers.</p>
+    </section>
+    <section><ul class="picks">${list.map(siteRow).join("")}</ul></section>`;
+  $("details").scrollTop = 0;
+}
+
+const U = { budget: null, picked: null, owner: null, drill: null };
+
+// Light the files a session has opened once it has spent this much, in the
+// meter's order; dim the rest. Only classes change, so dragging never rebuilds
+// the sky. A file past the horizon keeps its own hollow mark, and a site goes
+// dark with the files that name it.
+function lightTo(budget) {
+  budget = Math.max(spend.start, Math.min(budget, WINDOW));
+  U.budget = budget;
+  let open = 0;
+  const litIds = new Set();
+  for (const [id, mark] of marks) {
+    if (!nodes.has(id)) continue;
+    const at = spend.at.get(id);
+    const lit = beyondNow.has(id) || (at !== undefined && at <= budget);
+    mark.classList.toggle("dark", !lit);
+    halos.get(id)?.classList.toggle("dark", !lit);
+    names.get(id)?.classList.toggle("dark", !lit);
+    for (const ray of rays.get(id) || []) ray.classList.toggle("dark", !lit);
+    if (lit && !beyondNow.has(id)) { open += 1; litIds.add(id); }
+  }
+  for (const [key, site] of siteOf) {
+    const at = spend.at.get(key);
+    const lit = at !== undefined ? at <= budget : site.sources.some(src => litIds.has(src));
+    marks.get(key)?.classList.toggle("dark", !lit);
+    names.get(key)?.classList.toggle("dark", !lit);
+    for (const ray of rays.get(key) || []) ray.classList.toggle("dark", !lit);
+  }
+  $("budget").value = share(budget) * SLIDER_STEPS;
+  const rest = $("meter-track").querySelector(".unspent");
+  if (rest) rest.style.left = pct(budget);
+  $("meter-read").innerHTML = meterRead(budget, open);
+}
+
+function pick(id) {
+  for (const s of sky.querySelectorAll(".picked")) s.classList.remove("picked");
+  for (const r of sky.querySelectorAll(".ray.on")) r.classList.remove("on");
+  U.picked = id;
+  marks.get(id)?.classList.add("picked");
+  for (const ray of rays.get(id) || []) if (!nodes.has(id)) ray.classList.add("on");
+  for (let cur = id; parentOf.has(cur); cur = parentOf.get(cur)) for (const ray of rays.get(cur) || []) ray.classList.add("on");
+}
+
+$("budget").addEventListener("input", ev => lightTo(fromSlider(+ev.target.value)));
+
+sky.addEventListener("dblclick", ev => {
+  const { id, owner } = ev.target.dataset || {};
+  if (owner) { drill(owner); return; }
+  if (id) narrowTo(id);
+});
+sky.addEventListener("click", ev => {
+  const { owner, id, host } = ev.target.dataset || {};
+  if (owner) {
+    if (U.owner === owner) goBack();
+    else go(() => { U.owner = owner; PANEL = { kind: "owner", owner }; }, PANEL.kind === "owner");
+    return;
+  }
+  if (host) { go(() => { PANEL = { kind: "site", host }; }, PANEL.kind === "site"); return; }
+  if (ev.target.dataset && "sites" in ev.target.dataset) { openSites(); return; }
+  if (id) openFile(id, PANEL.kind === "file");
+});
+
+// Highlight one owner's wedge and mute the rest; drilling in redraws the sky
+// with that owner alone, its roots as the wedges.
+function chooseOwner(owner) {
+  for (const [key, node] of wedgeEls) node.classList.toggle("chosen", !!owner && key.split("\u0000")[0] === owner);
+  for (const [id, mark] of marks) {
+    if (!nodes.has(id)) continue;
+    const muted = !!owner && ownerOf(nodes.get(id)) !== owner;
+    mark.classList.toggle("muted", muted);
+    halos.get(id)?.classList.toggle("muted", muted);
+    for (const ray of rays.get(id) || []) ray.classList.toggle("muted", muted);
+  }
+}
+
+// The details panel follows the trail: the mark it names is picked, the owner
+// it names is chosen, and its content drawn.
+// ---- the deep probe ----------------------------------------------------------
+//
+// Past what a session loads: the repo's other files and commits, then the
+// transcripts agentsview keeps. None of it is in the page, so the page asks
+// `cleat graph --serve` for it, and each answer is kept, so a step back shows
+// what was found.
+
+const deepFound = new Map();
+
+function fromServer(path, params) {
+  const key = path + "|" + JSON.stringify(params);
+  if (!deepFound.has(key)) {
+    deepFound.set(key, fetch(`${path}?${new URLSearchParams({ ...params, t: SERVE.token })}`)
+      .then(async r => {
+        const body = await r.json();
+        if (!r.ok) throw new Error(body.error || r.statusText);
+        return body;
+      })
+      .catch(e => { deepFound.delete(key); return { error: e.message }; }));
+  }
+  return deepFound.get(key);
+}
+
+function deeper(through) {
+  if (!SERVE) return `<p class="quiet-note">Past what a session loads lie this repo's other files and commits, then the transcripts agentsview keeps. Looking there needs the page served: run <code>cleat graph --serve --probe ${escapeHtml(JSON.stringify(S.term))}</code>.</p>`;
+  if (through >= SERVE.deepest) return "";
+  return `<div class="actions"><button id="deeper" data-through="${through + 1}">Look deeper: ring ${through + 1}, ${escapeHtml(SERVE.rings[through + 1].toLowerCase())}</button></div>`;
+}
+
+function hitRow(h) {
+  const words = probeResult ? probeResult.words.length : 1;
+  const why = [h.date, words > 1 ? `${h.matched.length} of ${words} words` : "", `${h.lines.length} ${h.lines.length === 1 ? "line" : "lines"}`]
+    .filter(Boolean).join(" · ");
+  return `<li data-hop="${encodeURIComponent(JSON.stringify({ kind: h.kind, target: h.target }))}" data-advice="${encodeURIComponent(h.advice)}" tabindex="0"><span class="n" title="${escapeHtml(h.label)}">${escapeHtml(h.label)}</span><span class="v">~${tok(h.size)}</span><span class="why">${why}</span></li>`;
+}
+
+function deepPanel(p) {
+  const term = S.term;
+  $("details").innerHTML = `<section class="headline"><h2>Asking about ${quote(term)}, past what a session loads</h2><p>Searching ring ${p.through}…</p></section>`;
+  fromServer("/deep", { term, ring: p.through }).then(d => {
+    if (PANEL !== p) return;
+    if (d.error) {
+      $("details").innerHTML = `<section class="headline"><h2>Past what a session loads</h2><p class="warn">${escapeHtml(d.error)}</p></section>`;
+      return;
+    }
+    $("details").innerHTML = `
+      <section class="headline">
+        <h2>Asking about ${quote(term)}, past what a session loads</h2>
+        <p>${escapeHtml(d.summary)} Nothing a session loads leads to any of it.</p>
+        ${d.fix ? `<p>To bring what you find into reach, name it in ${escapeHtml(d.fix.label)}${d.fix.line ? `, beside line ${d.fix.line}` : ""}.</p>` : ""}
+      </section>
+      ${d.rings.map(r => `<section><h2>Ring ${r.ring}: ${escapeHtml(r.label)}</h2>
+        ${r.error ? `<p class="warn">${escapeHtml(r.error)}</p>` : ""}
+        <ul class="picks">${r.hits.map(hitRow).join("")}</ul></section>`).join("")}
+      ${deeper(d.reached)}`;
+  });
+}
+
+function hopPanel(p) {
+  const { kind, target } = p.hop;
+  $("details").innerHTML = `<section><p class="title">${escapeHtml(target)}</p><p class="note">Looking it up…</p></section>`;
+  fromServer("/context", { term: S.term, kind, target }).then(c => {
+    if (PANEL !== p) return;
+    if (c.error) {
+      $("details").innerHTML = `<section><p class="title">${escapeHtml(target)}</p><p class="warn">${escapeHtml(c.error)}</p></section>`;
+      return;
+    }
+    const hop = h => h.kind === "url"
+      ? `<li><a href="${escapeHtml(h.target)}" target="_blank" rel="noopener">${escapeHtml(h.label)}</a></li>`
+      : `<li data-hop="${encodeURIComponent(JSON.stringify({ kind: h.kind, target: h.target }))}" tabindex="0">→ ${escapeHtml(h.label)}</li>`;
+    $("details").innerHTML = `
+      <section>
+        <p class="title">${escapeHtml(c.title)}</p>
+        <p class="note">a ${escapeHtml(c.kind)}, ~${tok(c.size)} to read</p>
+      </section>
+      ${p.advice ? `<div class="vs probe-vs"><p>${escapeHtml(p.advice)}</p></div>` : ""}
+      <section><ol class="context">${c.lines.map(l => `<li class="${l.match ? "match" : ""}"><span class="no">${l.line || ""}</span><code>${l.match ? highlight(l.text, S.term) : escapeHtml(l.text)}</code></li>`).join("")}</ol></section>
+      ${c.hops.length ? `<section><h2>Where it points, ${c.hops.length}</h2><ul class="hops">${c.hops.map(hop).join("")}</ul></section>` : ""}`;
+    $("details").scrollTop = 0;
+  });
+}
+
+function drawPanel() {
+  const p = PANEL;
+  chooseOwner(U.drill ? null : U.owner);
+  const key = p.kind === "file" ? p.id : p.kind === "site" ? "site:" + p.host : null;
+  pick(key);
+  if (p.kind === "file" && nodes.has(p.id)) fileCard(p.id);
+  else if (p.kind === "site" && siteOf.has(key)) sitePanel(siteOf.get(key));
+  else if (p.kind === "owner") ownerPanel(p.owner);
+  else if (p.kind === "plan") drawPlan(p.owner);
+  else if (p.kind === "orphans") orphansPanel();
+  else if (p.kind === "sites") sitesPanel();
+  else if (p.kind === "deep" && S.term) deepPanel(p);
+  else if (p.kind === "hop" && S.term) hopPanel(p);
+  else focusPanel();
+  crumb();
+  drawScorecard();
+}
+
+function ownerPanel(owner) {
+  const mine = [...marks.keys()].filter(k => nodes.has(k)).map(id => nodes.get(id)).filter(n => ownerOf(n) === owner && !n.status);
+  const launch = mine.filter(n => n.tier === "launch").reduce((s, n) => s + n.size, 0);
+  const everything = mine.reduce((s, n) => s + n.size, 0);
+  const deepest = Math.max(0, ...mine.map(n => (n.reach || 0) + n.size));
+  const heavy = mine.filter(n => n.measured && !n.root).sort((a, b) => b.closure - a.closure).slice(0, 8);
+  $("details").innerHTML = `
+    <section>
+      <p class="title">${escapeHtml(owner)}</p>
+      <p class="note">${mine.length} files</p>
+    </section>
+    <dl class="stats">
+      <div><dd>~${tok(launch)}</dd><dt>at start</dt></div>
+      <div><dd>~${tok(deepest)}</dd><dt>deepest path</dt></div>
+      <div><dd>~${tok(everything)}</dd><dt>every file</dt></div>
+    </dl>
+    <section class="actions">
+      ${mine.length && IDEAL.improvements.some(x => x.owner === ownerLabel(mine[0])) ? '<button id="owner-plan">What to change</button>' : ""}
+      <button id="drill-in">Show only ${escapeHtml(owner)}</button>
+    </section>
+    ${heavy.length ? `<section><h2>Heaviest files</h2><ul class="owner-files">${heavy.map(n =>
+      `<li data-id="${encodeURIComponent(n.id)}" tabindex="0"><span title="${escapeHtml(n.label)}">${escapeHtml(n.label)}</span><span>~${tok(n.closure)}</span></li>`).join("")}</ul></section>` : ""}`;
+  $("drill-in").onclick = () => drill(owner);
+  if ($("owner-plan")) $("owner-plan").onclick = () => showOwnerPlan(ownerLabel(mine[0]));
+}
+
+function drill(owner) {
+  go(() => { U.drill = owner; U.owner = null; PANEL = { kind: "focus" }; });
+}
+sky.addEventListener("pointermove", ev => {
+  const { id, host } = ev.target.dataset || {}, tip = $("tip");
+  if (!id && !host) { tip.hidden = true; return; }
+  const box = $("radar").getBoundingClientRect();
+  if (host) {
+    const site = siteOf.get("site:" + host);
+    tip.innerHTML = `<strong>${escapeHtml(site.host)}</strong>remote · named on ${site.refs.length} ${site.refs.length === 1 ? "line" : "lines"} of ${site.sources.length} ${site.sources.length === 1 ? "file" : "files"} · a trip off the machine`;
+  } else {
+    const n = nodes.get(id), P = probeResult, hit = P?.hits.get(id), lines = P?.mentions.get(id);
+    const how = !P ? "" : hit ? (hit.hop === 0 ? "loaded" : `hop ${hit.hop}`) + (lines ? ` · ${lines.length} ${lines.length === 1 ? "line mentions" : "lines mention"} it` : " · opened for its signpost")
+      : lines ? `an island · ${lines.length} ${lines.length === 1 ? "line mentions" : "lines mention"} it` : "loaded · silent on it";
+    tip.innerHTML = n.status
+      ? `<strong>${escapeHtml(n.label)}</strong>${escapeHtml(ownerOf(n))} · ~${tok(n.size)} · an orphan<br>${n.status === "folder" ? "named only as a folder" : "nothing links to it"}`
+      : `<strong>${escapeHtml(n.label)}</strong>${escapeHtml(ownerOf(n))} · spent ~${tok(n.reach)} · this ~${n.measured ? tok(n.size) : "?"} · all ~${tok(n.closure)}<br>${escapeHtml(how || n.when || "")}`;
+  }
+  tip.hidden = false;
+  tip.style.left = Math.min(ev.clientX - box.left + 12, box.width - 290) + "px";
+  tip.style.top = Math.max(ev.clientY - box.top - 10, 4) + "px";
+});
+sky.addEventListener("pointerleave", () => { $("tip").hidden = true; });
+
+// Asking about a term is a step on the trail; refining the term in place
+// replaces that step, so one Esc goes back to before the question.
+function setTerm(term) {
+  term = term.trim().toLowerCase();
+  $("probe").value = term;
+  if (term === S.term) return;
+  go(() => { S.term = term; PANEL = { kind: "focus" }; }, !!S.term && !!term);
+}
+let probing;
+$("probe").addEventListener("input", () => {
+  clearTimeout(probing);
+  probing = setTimeout(() => setTerm($("probe").value), 250);
+});
+
+// ---- what to look at first -------------------------------------------------
+//
+// With no question asked: what every session pays at start, what it is made
+// of, and the fixes that save the most. With a term: what asking about it
+// spends, and the heaviest files along the way, flagged where one is past its
+// ideal or was reached through a line that never names the term.
+
+const MIX = [
+  { label: "Rules", color: "var(--heat-5)", has: n => n.kind === "rule" },
+  { label: "Skill listing", color: "var(--heat-3)", has: n => n.kind === "entry" },
+  { label: "Instruction files", color: "var(--heat-1)", has: n => n.kind === "instructions" },
+  { label: "Other", color: "var(--heat-0)", has: () => true },
+];
+
+function focusPanel() {
+  const P = probeResult;
+  const shown = [...marks.keys()].filter(k => nodes.has(k)).map(k => nodes.get(k)).filter(n => !n.status);
+  const orphans = [...marks.keys()].filter(k => nodes.has(k) && nodes.get(k).status).map(k => nodes.get(k));
+  const pickRow = (n, value, why) => `<li data-id="${encodeURIComponent(n.id)}" tabindex="0"><span class="n" title="${escapeHtml(n.label)}">${escapeHtml(n.label)}</span><span class="v">${value}</span><span class="why">${why}</span></li>`;
+  if (P) {
+    const lit = [...P.hits.keys()].map(id => nodes.get(id)).filter(n => n.tier !== "launch" && n.measured)
+      .sort((a, b) => b.size - a.size).slice(0, 4);
+    const adds = spend.end - spend.start;
+    // A prompt of several words: the skill entries saying the most of them,
+    // the ones a session is likeliest to pick, as the terminal sorts them.
+    const closest = P.words.length > 1 ? [...P.hits].filter(([id, h]) => h.hop === 0 && nodes.get(id).kind === "entry")
+      .sort((a, b) => b[1].matched.length - a[1].matched.length || (nodes.get(a[0]).label < nodes.get(b[0]).label ? -1 : 1)).slice(0, 3) : [];
+    $("details").innerHTML = `
+      <section class="headline">
+        <h2>Asking about ${quote(P.term)}</h2>
+        <span class="big">~${tok(adds * DATA.bytesPerToken)} more</span>
+        <p>${adds ? `on top of ~${tok(spend.start * DATA.bytesPerToken)} loaded at start, if a session reads everything it lights` : "Nothing it lights costs more than what loads at start."}</p>
+      </section>
+      ${closest.length ? `<section><h2>Closest matches</h2><ul class="picks">${closest.map(([id, h]) =>
+        pickRow(nodes.get(id), `${h.matched.length} of ${P.words.length} words`, h.matched.map(quote).join(", "))).join("")}</ul></section>` : ""}
+      ${lit.length ? `<section><h2>Heaviest along the way</h2><ul class="picks">${lit.map(n => {
+        const hit = P.hits.get(n.id), flags = [];
+        if (OVER.has(n.id)) flags.push('<span class="warn">past its ideal</span>');
+        if (!hit.signposted) flags.push("its line never names the term");
+        return pickRow(n, "~" + tok(n.size), [hit.hop ? `hop ${hit.hop} from ${escapeHtml(nodes.get(hit.via).label)}` : "on a trigger", ...flags].join(" · "));
+      }).join("")}</ul></section>` : ""}
+      ${P.islands.length ? `<p class="quiet-note">${P.islands.length} more ${P.islands.length === 1 ? "file mentions" : "files mention"} ${quoted(P.words)} past the horizon: ${P.islands.length === 1 ? "an island" : "islands"} no lit link leads to. Select one to see the line that would connect it.</p>` : ""}
+      ${siteOf.size ? `<div class="actions"><button id="all-sites">${siteOf.size} web ${siteOf.size === 1 ? "host" : "hosts"} it reaches</button></div>` : ""}
+      ${deeper(0)}`;
+    if ($("all-sites")) $("all-sites").onclick = () => go(() => { PANEL = { kind: "sites" }; });
+    return;
+  }
+  const launch = shown.filter(n => n.tier === "launch");
+  const total = launch.reduce((s, n) => s + n.size, 0) || 1;
+  const mix = MIX.map(m => ({ ...m, bytes: 0 }));
+  for (const n of launch) mix.find(m => m.has(n)).bytes += n.size;
+  const parts = mix.filter(m => m.bytes);
+  const fixes = IDEAL.improvements.filter(x => marks.has(x.id)).slice(0, 3);
+  $("details").innerHTML = `
+    <section class="headline">
+      <h2>Loaded at start</h2>
+      <span class="big">~${tok(total)}</span>
+      <p>${launch.length} files every session here reads before you type a word, before the harness adds its own prompt and tools.</p>
+      <div class="mix" aria-hidden="true">${parts.map(m => `<span style="flex: ${m.bytes}; background: ${m.color}"></span>`).join("")}</div>
+      <ul class="mix-key">${parts.map(m => `<li><i style="background: ${m.color}"></i><span>${m.label}</span><span>~${tok(m.bytes)} · ${Math.round(m.bytes / total * 100)}%</span></li>`).join("")}</ul>
+    </section>
+    ${fixes.length ? `<section><h2>Fix first</h2><ul class="picks">${fixes.map(x =>
+      pickRow(nodes.get(x.id), x.excess ? "+" + tok(x.excess) : "", `${escapeHtml(x.title || x.check)} · <span class="warn">paid ${escapeHtml(x.paid)}</span>`)).join("")}</ul>
+      <div class="actions" style="margin-top: 8px"><button id="all-fixes">All fixes, by owner</button></div></section>` : ""}
+    ${orphans.length ? `<section><h2>Orphans</h2><ul class="picks">${orphans.sort((a, b) => b.size - a.size).slice(0, 3).map(o =>
+      pickRow(o, "~" + tok(o.size), o.fix ? `name it in ${escapeHtml(o.fix.file)}` : "nothing reached talks about it")).join("")}</ul>
+      <div class="actions" style="margin-top: 8px"><button id="all-orphans">All ${orphans.length} orphans</button></div></section>` : ""}
+    ${siteOf.size ? `<section><h2>Off the machine</h2><ul class="picks">${[...siteOf.values()].slice(0, 3).map(siteRow).join("")}</ul>
+      <div class="actions" style="margin-top: 8px"><button id="all-sites">All ${siteOf.size} web ${siteOf.size === 1 ? "host" : "hosts"}</button></div></section>` : ""}
+    <p class="quiet-note">Down the deepest path a session spends ~${tok(Math.max(0, ...shown.map(n => (n.reach || 0) + n.size)))}; reading every file would take ~${tok(shown.reduce((s, n) => s + n.size, 0))}. Ask about a term above to see what a prompt opens and spends.</p>`;
+  if ($("all-fixes")) $("all-fixes").onclick = () => { if ($("drawer").hidden) setDrawer(true); $("ideal-card").scrollIntoView({ block: "start" }); };
+  if ($("all-orphans")) $("all-orphans").onclick = () => go(() => { PANEL = { kind: "orphans" }; });
+  if ($("all-sites")) $("all-sites").onclick = () => go(() => { PANEL = { kind: "sites" }; });
+}
+
+// ---- the walkthrough --------------------------------------------------------
+//
+// Each step lights one part of the radar and says what it encodes, using this
+// setup's own numbers; the probe step offers terms that return something here.
+
+const tour = { step: -1 };
+
+function tourSteps() {
+  const shown = [...marks.keys()].filter(k => nodes.has(k)).map(id => nodes.get(id));
+  const launch = shown.filter(n => n.tier === "launch").reduce((s, n) => s + n.size, 0);
+  const byWeight = (a, b) => b.closure - a.closure;
+  const loadedRoots = shown.filter(listed).sort((a, b) => b.size - a.size);
+  const waiting = shown.filter(n => n.root && !listed(n));
+  // The example file sits out in the sky, so the path back to launch is long
+  // enough to see; the heaviest file overall often sits right beside launch.
+  const files = shown.filter(n => !n.root && n.measured && n.reach !== null);
+  const far = Math.max(0, ...files.map(n => n.reach || 0)) * 0.35;
+  const hottest = files.filter(n => (n.reach || 0) >= far).sort(byWeight)[0] || files.slice().sort(byWeight)[0];
+  const lightest = files.filter(n => n.closure < (hottest?.closure || Infinity) / 8).sort((a, b) => a.closure - b.closure)[0];
+  const rings = [1000, 5000, 10000, 25000, 50000, 100000, 200000].filter(m => m <= (geometry?.maxReach || 0));
+  const ring = rings[Math.min(rings.length - 1, Math.floor(rings.length / 2))];
+  const onRing = ring ? files.slice().sort((a, b) => Math.abs(tokensOf(a.reach) - ring) - Math.abs(tokensOf(b.reach) - ring))[0] : null;
+  const owners = new Map();
+  for (const n of shown) if (!n.root || listed(n)) (owners.get(ownerOf(n)) || owners.set(ownerOf(n), []).get(ownerOf(n))).push(n);
+  const plugin = [...owners.entries()].filter(([o]) => o !== "this repo" && o !== "user scope").sort((a, b) => b[1].length - a[1].length)[0];
+  const biggestSite = [...siteOf.values()][0];
+  const worst = IDEAL.improvements.filter(x => marks.has(x.id)).sort((a, b) => b.excess - a.excess)[0];
+  const all = sel => [...sky.querySelectorAll(sel)];
+  const named = (n, text) => ({ id: n.id, text });
+  return [
+    { title: "Launch is the center",
+      text: `Every session starts here, with the instruction files, always-on rules, and the skill listing: ~${tok(launch)} tokens on this setup, before you type a word. The two largest pieces are named.`,
+      on: () => [...all(".core, .core-label"), ...loadedRoots.slice(0, 2).map(n => marks.get(n.id))],
+      names: loadedRoots.slice(0, 2).map(n => named(n, `${n.label} ~${tok(n.size)}`)) },
+    { title: "The meter is context spent",
+      text: `The bar under the radar runs out to a 1M context window, with a line where a 200k window ends. The first stretch is what loads at start, ~${tok(launch)} here; the thumb sits there until you ask about something. Drag it right and the radar lights the files a session opens next, cheapest first; the rest stay dark.`,
+      on: () => [$("meter"), ...all(".core, .core-label")], run: () => lightTo(spend.start) },
+    { title: "Ask about a term",
+      text: "Type what a prompt would be about. The loaded files that mention it light up, and following their references lights what an agent wanting more would reach, hop by hop; the meter fills by hop with what that spends. Files that mention it but nothing lit leads to are islands, past the horizon; select one to see the line that would connect it. Pick a word a few files use: a term like git lights half the sky.",
+      on: () => [$("probe-bar")], ask: true },
+    { title: "Distance is context spent",
+      text: onRing
+        ? `Each ring marks tokens a session has already read on its way out. ${onRing.label} sits near the ${ring / 1000}k ring: a session spends ~${tok(onRing.reach)} on the way before it can open that file.`
+        : "Each ring marks tokens a session has already read on its way out. A file sits as far from launch as the cheapest path to it costs.",
+      on: () => [...all(".ring, .ring-label, .core"), onRing && marks.get(onRing.id)].filter(Boolean),
+      names: onRing ? [named(onRing, `${onRing.label} · spent ~${tok(onRing.reach)}`)] : [] },
+    { title: "Each wedge is an owner",
+      text: plugin
+        ? `This repo, your user scope, and each plugin get a slice of the sky, sized by how many files they hold. ${plugin[0]}'s slice is lit: its ${plugin[1].length} files stay inside it, a skill's guides fanning out behind the skill. Click a slice for its totals, or double-click it to see that owner alone.`
+        : "This repo, your user scope, and each plugin get a slice of the sky, sized by how many files they hold. Click a slice for its totals, or double-click it to see that owner alone.",
+      on: () => plugin ? [...all(".owner"), wedgeEls.get(plugin[0]), ...plugin[1].map(n => marks.get(n.id))] : all(".owner"),
+      wedge: plugin && plugin[0],
+      names: plugin ? plugin[1].filter(n => !n.root).sort(byWeight).slice(0, 2).map(n => named(n, n.label)) : [] },
+    { title: "Each dot is a file",
+      text: hottest
+        ? `Its size is the file's own cost; its color is everything it pulls in, from gray to red. ${hottest.label} costs ~${tok(hottest.size)} and pulls in ~${tok(hottest.closure)}${lightest ? `; ${lightest.label} costs ~${tok(lightest.size)} and pulls in ~${tok(lightest.closure)}` : ""}.`
+        : "Its size is the file's own cost; its color is everything it pulls in, from gray to red.",
+      on: () => [hottest, lightest].filter(Boolean).map(n => marks.get(n.id)),
+      names: [hottest && named(hottest, `${hottest.label} · this ~${tok(hottest.size)}, all ~${tok(hottest.closure)}`),
+              lightest && named(lightest, `${lightest.label} · this ~${tok(lightest.size)}, all ~${tok(lightest.closure)}`)].filter(Boolean),
+      pulse: hottest && hottest.id },
+    { title: "Lines show how to get there",
+      text: hottest
+        ? `The bright line traces the cheapest path from launch to ${hottest.label}: each step is a reference in the file before it. Click any dot to trace its own path and see its costs on the right.`
+        : "The bright line traces the cheapest path from launch to a file: each step is a reference in the file before it.",
+      on: () => hottest ? (pick(hottest.id), [marks.get(hottest.id), ...all(".ray.on"), ...chain(hottest.id).map(id => marks.get(id))].filter(Boolean)) : [],
+      names: hottest ? chain(hottest.id).filter(id => marks.has(id)).map(id => named(nodes.get(id), nodes.get(id).label)) : [] },
+    { title: "Dashed dots wait for a trigger",
+      text: waiting.length
+        ? `${waiting.length} roots here open only when something else happens first: a file matching a rule's globs is touched, a hook fires, or you type a skill's name. Until then they cost nothing. ${waiting.slice(0, 2).map(n => `${n.label} waits on ${n.trigger || n.when}`).join("; ")}.`
+        : "A dashed dot opens only when something else happens first: a file matching a rule's globs is touched, a hook fires, or you type a skill's name. None here.",
+      on: () => all(".mark.gated"),
+      names: waiting.slice(0, 2).map(n => named(n, `${n.label} · ${n.trigger || "on a trigger"}`)) },
+    { title: worst ? "Haloed dots are past their ideal" : "Nothing here is past its ideal",
+      text: worst
+        ? `${OVER.size} ${OVER.size === 1 ? "file wears" : "files wear"} a halo: each is over the budget for its tier. ${worst.label} fails ${worst.check}, ~${tok(worst.excess)} over, paid ${worst.paid}. Fix first, on the right, names the costliest; Filters and findings has each owner's scorecard, and an owner there opens a plan and a prompt to hand an agent.`
+        : "A file over the budget for its tier would wear a halo, and Fix first, on the right, would say what to change. Every file here is within its ideal.",
+      on: () => worst ? [...sky.querySelectorAll(".halo"), marks.get(worst.id)].filter(Boolean) : [],
+      names: worst && marks.has(worst.id) ? [named(nodes.get(worst.id), `${worst.label} · ${worst.check}, +${tok(worst.excess)}`)] : [] },
+    { title: biggestSite ? "Red diamonds leave the machine" : "Everything here is on this machine",
+      text: biggestSite
+        ? `${siteOf.size} remote ${siteOf.size === 1 ? "site is" : "sites are"} named from the files shown; ${biggestSite.host} the most, on ${biggestSite.refs.length} ${biggestSite.refs.length === 1 ? "line" : "lines"} of ${biggestSite.sources.length} ${biggestSite.sources.length === 1 ? "file" : "files"}. Each is a network round trip to whatever the site serves that day: slower than a file, different tomorrow, gone offline. Context a session needs belongs beside the file that names it.`
+        : "No file shown sends a session to a web address. When one does, it appears as a red diamond on the perimeter: a network round trip to whatever the site serves that day.",
+      on: () => biggestSite ? [marks.get("site:" + biggestSite.host), ...(rays.get("site:" + biggestSite.host) || []), ...biggestSite.sources.map(id => marks.get(id)), ...all(".perimeter, .edge-label.far")].filter(Boolean) : all(".mark.remote, .perimeter"),
+      names: biggestSite ? [{ id: "site:" + biggestSite.host, text: `${biggestSite.host} · ${biggestSite.refs.length} lines` }, ...biggestSite.sources.slice(0, 2).map(id => named(nodes.get(id), nodes.get(id).label))] : [] },
+  ];
+}
+
+// The step's exemplars get a name beside their mark, so the eye lands on
+// the dot the text is talking about.
+function nameExemplars(step) {
+  for (const t of sky.querySelectorAll(".tour-name")) t.remove();
+  const taken = [];
+  for (const { id, text } of step.names || []) {
+    const mark = marks.get(id);
+    if (!mark) continue;
+    const box = mark.getBBox(), x = box.x + box.width + 5;
+    // Two exemplars side by side get their names stacked, not overprinted.
+    let y = box.y + box.height / 2 + 4;
+    while (taken.some(([tx, ty]) => Math.abs(tx - x) < 240 && Math.abs(ty - y) < 14)) y += 14;
+    taken.push([x, y]);
+    const t = el("text", { class: "tour-name tour-on", x, y }, sky);
+    const [label, ...rest] = text.split(" · ");
+    t.textContent = label.length > 40 ? "…" + label.slice(-39) : label;
+    if (rest.length) { const span = el("tspan", { dx: 6 }, t); span.textContent = rest.join(" · "); }
+    mark.classList.add("tour-pulse");
+  }
+}
+
+// The walkthrough lights every file, whatever the meter says, and puts the
+// meter back where it was when it ends.
+function lightAll() {
+  for (const node of sky.querySelectorAll(".dark")) node.classList.remove("dark");
+}
+
+function showStep(i) {
+  if (tour.step < 0) tour.budget = U.budget;
+  const steps = tourSteps();
+  tour.step = Math.max(0, Math.min(i, steps.length - 1));
+  const step = steps[tour.step];
+  for (const node of document.querySelectorAll(".tour-on, .tour-pulse")) node.classList.remove("tour-on", "tour-pulse");
+  for (const node of sky.querySelectorAll(".wedge.chosen, .owner.chosen")) if (!U.owner) node.classList.remove("chosen");
+  sky.classList.add("touring");
+  $("key").open = false;
+  for (const node of step.on()) node?.classList.add("tour-on");
+  if (step.wedge) for (const [key, node] of wedgeEls) if (key.split("\u0000")[0] === step.wedge) node.classList.add("chosen", "tour-on");
+  nameExemplars(step);
+  if (step.pulse) marks.get(step.pulse)?.classList.add("tour-pulse");
+  $("meter").classList.toggle("tour-on", !!step.run);
+  $("probe-bar").classList.toggle("tour-on", !!step.ask);
+  if (step.run) step.run(); else lightAll();
+  $("tour-count").textContent = `${tour.step + 1} of ${steps.length}`;
+  $("tour-title").textContent = step.title;
+  $("tour-text").textContent = step.text;
+  $("tour-back").disabled = tour.step === 0;
+  $("tour-next").textContent = tour.step === steps.length - 1 ? "Done" : "Next";
+  $("tour").hidden = false;
+}
+
+function endTour() {
+  tour.step = -1;
+  lightTo(tour.budget ?? U.budget);
+  sky.classList.remove("touring");
+  for (const node of document.querySelectorAll(".tour-on, .tour-pulse")) node.classList.remove("tour-on", "tour-pulse");
+  for (const t of sky.querySelectorAll(".tour-name")) t.remove();
+  if (!U.owner) for (const node of sky.querySelectorAll(".wedge.chosen, .owner.chosen")) node.classList.remove("chosen");
+  $("tour").hidden = true;
+  $("help").focus();
+}
+
+$("help").addEventListener("click", () => showStep(0));
+$("tour-back").addEventListener("click", () => showStep(tour.step - 1));
+$("tour-next").addEventListener("click", () => tour.step === tourSteps().length - 1 ? endTour() : showStep(tour.step + 1));
+$("tour-close").addEventListener("click", endTour);
+addEventListener("keydown", ev => {
+  if (tour.step >= 0) {
+    if (ev.key === "Escape") endTour();
+    else if (ev.key === "ArrowRight") $("tour-next").click();
+    else if (ev.key === "ArrowLeft" && tour.step > 0) showStep(tour.step - 1);
+    return;
+  }
+  if (ev.key === "Escape") stepBack();
+});
+
+// Esc walks the trail back one step, as the mouse's back button does. In the
+// drawer's search box it clears the search first; at the trail's start it
+// clears the drawer's filters, then closes the drawer.
+function stepBack() {
+  const active = document.activeElement;
+  if (active && active.id === "search" && active.value) { active.value = ""; render(); return; }
+  if (depth > 0) { goBack(); return; }
+  const boxes = [...document.querySelectorAll("#tiers input:not(:checked)")];
+  const picks = [...document.querySelectorAll("#scope option:checked, #marketplace option:checked, #plugin option:checked")];
+  if (boxes.length || picks.length || $("search").value) {
+    for (const b of boxes) b.checked = true;
+    for (const o of picks) o.selected = false;
+    $("search").value = "";
+    render();
+    return;
+  }
+  if (!$("drawer").hidden) setDrawer(false);
+}
+
+// vs ideal: the scorecard the CLI computed, as a card beside the radar; the
+// files past their ideal wear a halo on the sky, and an owner's fixes open as
+// a plan in the details panel.
+const IDEAL = DATA.ideal;
+const CHECK_NAMES = Object.keys(IDEAL.checks);
+const PAID = ["every session", "each invocation", "each read"];
+const OVER = new Set(IDEAL.improvements.map(x => x.id));
+const planOwner = () => PANEL.kind === "plan" ? PANEL.owner : null;
+const link = s => s.startsWith("http")
+  ? `<a href="${escapeHtml(s)}" target="_blank" rel="noopener">${escapeHtml(s.split("/").pop())}</a>` : escapeHtml(s);
+$("checks-legend").innerHTML = CHECK_NAMES.map(c => {
+  const k = IDEAL.checks[c];
+  return `<dt>${c}</dt><dd>${escapeHtml(k.goal)}; the excess is paid ${escapeHtml(k.paid)}</dd><dd class="src">${k.sources.map(link).join(", ")}</dd>`;
+}).join("");
+
+function drawScorecard() {
+  const over = b => b ? "+" + tok(b) : '<span class="na">–</span>';
+  const session = IDEAL.owners.reduce((s, o) => s + (o.excess.session || 0), 0);
+  const n = IDEAL.improvements.length;
+  $("ideal-lead").innerHTML = n
+    ? `${n} ${n === 1 ? "file is" : "files are"} past the ideal for ${n === 1 ? "its" : "their"} tier${session ? `, ~${tok(session)} tokens over every session` : ""}.<button id="show-over">Show</button>`
+    : "Nothing here is past its ideal.";
+  if (n) $("show-over").onclick = () => go(() => { focus = null; focusSet = { ids: OVER, label: "Past the ideal" }; PANEL = { kind: "focus" }; });
+  $("scorecard").innerHTML = `<thead><tr><th>Owner</th><th title="~tokens over the ideal, paid every session">session</th><th title="~tokens over the ideal, paid on each invocation">invoke</th><th title="files failing a check, of those checked">fails</th></tr></thead>
+    <tbody>${IDEAL.owners.map(o => {
+      const failing = CHECK_NAMES.reduce((s, c) => s + (o.checks[c]?.failing || 0), 0);
+      const of = CHECK_NAMES.reduce((s, c) => s + (o.checks[c]?.of || 0), 0);
+      const detail = CHECK_NAMES.map(c => o.checks[c] ? `${c} ${o.checks[c].failing}/${o.checks[c].of}` : "").filter(Boolean).join(", ");
+      return `<tr tabindex="0" data-owner="${escapeHtml(o.owner)}" title="${escapeHtml(detail)}"${planOwner() === o.owner ? ' aria-current="true"' : ""}>
+        <td title="${escapeHtml(o.owner)}">${escapeHtml(o.owner)}</td><td>${over(o.excess.session)}</td><td>${over(o.excess.invocation)}</td>
+        <td class="${failing ? "bad" : "ok"}">${failing}/${of}</td></tr>`;
+    }).join("")}</tbody>`;
+}
+
+function showOwnerPlan(owner) {
+  go(() => { U.owner = ownerOfLabel(owner); PANEL = { kind: "plan", owner }; }, PANEL.kind === "plan");
+}
+// The scorecard names an owner as vs ideal does (plugin@marketplace); the sky's
+// wedges use the plugin's bare name.
+const ownerOfLabel = label => { const n = DATA.nodes.find(n => ownerLabel(n) === label); return n ? ownerOf(n) : null; };
+
+// ---- what would you change: one owner's fixes as steps, and a prompt ---------
+//
+// A step per check, the session-paid ones first, then by what they save. Each
+// owner lives in its own repository, so each gets its own prompt.
+
+const STEP = {
+  launch: () => "Bring launch within the budget",
+  entry: n => `Shorten ${n} listing ${n === 1 ? "entry" : "entries"} to about 100 tokens`,
+  body: n => `Split ${n} skill ${n === 1 ? "body" : "bodies"} to under 5,000 tokens and 500 lines`,
+  nested: n => `Link ${n} ${n === 1 ? "reference" : "references"} straight from the skill body`,
+  toc: n => `Add a table of contents to ${n} long ${n === 1 ? "reference" : "references"}`,
+};
+const PROMPT_FILES = 15;
+
+function planFor(owner) {
+  const mine = IDEAL.improvements.filter(x => x.owner === owner);
+  const steps = CHECK_NAMES.map(check => {
+    const fixes = mine.filter(x => x.check === check);
+    if (!fixes.length) return null;
+    const k = IDEAL.checks[check];
+    return { check, fixes, title: STEP[check](fixes.length), saves: fixes.reduce((s, x) => s + x.excess, 0), ...k };
+  }).filter(Boolean).sort((a, b) => PAID.indexOf(a.paid) - PAID.indexOf(b.paid) || b.saves - a.saves);
+  const paths = DATA.nodes.filter(n => ownerLabel(n) === owner).map(n => n.path);
+  let root = paths.length ? paths[0].slice(0, paths[0].lastIndexOf("/")) : "";
+  for (const path of paths) while (root && !(path + "/").startsWith(root + "/")) root = root.slice(0, root.lastIndexOf("/"));
+  const sample = DATA.nodes.find(n => ownerLabel(n) === owner);
+  const narrow = { "this repo": "--scope repo", "user scope": "--scope user" }[owner]
+    || (sample.scope === "plugin" ? `--plugin ${sample.plugin}` : "");
+  return { owner, steps, root, narrow, card: IDEAL.owners.find(o => o.owner === owner) };
+}
+
+function whereText(plan) {
+  if (plan.owner === "this repo") return `The files are in this repository, ${plan.root}; the paths below are relative to it.`;
+  if (plan.owner === "user scope") return `The files are in your user scope, ${plan.root}; the paths below are relative to it. If they're deployed there from a source repository, make the changes in that repository instead.`;
+  if (plan.owner === "other") return "The files sit outside this repository, your user scope, and the plugins; each path below says where. Make each change where that file's source lives.";
+  return `The files are the installed copy of the ${plan.owner} plugin, under ${plan.root}; the paths below are relative to it, and match the source repository's layout. Make the changes in the plugin's source repository: an update replaces the installed copy.`;
+}
+
+function promptText(plan) {
+  const lines = [
+    `Trim what ${plan.owner} costs each Claude Code session. cleat's context graph measured its skills, guides, and rules against Anthropic's skill budgets; these are the fixes it found, the largest savings first.`,
+    "", whereText(plan), "",
+  ];
+  plan.steps.forEach((step, i) => {
+    lines.push(`${i + 1}. ${step.title}${step.saves ? ` (saves ~${tok(step.saves)} tokens, paid ${step.paid})` : ""}.`);
+    lines.push(`   The ideal: ${step.goal}.`);
+    lines.push(`   How: ${step.repair}.`);
+    const where = path => plan.root && path.startsWith(plan.root + "/") ? path.slice(plan.root.length + 1) : path;
+    for (const x of step.fixes.slice(0, PROMPT_FILES)) lines.push(`   - ${where(nodes.get(x.id).path)}: ${x.text}`);
+    if (step.fixes.length > PROMPT_FILES) lines.push(`   - and ${step.fixes.length - PROMPT_FILES} more; \`${["cleat graph", plan.narrow].filter(Boolean).join(" ")}\` lists them under "vs ideal".`);
+    lines.push("");
+  });
+  const sources = [...new Set(plan.steps.flatMap(st => st.sources).filter(u => u.startsWith("http")))];
+  lines.push("Move content rather than delete it: each skill must still do what it does now, and each description must still tell the model when to use the skill.");
+  if (sources.length) lines.push(`The budgets: ${sources.join(" and ")}`);
+  lines.push(`When you're done, run \`${["cleat graph --json", plan.narrow].filter(Boolean).join(" ")}\` and confirm the "ideal" improvements for ${plan.owner} are gone, or say why any remain.`);
+  return lines.join("\n");
+}
+
+function drawPlan(owner) {
+  const plan = planFor(owner), c = plan.card;
+  if (!c || !plan.steps.length) {
+    $("details").innerHTML = `<section><p class="title">${escapeHtml(owner)}</p><p class="note">Nothing here is past its ideal.</p></section>`;
+    return;
+  }
+  const paidLine = [c.excess.session ? `~${tok(c.excess.session)} tokens over the ideal every session` : "",
+                    c.excess.invocation ? `~${tok(c.excess.invocation)} on each invocation` : ""].filter(Boolean).join(", and ");
+  $("details").innerHTML = `<article class="plan">
+    <div class="plan-head"><h3>What to change in ${escapeHtml(owner)}</h3><button id="plan-close" class="quiet" title="Esc">Back</button></div>
+    <p class="plan-lead">${paidLine ? `It costs ${paidLine}. ` : ""}${plan.steps.length === 1 ? "One step." : `${plan.steps.length} steps, the largest savings first.`} ${escapeHtml(whereText(plan))}</p>
+    <ol class="plan-steps">${plan.steps.map(step => `<li>
+      <h4>${escapeHtml(step.title)}</h4>
+      <p>${step.saves ? `Saves ~${tok(step.saves)} tokens, paid ${escapeHtml(step.paid)}. ` : ""}The ideal is ${escapeHtml(step.goal)} (${step.sources.map(link).join(", ")}). ${escapeHtml(step.repair[0].toUpperCase() + step.repair.slice(1))}.</p>
+      <details><summary>${step.fixes.length} ${step.fixes.length === 1 ? "file" : "files"}</summary><ul class="plan-files">${step.fixes.map(x => `<li data-fix="${IDEAL.improvements.indexOf(x)}" tabindex="0">
+        <span class="f">${escapeHtml(x.label)}</span><span class="x">${x.excess ? "+" + tok(x.excess) : ""}</span>
+        <span class="r">${escapeHtml(x.text)}</span></li>`).join("")}</ul></details></li>`).join("")}</ol>
+    <section class="starter">
+      <div class="starter-head"><h4 id="prompt-title">Starter prompt</h4><button id="copy-prompt">Copy prompt</button></div>
+      <p>Paste it into an agent session in the repository the files come from.</p>
+      <pre id="prompt" aria-labelledby="prompt-title" tabindex="0"></pre>
+    </section>
+  </article>`;
+  $("prompt").textContent = promptText(plan);
+  $("plan-close").onclick = goBack;
+  $("copy-prompt").onclick = ev => navigator.clipboard.writeText($("prompt").textContent).then(
+    () => { ev.target.textContent = "Copied"; setTimeout(() => { ev.target.textContent = "Copy prompt"; }, 1600); },
+    err => { ev.target.textContent = `Copy failed (${err.name}): select the prompt and copy it`; });
+}
+
+function pickOwner(row) { row.dataset.owner === planOwner() ? goBack() : showOwnerPlan(row.dataset.owner); }
+function pickFix(row) { openFile(IDEAL.improvements[Number(row.dataset.fix)].id); }
+$("scorecard").addEventListener("click", ev => { const r = ev.target.closest("[data-owner]"); if (r) pickOwner(r); });
+$("scorecard").addEventListener("keydown", ev => {
+  if (ev.key !== "Enter" && ev.key !== " ") return;
+  const r = ev.target.closest("[data-owner]");
+  if (r) { ev.preventDefault(); pickOwner(r); }
+});
+$("details").addEventListener("click", ev => { const r = ev.target.closest("[data-fix]"); if (r) pickFix(r); });
+$("details").addEventListener("keydown", ev => {
+  if (ev.key !== "Enter" && ev.key !== " ") return;
+  const r = ev.target.closest("[data-fix]");
+  if (r) { ev.preventDefault(); pickFix(r); }
+});
+let resizing;
+addEventListener("resize", () => { clearTimeout(resizing); resizing = setTimeout(render, 150); });
+
+trail.push(snapshot());
+history.replaceState({ cleat: 0 }, "");
+render();
+// `--deep N` with `--serve` opens on the rings it names, a step past the probe.
+if (SERVE && SERVE.through && S.term) go(() => { PANEL = { kind: "deep", through: SERVE.through }; });
+</script>
+</body>
+</html>

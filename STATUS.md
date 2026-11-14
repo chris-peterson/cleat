@@ -7,7 +7,7 @@ in-repo implementation. Status vocabulary: **Covered** · **Partial** ·
 **Evidence pointers:** file + enclosing symbol. A line number is invalidated by
 any edit above it, and the ledger is read long after that edit.
 
-**Coverage: 107/107 requirements Covered (100%)**
+**Coverage: 161/161 requirements Covered (100%)**
 
 ## CHECK — The check command
 
@@ -78,11 +78,80 @@ CHECK-12 is retired and not counted.
 | COST-09 | Covered | scripts/cleat (`cmd_cost`) — the `--json` branch |
 | COST-10 | Covered | scripts/cleat (`_launch_findings`, `TIERING_GUIDE`); scripts/tests/cost.test.sh |
 
+## GRAPH — The context graph
+
+| ID       | Status  | Location |
+|----------|---------|----------|
+| GRAPH-01 | Covered | scripts/cleat (`cmd_graph`, `main`); scripts/cleat_graph.py (`run`); scripts/tests/graph.test.sh |
+| GRAPH-02 | Covered | scripts/cleat_graph.py (`Walker.walk`, `enabled_plugins`, `settings_files`, `config_dir`); scripts/tests/graph.test.sh |
+| GRAPH-03 | Covered | scripts/cleat_graph.py (`Walker.file_node`, `Walker.invocable`, `Scope.attrs`); scripts/tests/graph.test.sh |
+| GRAPH-04 | Covered | scripts/cleat_graph.py (`Walker.scan`, `Walker.resolve`, `Walker.hooks`) — `PATH_REF`, `SLASH_NAME`, `QUALIFIED_NAME`; scripts/tests/graph.test.sh |
+| GRAPH-05 | Covered | scripts/cleat_graph.py (`Walker.instructions`); scripts/tests/graph.test.sh |
+| GRAPH-06 | Covered | scripts/cleat_graph.py (`compute_costs`); scripts/tests/graph.test.sh |
+| GRAPH-07 | Covered | scripts/cleat_graph.py (`compute_costs`, `totals`); scripts/tests/graph.test.sh |
+| GRAPH-08 | Covered | scripts/cleat_graph.py (`filtered`, `matches`, `parse_filter`); scripts/cleat (`main`); scripts/tests/graph.test.sh |
+| GRAPH-09 | Covered | scripts/cleat_graph.py (`Browser`, `remote_sites`, `sites_summary`, `rollup` external, `Browser.meter`, `Browser.lead`, `Browser.layout`, `size_bar`, `rollup`, `group_stats`, `left_rows`, `tree_rows`, `heat_level`); scripts/tests/graph.test.sh, under a pty |
+| GRAPH-10 | Covered | scripts/cleat_graph.py (`render_html`, `save_page`, `write_page`, `Browser.open_page`); scripts/cleat_graph.html (`#drawer`, `setDrawer`, `fileCard`), which loads no script, font, or style from outside the file; scripts/tests/graph.test.sh |
+| GRAPH-11 | Covered | scripts/cleat_graph.py (`as_json`, `remote_sites`, `run`); scripts/tests/graph.test.sh |
+| GRAPH-12 | Covered | scripts/cleat_graph.py (`run`); scripts/tests/graph.test.sh |
+| GRAPH-13 | Covered | scripts/cleat_graph.py (`_json_file`, `enabled_plugins`, `run`); scripts/tests/graph.test.sh |
+| GRAPH-14 | Covered | scripts/cleat_graph.py (`BYTES_PER_TOKEN`, `tokens`, `write_page`); scripts/cleat_graph.html (`tok`); scripts/tests/graph.test.sh |
+| GRAPH-15 | Covered | scripts/cleat_graph.py (`insights`, `_insight`, `Browser.refresh_rows`); scripts/cleat_graph.html (the Insights card, `focusSet`); scripts/tests/graph.test.sh |
+| GRAPH-16 | Covered | scripts/cleat_graph.py (`Walker.ref`, `Walker.retired`, the `when` and `trigger` fields, `Graph.refs`, `Browser.details`, `tag`); scripts/cleat_graph.html (Loads, Opened by); scripts/tests/graph.test.sh |
+| GRAPH-17 | Covered | scripts/cleat_graph.html (`drawRadar`, `sitesPanel`, `siteRow`, `openSites`, `#sites-open`, `.perimeter-hit`, `spendOrder`, `drawMeter`, `meterRead`, `lightTo`, `focusPanel`, `fileCard`, `chooseOwner`, `ownerPanel`, `drill`, `tourSteps`); scripts/tests/graph.test.sh |
+| GRAPH-18 | Covered | scripts/cleat_graph.py (`depth_cost`, `totals`, `owners`, `group_stats`, `Browser.draw`, `write_page`); scripts/cleat_graph.html (`focusPanel`, `ownerPanel`); scripts/tests/graph.test.sh |
+| GRAPH-19 | Covered | scripts/cleat_graph.py (`vs_ideal`, `checks`, `_reads_below`, `has_toc`, `Walker.file_node` — the `lines` and `toc` fields, `build` — `launch_budget`); scripts/tests/ideal.test.sh |
+| GRAPH-20 | Covered | scripts/cleat_graph.py (`vs_ideal` — `improve`, the ranking sort); scripts/tests/ideal.test.sh |
+| GRAPH-21 | Covered | scripts/cleat_graph.py (`vs_ideal` — `counted`, the owner cards); scripts/tests/ideal.test.sh |
+| GRAPH-22 | Covered | scripts/cleat_graph.py (`as_json`, `Browser` — the `IDEAL` group, `details`); scripts/cleat_graph.html (`drawScorecard`, `OVER` and the halos in `drawRadar`, `fileCard`'s vs ideal note); scripts/tests/ideal.test.sh, under a pty |
+| GRAPH-23 | Covered | scripts/cleat_graph.py (`osc8`, `Browser.link`, `Browser.emit_links`, `Browser.sgr`, `Browser.selected_path`, the details strip's file line); scripts/cleat_graph.html (`fileLinks`); scripts/tests/graph.test.sh, under a pty |
+| GRAPH-24 | Covered | scripts/cleat_graph.py (`MOUSE_ON`, `MOUSE_OFF`, `SGR_MOUSE`, `Browser.run`, `Browser.read_escape`, `Browser.mouse`, `Browser.regroup`); scripts/tests/graph.test.sh, under a pty |
+| GRAPH-25 | Covered | scripts/cleat_graph.html (the radar's dblclick handler, `crumb`, `#key`); scripts/tests/graph.test.sh |
+| GRAPH-26 | Covered | scripts/cleat_graph.html (`planFor`, `whereText`, `promptText`, `drawPlan`, `showOwnerPlan`, `ownerLabel`, `ownerPanel`'s What to change); scripts/tests/graph.test.sh |
+| GRAPH-27 | Covered | scripts/cleat_graph.py (`Walker.remote`, `Walker.scan`); scripts/tests/graph.test.sh |
+| GRAPH-28 | Covered | scripts/cleat_graph.py (`STOPWORDS`, `keywords`, `says`, `matched`, `left_rows` — `rank`, `Browser.return_tag`, `Graph.texts`, `Walker.file_node`, `Walker.invocable`, `render_html`, `write_page`, `plain`, `probe`); scripts/cleat_graph.html (`TEXT_B64`, `STOPWORDS`, `keywords`, `wordAt`, `says`, `matched`, `focusPanel`'s Closest matches, `plain`, `mentionLines`, `probe`, `sites`); scripts/tests/graph.test.sh |
+| GRAPH-29 | Covered | scripts/cleat_graph.html (`drawRadar`, `summarize`, `summarizeLong`, `summarizeAll`, `probeLead`, `islandFix`, `islandAdvice`, `probeLines`, `sitePanel`, `pick`); scripts/tests/graph.test.sh |
+| GRAPH-30 | Covered | scripts/cleat_graph.py (`probe`, `probe_summary`, `probe_public`, `island_fix`, `island_advice`, `rollup` by distance, `Browser.draw` — a hop's own cost, `Browser.probe_prompt`, `Browser.return_tag`, `Browser.reached`, `run`); scripts/cleat (the `--probe` argument); scripts/tests/graph.test.sh, under a pty |
+| GRAPH-32 | Covered | scripts/cleat_graph.py (`REMOTE_ESTIMATE_TOKENS`, `remote_cache_path`, `read_remote_cache`, `measure_url`, `page_text`, `measure_remotes`, `attach_remote_sizes`, `remote_cost`, `Browser.meter`, `run`); scripts/cleat (the `--measure-remote` argument); scripts/cleat_graph.html (`spendOrder`'s online step, `fetchCost`, `siteCost`); scripts/tests/graph.test.sh, against a local server |
+| GRAPH-31 | Covered | scripts/cleat_graph.html (`go`, `restore`, `goBack`, `stepBack`, `goHome`, `#home`, `crumb`, the `popstate` and `mouseup` handlers); scripts/cleat_graph.py (`Browser.remember`, `Browser.back`, `MOUSE_BACK`, `Browser.loop`, `Browser.mouse`); scripts/tests/graph.test.sh, under a pty |
+| GRAPH-34 | Covered | scripts/cleat_graph.py (`settings_flag`, `settings_files`, `enabled_plugins`, `Walker.walk`, `build`, `Deep.folders`, `run`, `run_metrics`); scripts/cleat (the `--settings` argument on `graph` and `metrics`); scripts/tests/graph.test.sh, scripts/tests/metrics.test.sh |
+| GRAPH-35 | Covered | scripts/cleat_graph.py (`read_returns`, `attach_returns`, `returned_note`, `insights` — the returns insight, `as_json`'s `returns`, `Browser.when`, `Browser.details`, `run`); scripts/cleat (the `--returns` argument); scripts/cleat_graph.html (`returnedNote`, the node card's note); scripts/tests/graph.test.sh, under a pty |
+| GRAPH-33 | Covered | scripts/cleat_graph.py (`Walker.orphans`, `Walker.orphan`, `Walker.line_at`, `build`, `as_json`, `Browser` — the `ORPHANS` group, `right_tops`, `details`); scripts/cleat_graph.html (`visibleOrphans`, `drawRadar`'s orphan marks, `quatrefoil`, `orphanCard`, `orphansPanel`, `focusPanel`'s Orphans); scripts/tests/graph.test.sh, under a pty |
+
+## DEEP — Deep probe
+
+| ID      | Status  | Location |
+|---------|---------|----------|
+| DEEP-01 | Covered | scripts/cleat_graph.py (`Deep`, `Deep.widen`, `Deep.search`, `Deep.ring_one`, `Deep.transcripts`, `Deep.folders`, `Deep.projects_here`, `Graph.held`, `Walker.file_node`, `RINGS`, `run`); scripts/cleat (the `--deep` argument); scripts/tests/deep.test.sh |
+| DEEP-02 | Covered | scripts/cleat_graph.py (`Deep.ring_one`, `mentioning`, `clip`, `text_of`); scripts/tests/deep.test.sh |
+| DEEP-03 | Covered | scripts/cleat_graph.py (`agentsview`, `matches_of`, `Deep.transcripts`, `Deep.transcript_hit`); scripts/tests/deep.test.sh, against a stub agentsview |
+| DEEP-04 | Covered | scripts/cleat_graph.py (`ARTIFACT_PATTERN`, `ARTIFACT_URL`, `Deep.artifacts`); scripts/tests/deep.test.sh, against a stub agentsview |
+| DEEP-05 | Covered | scripts/cleat_graph.py (`Deep.context`, `Deep.look_up`, `Deep.hops`, `Deep.commits`, `Deep.messages`, `Browser.shown_context`, `Browser.follow`, `Browser.back`, `Browser.draw_context`); scripts/cleat_graph.html (`fromServer`, `hopPanel`, the details click handler); scripts/tests/deep.test.sh, under a pty |
+| DEEP-06 | Covered | scripts/cleat_graph.py (`deep_fix`, `deep_advice`); scripts/cleat_graph.html (`deepPanel`, `hopPanel`); scripts/tests/deep.test.sh |
+| DEEP-07 | Covered | scripts/cleat_graph.py (`rollup`'s ring groups, `left_rows`, `Browser.widen`, `Browser.deep_tag`, `Browser.draw`, `deep_summary`, `Deep.public`); scripts/tests/deep.test.sh, under a pty |
+| DEEP-08 | Covered | scripts/cleat_graph.py (`serve`, `render_html`'s serve payload, `run`); scripts/cleat (the `--serve` argument); scripts/cleat_graph.html (`SERVE`, `deeper`, `deepPanel`, `hitRow`); scripts/tests/deep.test.sh, against the live server |
+| DEEP-09 | Covered | scripts/cleat_graph.py (`agentsview`, `DeepError`, `Deep.widen`, `run`, `Browser`'s `deep-error` row); scripts/cleat_graph.html (`deepPanel`); scripts/tests/deep.test.sh |
+| DEEP-10 | Covered | scripts/cleat_graph.py (`run`, `repo_top`); scripts/tests/deep.test.sh |
+
+## METRICS — Context metrics
+
+| ID         | Status  | Location |
+|------------|---------|----------|
+| METRICS-01 | Covered | scripts/cleat (`cmd_metrics`, `main`); scripts/cleat_graph.py (`run_metrics`); scripts/tests/metrics.test.sh |
+| METRICS-02 | Covered | scripts/cleat_graph.py (`history_path`, `run_metrics`, `yaml_lines`, `_scalar`); scripts/tests/metrics.test.sh |
+| METRICS-03 | Covered | scripts/cleat_graph.py (`snapshot`); scripts/tests/metrics.test.sh |
+| METRICS-04 | Covered | scripts/cleat_graph.py (`snapshot`, `_stats`); scripts/tests/metrics.test.sh |
+| METRICS-05 | Covered | scripts/cleat_graph.py (`hop_counts`, `snapshot`); scripts/tests/metrics.test.sh |
+| METRICS-06 | Covered | scripts/cleat_graph.py (`depth_curve`, `CURVE_START_TOKENS`, `snapshot`); scripts/tests/metrics.test.sh |
+| METRICS-07 | Covered | scripts/cleat_graph.py (`owner_digest`, `snapshot`, `enabled_plugins`, `Graph.plugins`); scripts/tests/metrics.test.sh |
+| METRICS-08 | Covered | scripts/cleat_graph.py (`run_metrics`); scripts/tests/metrics.test.sh |
+
 ## DESIGN — Design tenets
 
 | ID        | Status  | Location |
 |-----------|---------|----------|
 | DESIGN-01 | Covered | hooks/hooks.yml; skills/context-tiering/SKILL.md, the one listing entry; guides/ named by path from scripts/cleat (`RUBRIC`, `PLACEMENT_GUIDE`, `TIERING_GUIDE`) |
+| DESIGN-02 | Covered | .claude/rules/view-parity.md, indexed in AGENTS.md (Rules); scripts/cleat_graph.py (`GROUPINGS`, `remote_sites`, `as_json`, `Browser.open_page`); scripts/cleat_graph.html (`sitesPanel`, `goHome`); scripts/tests/graph.test.sh, a check per view |
 
 ## HOOK — Hook dispatch
 
@@ -186,6 +255,58 @@ PACKAGING-03 is retired and not counted.
 | STATE-03 | Covered | scripts/cleat (`_prune_sessions`) |
 
 ## Audit history
+
+### 2026-11-13 — A session's returns (spec-req)
+
++1 ID (GRAPH-35). `cleat graph --returns LOG` reads one session's hook payloads and marks each node the session actually loaded, so the graph's prediction can be checked against a real session: an import counts toward the file importing it, a skill returns as its body, and a load no node predicts is listed as unexpected. A log with no startup load says so, since a plugin's hooks can register after Claude Code loads the startup instructions. 161/161 Covered.
+
+### 2026-11-13 — enabledPlugins version lists (spec-req)
+
+GRAPH-02 amended. Only an `enabledPlugins` value of `true` puts a plugin in the graph; a version list, which Claude Code keeps off (2.1.323 names why in `claude plugin list`), no longer reads as enabled. 160/160 Covered.
+
+### 2026-11-12 — A session's --settings (spec-req)
+
++1 ID (GRAPH-34); GRAPH-29 amended. `cleat graph` and `cleat metrics` take `--settings`, laid over the settings files as `claude --settings` is, so the graph covers a session a launcher like rig starts with plugins the settings files leave off. `just demo`, `demo-html`, and `demo-json` start from the `full` rig where rig is installed (`just rig=base demo` for another). Asking the page about a term leaves a wedge only for an owner holding a file it lights or an island, as the terminal's roll-up by distance and `--json` already do. 160/160 Covered.
+
+### 2026-11-11 — The deep probe (spec-req)
+
++10 IDs (DEEP-01–10), and the Ring and Deep hit concepts. With `--deep`, a probe looks past what a session loads, ring by ring: the repo's other files and its commits, then the agentsview transcripts of sessions run in the directory, then those of every project, with the claude.ai artifacts those sessions published. Each hit shows its context, the addresses, paths, session ids, and shas it names are hops to follow, and it carries the fix that would put it in ring 0. `cleat graph --serve` answers the page's deep searches on 127.0.0.1 behind a token. 159/159 Covered.
+
+### 2026-11-10 — External dependencies, home, and view parity (spec-req)
+
++1 ID (DESIGN-02); GRAPH-09, GRAPH-10, GRAPH-11, GRAPH-17, GRAPH-28, GRAPH-31, and GRAPH-33 amended. A probe takes a whole prompt, looking for its words less the common ones where a word starts, or a quoted phrase as typed, and ranks the skills by how many of its words each says. `just compare-probe` checks that ranking against what a headless `claude -p` invokes. Every view of a command's data offers the same features. The web addresses the files name are a view of their own: a rollup on `g`, or `e` directly, in the terminal browser, a panel on the page opened from the radar or its perimeter, and `sites` in the JSON. Orphans are drawn as the quatrefoil military symbology gives an unknown contact. In the terminal browser, `w` writes the page for what it shows, with its filter and probe term, and opens it. On the page, a home control at the top left returns to the view it opened on. 149/149 Covered.
+
+### 2026-11-09 — Islands and orphans (spec-req)
+
++1 ID (GRAPH-33); GRAPH-17, GRAPH-29, and GRAPH-30 amended. What a term's probe leaves unreached are islands, and each says why: the lit line that, naming the term, would light the file between and then the island, or the file linking it that the term never opens. Orphans are the files beside the guidance (in a skill's folder, or one a skill or rule links into) that nothing links to; each carries the line to name it on, and both views show them past the horizon and in a list of their own. 148/148 Covered.
+
+### 2026-11-09 — What a web address costs (spec-req)
+
++1 ID (GRAPH-32). A probe's meter counts going online, after every file it lights: each address a lit line names, at an estimate of what WebFetch hands back, capped by the page's measured text. `--measure-remote` fetches each address and keeps what it measured, or why it failed, for 30 days; every other run reads that cache offline. 147/147 Covered.
+
+### 2026-11-09 — One question, one meter, and a way back (spec-req)
+
++1 ID (GRAPH-31); GRAPH-09, GRAPH-10, GRAPH-17, GRAPH-18, GRAPH-22, GRAPH-29, and GRAPH-30 amended. The page asks one question, what a prompt about a term opens, and answers it with one meter: the 200k and 1M context windows, filled by what loads at start, then by what the term opens, hop by hop, its thumb lighting what a session has opened by then. The details panel opens on what to look at first; filters, insights, and the scorecard move to a drawer, and a file's particulars behind More. Every step into the view is an entry in the browser's history, so Esc, the mouse's back button, and Back walk it. The terminal browser opens compact, a bar and one number per row under the same meter, with `d` for the columns and the full strip, and Esc, backspace, and the mouse's back button step back. The example terms go: the reader asks their own. Day and night switch by a sun and moon icon. 146/146 Covered.
+
+### 2026-11-09 — The radar and the probe (spec-req)
+
++4 IDs (GRAPH-27–30); GRAPH-02, GRAPH-10, GRAPH-17, GRAPH-22, GRAPH-25, and GRAPH-26 amended. The page is one instrument, a radar: the universe, the node-link graph, and the vs ideal view fold into it (the scorecard as a card beside it, files past their ideal haloed, an owner's plan in the details panel), and the page names no resource outside itself. A probe term lights the loaded files that mention it and follows their references hop by hop, with what mentions it but nothing lit leads to beyond a horizon and each remote site a lit line names at the rim, one per host; the range dial lights what a session can spend. The terminal browser takes the same probe with `p`, rolled up by distance, and `--probe` carries it in the JSON. The walker records each file's web addresses, and the page carries each file's text gzipped so the probe runs offline. 145/145 Covered.
+
+### 2026-11-06 — Opening files, the mouse, focus, and a plan per owner (spec-req)
+
++4 IDs (GRAPH-23–26). Files open from where they're shown: OSC 8 links in the terminal browser and links on the page, each to the file and its folder. The terminal browser takes clicks and the wheel. Double-clicking a star narrows the universe to what it pulls in, and a key explains its marks. Selecting an owner in vs ideal gives a plan of what to change there and a starter prompt to hand a coding agent. 141/141 Covered.
+
+### 2026-11-06 — vs ideal (spec-req)
+
++4 IDs (GRAPH-19–22) and two concepts (ideal, excess). `cleat graph` checks each file against the budget for its tier (Anthropic's published skill budgets, and cleat's launch budget for launch), ranks the improvements by how often a session pays for them, and scores each owner, in a vs ideal view on the page, a group in the terminal browser, and the JSON. 137/137 Covered.
+
+### 2026-11-06 — Context metrics (spec-req)
+
++8 IDs (METRICS-01–08) and four concepts (depth cost, hop count, depth curve, metrics history). `cleat metrics` appends a YAML snapshot of the context graph's numbers to a history on the machine that took it: totals, per load tier, per hop count, the depth curve with b50 and b90, the largest step, and per-owner totals with plugin versions and content digests. 133/133 Covered.
+
+### 2026-11-05 — The context graph (spec-req)
+
++18 IDs (GRAPH-01–18) and seven concepts (context graph, load tier, root, reach cost, next cost, closure cost, unmeasured). `cleat graph` walks the repo, user scope, and enabled plugins for the deferred loads `cleat cost` leaves out, and browses them in the terminal, as an HTML page, or as JSON, with costs in estimated tokens insights on what stands out, the condition and reference behind each load, and a universe view of context spent by depth or breadth. 125/125 Covered.
 
 ### 2026-10-26 — What to do with a restated finding (spec-req)
 
