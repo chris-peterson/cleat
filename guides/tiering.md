@@ -35,6 +35,11 @@ instruction file is stripped before it loads, so a maintainer note there is
 free.
 
 A skill with `paths:` stays out of the listing until a matching file is touched.
+Probed at Claude Code 2.1.220: the entry then arrives as a reminder carrying
+the name and description, not the body; a Write triggers it as well as a Read;
+commands take `paths:` the same way; and the glob doesn't block invocation, so
+a skill another file calls can be path-scoped and still run from a session that
+never touched a matching file.
 
 ## The four moves
 
@@ -105,7 +110,32 @@ surfaces the next time the caller runs. Before you hide anything, search every
 skill, command, and agent body for its name.
 
 When a skill and a command share a name, the skill is the one that runs, and
-`cleat cost` counts only the skill.
+`cleat cost` counts only the skill. A `disable-model-invocation: true` on the
+command then does nothing: the skill's entry is the one listed.
+
+## The skill listing budget
+
+Every installed source's skills share one listing, and the user's settings cap
+it. Three keys govern it, none in the public settings reference; the schema
+inside the binary describes them (read at Claude Code 2.1.328):
+
+| Key | Default | Effect |
+| --- | --- | --- |
+| `skillListingBudgetFraction` | `0.01` | the share of the context window, counted in characters, the whole listing may take; past it, descriptions are shortened to fit |
+| `skillListingMaxDescChars` | `1536` | the cap on one description; longer ones are truncated |
+| `skillOverrides` | every skill `on` | per skill, by name: `name-only` lists it without its description, `user-invocable-only` hides it from the model but keeps `/name`, `off` hides it from both |
+
+The budget is a fraction of the context window, so it binds differently by
+model: 1% of a 200k-token window is about 8,000 characters for every plugin
+together, and one plugin has been measured at 31,433 on its own. On a 1M
+window the same setting rarely clips anything.
+
+**Find out whether the listing is already clipped before tuning a description
+for triggering.** Past the cap, the harness shortens descriptions by its own
+priority, not the author's, and a keyword added to a description the model
+never sees in full can't change what triggers. A plugin author doesn't control
+these keys; a user who wants a skill typable but out of the model's listing
+reaches for `user-invocable-only`.
 
 ## Checking a loader claim
 
@@ -125,6 +155,17 @@ against the installed binary:
 4. A quoted marker reached the context; a missing one didn't.
 
 Change one thing between runs. Record the `claude --version` with the result.
+
+- Put a different marker in the description and in the body to tell "the entry
+  arrived" from "the whole file arrived".
+- For a path-scoped piece, touch the matching file with Read in one run and
+  Write in another; each tool event triggers on its own.
+- Each probe is a real session in `~/.claude/projects`, so a batch of them
+  shows up in any metric that counts sessions or concurrency.
+
+For a settings key, read the schema instead of probing: run `strings` over the
+installed binary (`~/.local/share/claude/versions/<version>`) and search for
+the key. Its `.describe("…")` text states the default and the effect.
 
 ## Measuring
 

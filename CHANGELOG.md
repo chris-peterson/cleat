@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- The tiering guide covers the skill listing budget: the settings that cap the
+  listing across every installed plugin, and why to check whether it's already
+  clipped before rewording a description to trigger better. It also says what
+  a path-scoped skill carries when its glob matches, and how to probe a loader
+  claim so the result tells description from body and Read from Write.
+
 ## 0.5.0
 
 ### Added
