@@ -7,7 +7,7 @@ in-repo implementation. Status vocabulary: **Covered** · **Partial** ·
 **Evidence pointers:** file + enclosing symbol. A line number is invalidated by
 any edit above it, and the ledger is read long after that edit.
 
-**Coverage: 107/107 requirements Covered (100%)**
+**Coverage: 114/114 requirements Covered (100%)**
 
 ## CHECK — The check command
 
@@ -150,12 +150,24 @@ CHECK-12 is retired and not counted.
 | BOOT-05 | Covered | scripts/cleat (`_bootstrap`) |
 | BOOT-06 | Covered | scripts/cleat (`_bootstrap`, `_shadowing`); scripts/tests/bootstrap.test.sh |
 
+## ROUTING — Content handed over by masthead
+
+| ID     | Status  | Location |
+|--------|---------|----------|
+| ROUTING-01 | Covered | scripts/cleat (`_routed`, `_routed_announcements`, `ROUTED_HOMES`); scripts/tests/routed.test.sh |
+| ROUTING-02 | Covered | scripts/cleat (`_routed`); scripts/tests/routed.test.sh |
+| ROUTING-03 | Covered | scripts/cleat (`ROUTED_LINE`, `_routed_announcements`); scripts/tests/routed.test.sh — the near-misses |
+| ROUTING-04 | Covered | scripts/cleat (`_shown_value`); scripts/tests/routed.test.sh |
+| ROUTING-05 | Covered | scripts/cleat (`_routed`) — the `routed` bucket; scripts/tests/routed.test.sh |
+| ROUTING-06 | Covered | scripts/cleat (`_subscribed`, `ROUTED_SWITCHES`); scripts/tests/routed.test.sh |
+| ROUTING-07 | Covered | plugin.yml (`events`) |
+
 ## PREFILTER — Prefilter and cost
 
 | ID     | Status  | Location |
 |--------|---------|----------|
 | PREFILTER-01 | Covered | hooks/hooks.yml; hooks/prefilter.sh |
-| PREFILTER-02 | Covered | hooks/prefilter.sh — the `write` needles; hooks/hooks.yml; scripts/tests/prefilter.test.sh |
+| PREFILTER-02 | Covered | hooks/prefilter.sh — the `write` and `bash` needles; hooks/hooks.yml; scripts/tests/prefilter.test.sh |
 | PREFILTER-03 | Covered | hooks/prefilter.sh |
 | PREFILTER-04 | Covered | hooks/prefilter.sh; scripts/tests/prefilter.test.sh |
 
@@ -186,6 +198,10 @@ PACKAGING-03 is retired and not counted.
 | STATE-03 | Covered | scripts/cleat (`_prune_sessions`) |
 
 ## Audit history
+
+### 2026-11-25 — Content handed over by masthead
+
++7 IDs (ROUTING-01–07); HOOK-06, PREFILTER-01, PREFILTER-02, and STATE-02 amended. cleat subscribes to masthead's `content.routed`, the receiving half of issue #22; publishing cleat's own waits on #24. 114/114 Covered.
 
 ### 2026-10-26 — What to do with a restated finding (spec-req)
 

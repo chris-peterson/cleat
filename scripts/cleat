@@ -123,6 +123,22 @@ POINTER = """@AGENTS.md
 # its own: https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md
 CLAUDE_FAMILY = (CLAUDE, ".claude/CLAUDE.md", "CLAUDE.local.md")
 
+# masthead's announcement that it turned content away from the end-user docs
+# hub. Anchored at the start of a line and on the whitespace after the key, so a
+# longer key sharing the prefix, or the key inside a larger word, never matches.
+ROUTED_KEY = "codes.bridgeai.masthead/content.routed"
+ROUTED_LINE = re.compile(r"^" + re.escape(ROUTED_KEY) + r"[^\S\n]+(.*?)\r?$", re.M)
+# The contract's off switches: every key from masthead, then this one key.
+ROUTED_SWITCHES = ("cleat.subscribe.masthead", "cleat.subscribe.masthead.content-routed")
+ROUTED_AUDIENCES = {"maintainer": "maintainers", "agent": "agents"}
+ROUTED_HOMES = {
+    "maintainer": "README.md, or a peer such as CONTRIBUTING.md",
+    "agent": "the agent branch of the placement tree: AGENTS.md, a nested "
+             "AGENTS.md, a path-scoped topic rule, or a skill",
+}
+ROUTED_CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]")
+ROUTED_MAX_CHARS = 200
+
 
 # ---- findings ---------------------------------------------------------------
 
@@ -1609,8 +1625,118 @@ def _bootstrap(session_id, path):
     }
 
 
+# ---- hook: subscriptions ----------------------------------------------------
+#
+# The suite's events contract: a sibling plugin announces a fact as one line on
+# a Bash call's stdout, `<key> <compact JSON object>`, and a PostToolUse(Bash)
+# hook matches it. cleat subscribes to masthead's content.routed, which masthead
+# prints when it turns content away from the end-user docs hub. Where that
+# content goes instead is a judgment, so the subscriber nudges and moves nothing.
+# https://github.com/chris-peterson/claude-marketplace/blob/main/authoring/plugin-contract.md
+
+def _routed_announcements(stdout):
+    """Each well-formed masthead content.routed body in stdout, in order. A body
+    that doesn't parse, or carries a field of the wrong type, is skipped: one
+    malformed line from a sibling must never take this hook down."""
+    found = []
+    for match in ROUTED_LINE.finditer(stdout):
+        try:
+            body = json.loads(match.group(1))
+        except ValueError:
+            continue
+        if not isinstance(body, dict):
+            continue
+        tier, path = body.get("tier"), body.get("path")
+        if tier not in ROUTED_HOMES or not isinstance(path, str):
+            continue
+        extras = [body.get(field) for field in ("title", "reason")]
+        if any(value is not None and not isinstance(value, str) for value in extras):
+            continue
+        path, title, reason = (_shown_value(v) for v in [path] + extras)
+        if path:
+            found.append((tier, path, title, reason))
+    return found
+
+
+def _shown_value(value):
+    """A decoded value made safe for the agent's context: JSON can carry what the
+    line can't, so a `\\n` or a `\\u009b` would otherwise forge a line or a
+    control sequence. Strips C0, DEL, and C1, and caps the length."""
+    if not value:
+        return ""
+    value = ROUTED_CONTROL.sub("", value).strip()
+    if len(value) > ROUTED_MAX_CHARS:
+        value = value[:ROUTED_MAX_CHARS - 1].rstrip() + "…"
+    return value
+
+
+def _subscribed(directory):
+    """False when the user turned the subscription off, by publisher or by key.
+    Read in the repo the event is about, so a repo-level exception wins."""
+    for switch in ROUTED_SWITCHES:
+        value = _git(directory, "config", "--type=bool", "--get", switch,
+                     unset_ok=True).strip()
+        if value == "false":
+            return False
+    return True
+
+
+def _routed(payload):
+    response = payload.get("tool_response")
+    stdout = response.get("stdout") if isinstance(response, dict) else None
+    if not isinstance(stdout, str):
+        return None
+    announcements = _routed_announcements(stdout)
+    if not announcements:
+        return None
+
+    directory = payload.get("cwd") or os.getcwd()
+    if not _subscribed(directory):
+        return None
+
+    # One note per piece of content per session. A session can publish the same
+    # key twice, and once cleat publishes its own content.routed, a disagreement
+    # between the two plugins must reach the agent once, not bounce.
+    session_id = payload.get("session_id") or ""
+    fresh = []
+    for tier, path, title, reason in announcements:
+        name = _key(tier, path, title)
+        if _marked(session_id, "routed", name) is None:
+            _mark(session_id, "routed", name)
+            fresh.append((tier, path, title, reason))
+    if not fresh:
+        return None
+
+    lines = []
+    for tier, path, title, reason in fresh:
+        item = "- `{}`".format(path)
+        if title:
+            item += " — \"{}\"".format(title)
+        item += ": for {}. Place it in {}.".format(ROUTED_AUDIENCES[tier], ROUTED_HOMES[tier])
+        if reason:
+            item += " masthead's reason: {}".format(reason)
+        lines.append(item)
+
+    return {
+        "hookSpecificOutput": {
+            "hookEventName": "PostToolUse",
+            "additionalContext": (
+                "cleat — masthead turned content away from the end-user docs hub:\n"
+                "{}\n\n"
+                "masthead has already ruled this out for end users, so place it rather "
+                "than handing it back to the hub. Write it once, in the file its reader "
+                "consults, and link to it from anywhere else that needs it. Where you "
+                "disagree with masthead, decide once and say why. Placement guide: {}\n\n"
+                "To turn this off: git config --global cleat.subscribe.masthead false"
+            ).format("\n".join(lines), PLACEMENT_GUIDE),
+        },
+    }
+
+
 def post_tool_use(payload):
     tool = payload.get("tool_name")
+    if tool == "Bash":
+        return _routed(payload)
     tool_input = payload.get("tool_input") or {}
     raw_path = tool_input.get("file_path")
     if not raw_path:

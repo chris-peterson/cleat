@@ -1,25 +1,31 @@
 # Source of record for cleat's hooks — shipyard generates hooks.json.
 #
-# All three registrations point at the same pure-bash prefilter rather than at
+# Every registration points at the same pure-bash prefilter rather than at
 # the python CLI. Read is the highest-frequency tool in a session, so the common
 # path has to cost a bash process and nothing more; the prefilter execs the CLI
-# only for a payload that names a file cleat has an opinion about.
+# only for a payload that names a file cleat has an opinion about, or carries
+# a sibling's announcement that cleat subscribes to.
 #
 # The per-event jobs, all dispatched inside `cleat hook` on hook_event_name:
 #   PreToolUse  Write|Edit  gate a CLAUDE.md write in a repo with no AGENTS.md,
 #                           and ask where new guidance belongs
 #   PostToolUse Write|Edit  report near-miss shapes, copies, and wrong-way links
 #   PostToolUse Read        guide bootstrapping where the convention is absent
+#   PostToolUse Bash        place content masthead turned away from its docs hub
 hooks:
   - event: PreToolUse
     matcher: 'Write|Edit'
     command: 'bash "${CLAUDE_PLUGIN_ROOT}/hooks/prefilter.sh" write'
-    description: Runs the cleat CLI only for a payload naming an agent instruction file.
+    description: Runs the cleat CLI only for a payload naming an agent instruction file or carrying an announcement cleat subscribes to.
   - event: PostToolUse
     matcher: 'Write|Edit'
     command: 'bash "${CLAUDE_PLUGIN_ROOT}/hooks/prefilter.sh" write'
-    description: Runs the cleat CLI only for a payload naming an agent instruction file.
+    description: Runs the cleat CLI only for a payload naming an agent instruction file or carrying an announcement cleat subscribes to.
   - event: PostToolUse
     matcher: 'Read'
     command: 'bash "${CLAUDE_PLUGIN_ROOT}/hooks/prefilter.sh" read'
-    description: Runs the cleat CLI only for a payload naming an agent instruction file.
+    description: Runs the cleat CLI only for a payload naming an agent instruction file or carrying an announcement cleat subscribes to.
+  - event: PostToolUse
+    matcher: 'Bash'
+    command: 'bash "${CLAUDE_PLUGIN_ROOT}/hooks/prefilter.sh" bash'
+    description: Runs the cleat CLI only for a payload naming an agent instruction file or carrying an announcement cleat subscribes to.

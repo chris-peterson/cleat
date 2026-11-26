@@ -29,6 +29,15 @@
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/prefilter.sh\" read"
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/prefilter.sh\" bash"
+          }
+        ]
       }
     ]
   }

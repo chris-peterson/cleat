@@ -61,6 +61,22 @@ done
 run_prefilter "$(payload PostToolUse Read /repo/AGENTS.md)" read
 check "the read registration still admits AGENTS.md" "$REACHED" "yes"
 
+echo "== the bash registration admits only a subscribed announcement =="
+# Bash output names instruction files constantly (git status, ls, grep), so the
+# bash registration must not inherit the file needles.
+bash_out() {  # $1 stdout
+  python3 -c 'import json,sys; print(json.dumps({"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"x"},"tool_response":{"stdout":sys.argv[1]}}))' "$1"
+}
+run_prefilter "$(bash_out 'codes.bridgeai.masthead/content.routed {"tier":"agent","path":"a.md"}')" bash
+check "masthead's content.routed reaches the CLI" "$REACHED" "yes"
+check "and the prefilter exits 0" "$PREFILTER_EXIT" "0"
+run_prefilter "$(bash_out ' M README.md
+ M AGENTS.md
+?? .claude/rules/api.md')" bash
+check "git status naming instruction files does not" "$REACHED" "no"
+run_prefilter "$(bash_out 'codes.bridgeai.anchor/cr.created {"uri":"https://example.com/pr/1"}')" bash
+check "nor does a key cleat doesn't subscribe to" "$REACHED" "no"
+
 echo "== the payload reaches the CLI intact =="
 p="$(payload PostToolUse Read /repo/AGENTS.md)"
 run_prefilter "$p"

@@ -18,8 +18,8 @@ are in [SPEC.md](./SPEC.md), their coverage in [STATUS.md](./STATUS.md).
 
 ## Exercising it without a session
 
-The CLI is the whole implementation; the hooks are three registrations pointing
-at it. Both halves run standalone.
+The CLI is the whole implementation; the hooks are registrations pointing at
+it. Both halves run standalone.
 
 Report a directory's findings:
 
@@ -44,6 +44,24 @@ printf '%s' '{
   "tool_input": {"file_path": "/tmp/demo/CLAUDE.md", "content": "# Demo\n\nRun `just test`.\n"}
 }' | python3 scripts/cleat hook
 ```
+
+## Checking the masthead subscription live
+
+cleat subscribes to `codes.bridgeai.masthead/content.routed`, which masthead
+announces when it turns content away from its end-user docs hub. The synthetic
+test (`scripts/tests/routed.test.sh`) proves the matcher; only a live session
+proves the line arrives. Load this checkout, have the agent print an
+announcement, and ask what came back:
+
+```bash
+claude -p --plugin-dir . --allowedTools='Bash(printf:*)' \
+  "Run exactly this Bash command: printf 'codes.bridgeai.masthead/content.routed {\"tier\":\"maintainer\",\"path\":\"docs/build.md\",\"title\":\"Building\",\"reason\":\"Needs a checkout.\"}\n'. Then quote any hook context that arrived after it, or reply NONE."
+```
+
+A working subscription quotes a note that begins `cleat — masthead turned content
+away`. `NONE` proves nothing until you've confirmed the hook ran: launch with
+`--debug` and look for the `PostToolUse:Bash` line below. Each session notes a
+piece of content once, so run a fresh session for each try.
 
 ## Watching the hooks fire
 

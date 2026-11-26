@@ -41,6 +41,16 @@ marketplace:
         - '**/GEMINI.md'
         - '**/AGENTS.md'
 
+events:
+  subscribes:
+    - key: codes.bridgeai.masthead/content.routed
+      handled_by: scripts/cleat
+      reason: >-
+        content masthead turns away from the end-user docs hub still needs a
+        home, so the agent is told which file its reader consults (README.md
+        for maintainers, AGENTS.md or a topic rule for agents) with masthead's
+        reason attached, once per piece of content per session
+
 # → marketplace SPA; keys mirror the SPA's PLUGINS object.
 suite:
   group: charts
@@ -55,8 +65,8 @@ suite:
     skills:
       context-tiering: This skill should be used when the user asks to "reduce startup context", "trim CLAUDE.md", "tier these rules", or "why is my context so big".
     hooks:
-      hooks: 'Hook wiring: PreToolUse→prefilter (Write|Edit); PostToolUse→prefilter (Write|Edit, Read).'
-      prefilter: PreToolUse / PostToolUse — Runs the cleat CLI only for a payload naming an agent instruction file.
+      hooks: 'Hook wiring: PreToolUse→prefilter (Write|Edit); PostToolUse→prefilter (Write|Edit, Read, Bash).'
+      prefilter: PreToolUse / PostToolUse — Runs the cleat CLI only for a payload naming an agent instruction file or carrying an announcement cleat subscribes to.
   # <<< shipyard:describe <<<
   examples:
     # cleat has no slash commands, so the examples are anchored on the two

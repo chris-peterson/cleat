@@ -390,8 +390,9 @@ When the tool is `Edit`, the hook shall judge the on-disk file with `old_string`
 replaced by `new_string`.
 
 #### `HOOK-06`
-The plugin shall register exactly three hooks: `PreToolUse` on `Write|Edit`,
-`PostToolUse` on `Write|Edit`, and `PostToolUse` on `Read`.
+The plugin shall register exactly four hooks: `PreToolUse` on `Write|Edit`,
+`PostToolUse` on `Write|Edit`, `PostToolUse` on `Read`, and `PostToolUse` on
+`Bash`.
 
 #### `HOOK-07`
 If the payload does not parse, or deciding it fails, then `cleat hook` shall
@@ -561,17 +562,67 @@ Each bootstrap trigger shall emit both `systemMessage`, so the user sees it, and
 When a shadowed `AGENTS.md` is read, the system shall surface that no Claude Code
 session reads it and offer to add the pointer beside it.
 
+### `ROUTING`
+Content handed over by masthead
+
+masthead places content for end users and announces
+`codes.bridgeai.masthead/content.routed` when it turns content away from its
+docs hub as belonging to agents or maintainers. The announcement format and the
+subscriber's obligations are the suite's
+[events contract](https://github.com/chris-peterson/claude-marketplace/blob/main/authoring/plugin-contract.md).
+
+#### `ROUTING-01`
+When a `Bash` call's stdout carries a line that starts with
+`codes.bridgeai.masthead/content.routed`, then whitespace, then a JSON object
+whose `tier` is `agent` or `maintainer` and whose `path` is a string, the system
+shall add a note to the agent's context through `additionalContext`. The note
+shall name the path, the `title` and masthead's `reason` where the announcement
+gives them, and where that audience's content goes: `README.md` or a peer for
+maintainers, the placement tree's agent branch for agents. One output carrying
+several announcements shall make one note listing each.
+
+#### `ROUTING-02`
+The note shall say that masthead has ruled the content out for end users, so the
+agent places it rather than handing it back to the hub, and shall name the
+placement guide by path. The system shall move no content itself.
+
+#### `ROUTING-03`
+If a line carries the key without starting with it, carries a longer key sharing
+its prefix, or carries a body that does not parse, is not an object, or has a
+field of the wrong type, then the system shall skip that line.
+
+#### `ROUTING-04`
+The system shall strip C0, DEL, and C1 control characters from each decoded
+value, and cap it at 200 characters, before putting it in the agent's context.
+
+#### `ROUTING-05`
+The system shall note each piece of content, by tier, path, and title, at most
+once per session, so a re-announcement, or a disagreement between two plugins
+over where content goes, reaches the agent once.
+
+#### `ROUTING-06`
+When git config, read in the payload's `cwd`, sets `cleat.subscribe.masthead` or
+`cleat.subscribe.masthead.content-routed` to false, the system shall stay
+silent. The note shall end with the `git config --global` command that turns the
+subscription off.
+
+#### `ROUTING-07`
+`plugin.yml` shall declare the subscription under `events: subscribes:`, naming
+the file that handles it.
+
 ### `PREFILTER`
 Prefilter and cost
 
 #### `PREFILTER-01`
-A single pure-bash prefilter shall front all three hook registrations.
+A single pure-bash prefilter shall front every hook registration.
 
 #### `PREFILTER-02`
 The prefilter shall read the payload on stdin and exit unless the raw payload
 contains one of a fixed set of substrings. The write registrations shall add
 the rest of the documentation set to that set; the read registration shall
-not, so a read under `docs/` never starts python.
+not, so a read under `docs/` never starts python. The bash registration shall
+test only for the keys of the announcements cleat subscribes to, so Bash output
+that merely names an instruction file never starts python.
 
 #### `PREFILTER-03`
 The prefilter shall decide whether a payload is a candidate without invoking
@@ -656,8 +707,9 @@ needs state, the hook shall report the failure as a `systemMessage`.
 
 #### `STATE-02`
 Hook state shall be partitioned by session, so the gate's re-issue record, the
-nudge's last reported finding set, and the bootstrap triggers already fired all
-expire together with the session that made them.
+nudge's last reported finding set, the bootstrap triggers already fired, and the
+handed-over content already noted all expire together with the session that made
+them.
 
 #### `STATE-03`
 The plugin shall prune session state older than seven days, so state written on
