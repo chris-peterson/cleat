@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- When masthead turns content away from your end-user docs hub because it's
+  for maintainers or agents, cleat tells the agent where it goes instead:
+  `README.md` or a peer for maintainers, `AGENTS.md` or a topic rule for
+  agents, with masthead's reason attached. Each piece of content is noted
+  once per session, and the agent places it rather than handing it back to
+  the hub. Turn it off with
+  `git config --global cleat.subscribe.masthead false`.
+
 ## 0.5.0
 
 ### Added

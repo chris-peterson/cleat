@@ -41,6 +41,16 @@ if [ "${1:-write}" = "write" ]; then
   )
 fi
 
+# Bash is the other high-frequency tool, and its output names README.md and
+# AGENTS.md all the time without anything having been written. A Bash payload
+# matters only when it carries a sibling plugin's announcement that cleat
+# subscribes to, so the bash registration tests for those keys and nothing else.
+if [ "${1:-}" = "bash" ]; then
+  needles=(
+    codes.bridgeai.masthead/content.routed
+  )
+fi
+
 payload="$(cat)"
 
 for needle in "${needles[@]}"; do

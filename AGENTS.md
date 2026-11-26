@@ -26,7 +26,7 @@ just self-check        # cleat's findings for this repo — it must hold its own
 
 ```text
 plugin.yml              source of record for metadata and marketplace copy
-hooks/hooks.yml         source of record for the three hook registrations
+hooks/hooks.yml         source of record for the hook registrations
 hooks/prefilter.sh      the bash prefilter fronting every registration
 scripts/cleat           the CLI: `check`, `index`, `cost`, and `hook`
 scripts/tests/          bash test suite
